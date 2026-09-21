@@ -7,6 +7,7 @@ export interface RedactedRequestLog {
   error: string | null;
   timestamp: number;
   resourceType: string;
+  ip?: string | null;
 }
 
 export function redactUrl(rawUrl: string): string {

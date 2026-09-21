@@ -23,6 +23,7 @@ function registerWebRequestCapture(): void {
         error: null,
         timestamp: details.timeStamp,
         resourceType: details.type,
+        ip: details.ip ?? null,
       });
     },
     { urls: ['<all_urls>'] },
@@ -37,6 +38,7 @@ function registerWebRequestCapture(): void {
         error: details.error,
         timestamp: details.timeStamp,
         resourceType: details.type,
+        ip: details.ip ?? null,
       });
     },
     { urls: ['<all_urls>'] },
