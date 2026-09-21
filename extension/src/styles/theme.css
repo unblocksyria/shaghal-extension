@@ -1,0 +1,382 @@
+:root {
+  --us-bg: #0F0F10;
+  --us-card: #141416;
+  --us-card-hover: #18181b;
+  --us-card-nested: #0F0F10;
+  --us-border: rgba(255, 255, 255, 0.10);
+  --us-border-hover: rgba(185, 168, 123, 0.50);
+  --us-border-focus: #B9A87B;
+  
+  --us-gold: #B9A87B;
+  --us-gold-dark: #6d6340;
+  --us-gold-light: #d4c9a8;
+  --us-gold-subtle: rgba(185, 168, 123, 0.12);
+  --us-gold-glow: rgba(185, 168, 123, 0.25);
+  
+  /* Official Syrian Green primary button colors from website */
+  --us-syrian-dark-green: #092724;
+  --us-syrian-green-light: #1a4a45;
+  --us-syrian-green-hover: #133c37;
+  --us-syrian-green-accessible: #7ebdb7;
+
+  --us-text-primary: #FFFFFF;
+  --us-text-muted: #828284;
+  --us-text-dim: #71717A;
+
+  --us-working: #22c55e;
+  --us-working-solid: #177B30;
+  --us-working-bg: #10281b;
+  --us-working-border: #16a34a;
+  --us-working-text: #86efac;
+  --us-working-text-soft: #80a982;
+  --us-working-light: #56eda2;
+
+  --us-failing: #EF4444;
+  --us-failing-solid: #6B1F2A;
+  --us-failing-bg: rgba(239, 68, 68, 0.12);
+  --us-failing-border: rgba(239, 68, 68, 0.35);
+
+  --us-unknown: #9CA3AF;
+  --us-unknown-solid: #0E0E10;
+  --us-unknown-bg: rgba(156, 163, 175, 0.12);
+  --us-unknown-border: rgba(156, 163, 175, 0.28);
+
+  --us-radius-card: 12px;
+  --us-radius-control: 8px;
+  --us-radius-pill: 9999px;
+
+  --shadow-syrian-card: 0 4px 20px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.25);
+
+  --us-font: "Basis Grotesque", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background-color: var(--us-bg);
+  color: var(--us-text-primary);
+  font-family: var(--us-font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
+}
+
+/* 
+  Full page ambient lattice background pattern and lighting.
+  - The ambient radial gradient stays 100% steady and serene during idle.
+  - Smooth 0.8s cross-fade transition ONLY when status changes (idle <-> active <-> error).
+  - The Damascus lattice keys gently twinkle and flicker organically via @keyframes lattice-blink.
+*/
+.us-app-container {
+  min-height: 100vh;
+  position: relative;
+  background-color: var(--us-bg);
+  transition: background-color 0.4s ease;
+}
+
+/* Multi-layer Ambient Lighting System: Steady during idle, smoothly cross-fades only during transitions */
+.us-ambient-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.us-ambient-layer {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: opacity;
+}
+
+/* 1. Default (Idle): Warm Syrian Gold ambient glow - Calm, steady, NO idle animation */
+.us-ambient-idle {
+  background: 
+    radial-gradient(circle at 50% 0%, rgba(185, 168, 123, 0.18) 0%, rgba(185, 168, 123, 0.04) 50%, transparent 80%),
+    radial-gradient(circle at 50% 100%, rgba(185, 168, 123, 0.08) 0%, transparent 60%);
+}
+
+/* 2. Active Session: Emerald Green glow - steady, cross-fades when session starts */
+.us-ambient-active {
+  background: 
+    radial-gradient(circle at 50% 0%, rgba(34, 197, 94, 0.26) 0%, rgba(16, 40, 27, 0.12) 50%, transparent 80%),
+    radial-gradient(circle at 50% 100%, rgba(34, 197, 94, 0.12) 0%, transparent 60%);
+}
+
+/* 3. Error / Block: Rose Red glow - steady, cross-fades when error occurs */
+.us-ambient-error {
+  background: 
+    radial-gradient(circle at 50% 0%, rgba(239, 68, 68, 0.26) 0%, rgba(239, 68, 68, 0.10) 50%, transparent 80%),
+    radial-gradient(circle at 50% 100%, rgba(239, 68, 68, 0.12) 0%, transparent 60%);
+}
+
+/* Cross-fade triggers: Smooth transition only when state changes */
+.status-idle .us-ambient-idle {
+  opacity: 1;
+}
+.status-active .us-ambient-active {
+  opacity: 1;
+}
+.status-error .us-ambient-error {
+  opacity: 1;
+}
+
+/* Damascus Lattice Background & Flickering Keys matching unblocksyria.com */
+.us-lattice-container {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.us-lattice-svg {
+  width: 100%;
+  height: 100%;
+  color: var(--us-gold);
+}
+
+.us-lattice-base {
+  opacity: 0.055;
+}
+
+.us-lattice-flicker-group {
+  opacity: 0.22;
+}
+
+/* Slower, ultra-smooth breathing twinkle with sinusoidal fade in & out */
+@keyframes lattice-blink {
+  0%, 100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.36;
+  }
+}
+
+.lattice-blink {
+  opacity: 0;
+  animation-name: lattice-blink;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  will-change: opacity;
+}
+
+.lattice-blink-still {
+  opacity: 0.4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lattice-blink {
+    animation: none !important;
+    opacity: 0.15;
+  }
+}
+
+/* Fallback ::before for containers without explicit layers */
+.us-app-container:not(:has(.us-ambient-container))::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.status-idle.us-app-container:not(:has(.us-ambient-container))::before {
+  background: 
+    radial-gradient(circle at 50% 0%, rgba(185, 168, 123, 0.18) 0%, rgba(185, 168, 123, 0.04) 45%, transparent 75%),
+    radial-gradient(circle at 50% 100%, rgba(185, 168, 123, 0.08) 0%, transparent 60%);
+}
+.status-active.us-app-container:not(:has(.us-ambient-container))::before {
+  background: 
+    radial-gradient(circle at 50% 0%, rgba(34, 197, 94, 0.26) 0%, rgba(16, 40, 27, 0.12) 45%, transparent 75%),
+    radial-gradient(circle at 50% 100%, rgba(34, 197, 94, 0.14) 0%, transparent 60%);
+}
+.status-error.us-app-container:not(:has(.us-ambient-container))::before {
+  background: 
+    radial-gradient(circle at 50% 0%, rgba(239, 68, 68, 0.26) 0%, rgba(239, 68, 68, 0.10) 45%, transparent 75%),
+    radial-gradient(circle at 50% 100%, rgba(239, 68, 68, 0.14) 0%, transparent 60%);
+}
+
+/* Content wrapper ensuring it sits above the ambient glow */
+.us-app-content {
+  position: relative;
+  z-index: 1;
+}
+
+/* Custom sleek dark scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--us-gold);
+}
+
+/* Animations */
+@keyframes usFadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes usPulseGreen {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+.us-animate-fade {
+  animation: usFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.us-pulse-recording {
+  animation: usPulseGreen 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
+}
+
+/* 
+  Functionality Rows matching Image 1:
+  Clean flat rows with label on left and segmented pill control on right.
+*/
+.us-func-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  gap: 12px;
+  transition: background-color 0.15s ease;
+}
+
+.us-func-row:last-child {
+  border-bottom: none;
+}
+
+.us-func-label {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: #FFFFFF;
+  letter-spacing: -0.01em;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.us-seg-container {
+  display: inline-flex;
+  align-items: center;
+  background-color: #17171a;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.us-seg-btn {
+  border: 1px solid transparent;
+  background: transparent;
+  color: #9CA3AF;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 5px 13px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 40ms linear, color 40ms linear, border-color 40ms linear;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.us-seg-btn:active {
+  transform: scale(0.96);
+}
+
+.us-seg-btn:hover:not(.active-works):not(.active-fails):not(.active-notchecked) {
+  color: #FFFFFF;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Works active state: sampled #177B30 from Image 1 */
+.us-seg-btn.active-works {
+  background-color: #177B30;
+  color: #FFFFFF;
+  font-weight: 600;
+  border-color: transparent;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Fails active state: sampled #6B1F2A from Image 1 */
+.us-seg-btn.active-fails {
+  background-color: #6B1F2A;
+  color: #FFFFFF;
+  font-weight: 600;
+  border-color: transparent;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Not checked active state: sampled #0E0E10 from Image 1 */
+.us-seg-btn.active-notchecked {
+  background-color: #0E0E10;
+  color: #FFFFFF;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Toast Notification matching Image 3 */
+.us-toast-green {
+  background-color: var(--us-working-bg);
+  border: 1px solid var(--us-working-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
+}
+
+.us-toast-badge {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background-color: var(--us-working-text);
+  color: var(--us-working-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.us-toast-btn-action {
+  background-color: #FFFFFF;
+  color: #000000;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+  white-space: nowrap;
+}
+
+.us-toast-btn-action:hover {
+  opacity: 0.9;
+}
+

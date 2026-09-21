@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+.output/
+.wxt/
+dist/
+
+# Private local context (not for the shared repo)
+AI_CONTEXT/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
