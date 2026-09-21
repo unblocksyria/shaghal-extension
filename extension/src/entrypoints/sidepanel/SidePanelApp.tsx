@@ -5,8 +5,7 @@ import {
   type DuplicateCheck,
   type ServiceRecord,
 } from '../../lib/endpoints';
-import { captureAndUploadScreenshot } from '../../lib/evidence';
-import { resolveTurnstileToken } from '../../lib/turnstile';
+import { captureScreenshot } from '../../lib/evidence';
 import { sendSessionMessage } from '../../lib/messaging';
 import { normalizeServiceUrl } from '../../lib/url';
 import { classifyLogs, type LogVerdict } from '../../lib/classifier';
@@ -123,21 +122,23 @@ export function SidePanelApp() {
     setView('check');
   };
 
-  const removeEvidence = (url: string) => {
-    setEvidence((current) => current.filter((item) => item.url !== url));
+  const removeEvidence = (id: string) => {
+    setEvidence((current) => current.filter((item) => item.id !== id));
   };
 
   const takeScreenshot = async () => {
     setError(null);
-    const token = await resolveTurnstileToken();
     const currentWindow = await chrome.windows.getCurrent();
-    const reportType = view === 'new-service' ? 'submission' : view === 'correction' ? 'correction' : 'functionality_report';
-    const result = await captureAndUploadScreenshot(currentWindow.id ?? 0, reportType, token);
-    if (!result.ok) {
-      setError(result.error.message);
-      return;
+    try {
+      const captured = await captureScreenshot(currentWindow.id ?? 0);
+      setEvidence((current) => [...current, captured]);
+    } catch (captureError) {
+      setError(`Screenshot failed: ${String(captureError)}`);
     }
-    setEvidence((current) => [...current, result.data]);
+  };
+
+  const markEvidenceUploaded = (id: string, uploadedUrl: string) => {
+    setEvidence((current) => current.map((item) => (item.id === id ? { ...item, uploadedUrl } : item)));
   };
 
   const startTest = async () => {
@@ -193,6 +194,7 @@ export function SidePanelApp() {
             onError={setError}
             onTakeScreenshot={takeScreenshot}
             onRemoveEvidence={removeEvidence}
+            onEvidenceUploaded={markEvidenceUploaded}
           />
         );
       case 'new-service':
@@ -206,6 +208,7 @@ export function SidePanelApp() {
             onError={setError}
             onTakeScreenshot={takeScreenshot}
             onRemoveEvidence={removeEvidence}
+            onEvidenceUploaded={markEvidenceUploaded}
           />
         );
       case 'report-functionality':

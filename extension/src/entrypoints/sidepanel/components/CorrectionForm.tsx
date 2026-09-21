@@ -43,7 +43,8 @@ export function CorrectionForm(props: {
   onBack: () => void;
   onError: (message: string | null) => void;
   onTakeScreenshot: () => Promise<void>;
-  onRemoveEvidence: (url: string) => void;
+  onRemoveEvidence: (id: string) => void;
+  onEvidenceUploaded: (id: string, uploadedUrl: string) => void;
 }) {
   const [selected, setSelected] = useState<Set<CorrectionType>>(new Set());
   const [proposals, setProposals] = useState<Partial<Record<CorrectionType, string>>>({});
@@ -97,13 +98,29 @@ export function CorrectionForm(props: {
   const submit = async () => {
     setSubmitting(true);
     const { submitCorrection } = await import('../../../lib/submit');
+    const { uploadPendingEvidence } = await import('../../../lib/evidence');
+    const { resolveTurnstileToken } = await import('../../../lib/turnstile');
+    const token = await resolveTurnstileToken();
+
+    const uploadedUrls: string[] = [];
+    for (const item of props.evidence) {
+      const uploadResult = await uploadPendingEvidence(item, 'correction', token);
+      if (!uploadResult.ok) {
+        setSubmitting(false);
+        props.onError(`Evidence upload failed for ${item.filename}: ${uploadResult.error.message}`);
+        return;
+      }
+      uploadedUrls.push(uploadResult.data.uploadedUrl as string);
+      props.onEvidenceUploaded(item.id, uploadResult.data.uploadedUrl as string);
+    }
+
     const noteWithDigest = await composeNoteWithDigest(note.length > 0 ? note : undefined);
     const result = await submitCorrection({
       serviceId: props.service.id,
       changes: validChanges.slice(0, 6),
       submitterEmail: email.trim().length > 0 ? email.trim() : undefined,
       submitterNote: noteWithDigest,
-      evidenceUrls: props.evidence.map((item) => item.url),
+      evidenceUrls: uploadedUrls,
     });
     setSubmitting(false);
     if (!result.ok) {

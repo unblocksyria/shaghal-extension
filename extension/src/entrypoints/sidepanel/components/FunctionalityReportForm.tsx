@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { captureAndUploadScreenshot } from '../../../lib/evidence';
+import { captureScreenshot, uploadPendingEvidence, type PendingEvidence } from '../../../lib/evidence';
 import { composeNoteWithDigest } from '../../../lib/logs';
 import { resolveTurnstileToken } from '../../../lib/turnstile';
 import { getSavedEmail } from '../../../lib/settings';
@@ -18,7 +18,7 @@ interface PartEntry {
   trackedLevel: 'working' | 'failing' | 'unknown' | 'not_tracked';
   level?: 'working' | 'failing' | 'unknown';
   description: string;
-  evidenceUrls: string[];
+  evidence: PendingEvidence[];
 }
 
 export const SUGGESTABLE_PARTS = new Set(['core_use', 'landing_page']);
@@ -44,7 +44,7 @@ export function FunctionalityReportForm(props: {
             ? 'failing'
             : undefined,
       description: '',
-      evidenceUrls: [],
+      evidence: [],
     })),
   );
   const [activeDetailsPart, setActiveDetailsPart] = useState<string | null>(null);
@@ -71,7 +71,7 @@ export function FunctionalityReportForm(props: {
         preEditStateRef.current.set(slug, {
           level: part.level,
           description: part.description,
-          evidenceUrls: [...part.evidenceUrls],
+          evidence: [...part.evidence],
         });
       }
       return current;
@@ -101,7 +101,7 @@ export function FunctionalityReportForm(props: {
   const cancelEdit = (slug: string) => {
     const snapshot = preEditStateRef.current.get(slug);
     if (snapshot !== undefined) {
-      updatePart(slug, (current) => ({ ...current, ...snapshot, evidenceUrls: [...snapshot.evidenceUrls] }));
+      updatePart(slug, (current) => ({ ...current, ...snapshot, evidence: [...snapshot.evidence] }));
       preEditStateRef.current.delete(slug);
     }
     setEditedSlugs((prev) => {
@@ -122,7 +122,7 @@ export function FunctionalityReportForm(props: {
         trackedLevel: 'not_tracked',
         level: undefined,
         description: '',
-        evidenceUrls: [],
+        evidence: [],
       },
     ]);
     setCatalogue((current) => current?.filter((item) => item.slug !== functionality.slug) ?? current);
@@ -138,22 +138,55 @@ export function FunctionalityReportForm(props: {
   };
 
   const addPartEvidence = async (slug: string) => {
-    const token = await resolveTurnstileToken();
     const currentWindow = await chrome.windows.getCurrent();
-    const result = await captureAndUploadScreenshot(currentWindow.id ?? 0, 'functionality_report', token);
-    if (!result.ok) {
-      props.onError(result.error.message);
-      return;
+    try {
+      const captured = await captureScreenshot(currentWindow.id ?? 0);
+      updatePart(slug, (part) => ({ ...part, evidence: [...part.evidence, captured] }));
+    } catch (captureError) {
+      props.onError(`Screenshot failed: ${String(captureError)}`);
     }
-    props.onError(null);
-    updatePart(slug, (part) => ({ ...part, evidenceUrls: [...part.evidenceUrls, result.data.url] }));
   };
 
   const testedParts = parts.filter((part) => editedSlugs.has(part.slug));
 
+  const uploadAllEvidence = async (token: string): Promise<string[] | null> => {
+    const uploadedUrls: string[] = [];
+    for (const item of props.evidence) {
+      const result = await uploadPendingEvidence(item, 'functionality_report', token);
+      if (!result.ok) {
+        props.onError(`Evidence upload failed for ${item.filename}: ${result.error.message}`);
+        return [];
+      }
+      uploadedUrls.push(result.data.uploadedUrl as string);
+    }
+    for (const part of testedParts) {
+      for (const item of part.evidence) {
+        const result = await uploadPendingEvidence(item, 'functionality_report', token);
+        if (!result.ok) {
+          props.onError(`Evidence upload failed for ${item.filename}: ${result.error.message}`);
+          return [];
+        }
+        uploadedUrls.push(result.data.uploadedUrl as string);
+      }
+    }
+    return uploadedUrls;
+  };
+
   const submit = async () => {
     setSubmitting(true);
     const { submitFunctionalityReport } = await import('../../../lib/submit');
+    const { resolveTurnstileToken } = await import('../../../lib/turnstile');
+    const token = await resolveTurnstileToken();
+
+    const uploadedUrls = await uploadAllEvidence(token);
+    if (
+      uploadedUrls === null ||
+      (uploadedUrls.length === 0 && (props.evidence.length > 0 || testedParts.some((part) => part.evidence.length > 0)))
+    ) {
+      setSubmitting(false);
+      return;
+    }
+
     const noteWithDigest = await composeNoteWithDigest(note.length > 0 ? note : undefined);
     const result = await submitFunctionalityReport({
       serviceId: props.service.id,
@@ -161,11 +194,11 @@ export function FunctionalityReportForm(props: {
         slug: part.slug,
         level: part.level as 'working' | 'failing' | 'unknown',
         description: part.description.length > 0 ? part.description : undefined,
-        evidenceUrls: part.evidenceUrls.length > 0 ? part.evidenceUrls : undefined,
+        evidenceUrls: part.evidence.length > 0 ? part.evidence.map((item) => item.uploadedUrl as string) : undefined,
       })),
       submitterEmail: email.trim().length > 0 ? email.trim() : undefined,
       submitterNote: noteWithDigest,
-      evidenceUrls: props.evidence.map((item) => item.url),
+      evidenceUrls: props.evidence.map((item) => item.uploadedUrl as string),
     });
     setSubmitting(false);
     if (!result.ok) {
@@ -277,7 +310,7 @@ export function FunctionalityReportForm(props: {
               isExpanded ||
               (isEdited && part.level !== undefined) ||
               part.description.length > 0 ||
-              part.evidenceUrls.length > 0;
+              part.evidence.length > 0;
 
             return (
               <div key={part.slug} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)' }}>
@@ -330,7 +363,7 @@ export function FunctionalityReportForm(props: {
                       }}
                     >
                       <Camera size={13} />
-                      {part.evidenceUrls.length > 0 && <span>{part.evidenceUrls.length}</span>}
+                      {part.evidence.length > 0 && <span>{part.evidence.length}</span>}
                     </button>
                   </div>
                 </div>
@@ -383,7 +416,7 @@ export function FunctionalityReportForm(props: {
                         onClick={() => void addPartEvidence(part.slug)}
                         icon={<Camera size={13} />}
                       >
-                        Screenshot for this part ({part.evidenceUrls.length})
+                        Screenshot for this part ({part.evidence.length})
                       </Button>
                       <button
                         type="button"
@@ -403,13 +436,13 @@ export function FunctionalityReportForm(props: {
                         <Undo2 size={12} /> Cancel edit
                       </button>
                     </div>
-                    {part.evidenceUrls.length > 0 && (
+                    {part.evidence.length > 0 && (
                       <EvidenceThumbs
-                        evidence={part.evidenceUrls.map((url) => ({ url, filename: '' }))}
-                        onRemove={(url) =>
+                        evidence={part.evidence}
+                        onRemove={(id) =>
                           updatePart(part.slug, (current) => ({
                             ...current,
-                            evidenceUrls: current.evidenceUrls.filter((existing) => existing !== url),
+                            evidence: current.evidence.filter((existing) => existing.id !== id),
                           }))
                         }
                       />

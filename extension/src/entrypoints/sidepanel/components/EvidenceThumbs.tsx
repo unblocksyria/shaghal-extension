@@ -1,14 +1,14 @@
 import type { EvidenceItem } from '../types';
 import { ExternalLink, X } from 'lucide-react';
 
-export function EvidenceThumbs(props: { evidence: EvidenceItem[]; onRemove?: (url: string) => void }) {
+export function EvidenceThumbs(props: { evidence: EvidenceItem[]; onRemove?: (id: string) => void }) {
   if (props.evidence.length === 0) return null;
 
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
       {props.evidence.map((item, index) => (
         <div
-          key={item.url}
+          key={item.id}
           style={{
             width: 96,
             height: 72,
@@ -20,15 +20,15 @@ export function EvidenceThumbs(props: { evidence: EvidenceItem[]; onRemove?: (ur
           }}
         >
           <img
-            src={item.url}
+            src={item.previewUrl}
             alt={`Evidence #${index + 1}`}
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
           />
           {props.onRemove !== undefined && (
             <button
               type="button"
-              title="Remove from report (file stays on the server)"
-              onClick={() => props.onRemove?.(item.url)}
+              title="Remove from report"
+              onClick={() => props.onRemove?.(item.id)}
               style={{
                 position: 'absolute',
                 top: 3,
@@ -61,25 +61,27 @@ export function EvidenceThumbs(props: { evidence: EvidenceItem[]; onRemove?: (ur
               pointerEvents: 'none',
             }}
           >
-            <a
-              href={item.url}
-              target="_blank"
-              rel="noreferrer"
-              title="View full screenshot"
-              style={{
-                color: 'var(--us-gold)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 3,
-                fontSize: 10,
-                textDecoration: 'none',
-                backgroundColor: 'rgba(0, 0, 0, 0.55)',
-                borderRadius: 4,
-                padding: '2px 5px',
-              }}
-            >
-              <ExternalLink size={10} />
-            </a>
+            {item.uploadedUrl !== undefined && (
+              <a
+                href={item.uploadedUrl}
+                target="_blank"
+                rel="noreferrer"
+                title="View uploaded screenshot"
+                style={{
+                  color: 'var(--us-gold)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 3,
+                  fontSize: 10,
+                  textDecoration: 'none',
+                  backgroundColor: 'rgba(0, 0, 0, 0.55)',
+                  borderRadius: 4,
+                  padding: '2px 5px',
+                }}
+              >
+                <ExternalLink size={10} />
+              </a>
+            )}
           </div>
         </div>
       ))}

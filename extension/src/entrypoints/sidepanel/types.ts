@@ -1,4 +1,3 @@
-export interface EvidenceItem {
-  url: string;
-  filename: string;
-}
+import type { PendingEvidence } from '../../lib/evidence';
+
+export type EvidenceItem = PendingEvidence;

@@ -1,7 +1,17 @@
-import type { ApiError } from './api';
-import { uploadEvidence, type EvidenceUploadResult } from './endpoints';
+import type { ApiError, ApiResult } from './api';
+import { uploadEvidence } from './endpoints';
 
-export type { EvidenceUploadResult };
+export interface PendingEvidence {
+  id: string;
+  blob: Blob;
+  previewUrl: string;
+  filename: string;
+  uploadedUrl?: string;
+}
+
+export type ScreenshotResult =
+  | { ok: true; data: PendingEvidence }
+  | { ok: false; error: ApiError };
 
 export function captureVisibleScreenshot(windowId: number): Promise<Blob> {
   return new Promise((resolve, reject) => {
@@ -22,25 +32,23 @@ function dataUrlToBlob(dataUrl: string): Blob {
   return new Blob([bytes], { type: 'image/png' });
 }
 
-export type ScreenshotResult =
-  | { ok: true; data: EvidenceUploadResult }
-  | { ok: false; error: ApiError };
+export async function captureScreenshot(windowId: number): Promise<PendingEvidence> {
+  const blob = await captureVisibleScreenshot(windowId);
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    blob,
+    previewUrl: URL.createObjectURL(blob),
+    filename: `unblocksyria-evidence-${new Date().toISOString()}.png`,
+  };
+}
 
-export async function captureAndUploadScreenshot(
-  windowId: number,
+export async function uploadPendingEvidence(
+  item: PendingEvidence,
   reportType: 'submission' | 'correction' | 'functionality_report',
   turnstileToken: string,
-): Promise<ScreenshotResult> {
-  let blob: Blob;
-  try {
-    blob = await captureVisibleScreenshot(windowId);
-  } catch (captureError) {
-    return { ok: false, error: { error: 'CAPTURE_FAILED', message: `Screenshot failed: ${String(captureError)}`, status: 0 } };
-  }
-
-  const upload = await uploadEvidence(blob, reportType, turnstileToken);
-  if (!upload.ok) {
-    return { ok: false, error: upload.error };
-  }
-  return upload;
+): Promise<ApiResult<PendingEvidence>> {
+  if (item.uploadedUrl !== undefined) return { ok: true, data: item };
+  const upload = await uploadEvidence(item.blob, reportType, turnstileToken);
+  if (!upload.ok) return upload;
+  return { ok: true, data: { ...item, uploadedUrl: upload.data.url } };
 }
