@@ -22,6 +22,7 @@ interface PartEntry {
 export function FunctionalityReportForm(props: {
   service: ServiceRecord;
   evidence: EvidenceItem[];
+  suggestion?: { level: 'working' | 'failing'; evidence: string };
   onBack: () => void;
   onError: (message: string | null) => void;
   onTakeScreenshot: () => Promise<void>;
@@ -258,6 +259,8 @@ export function FunctionalityReportForm(props: {
             const isNotChecked = part.level === undefined;
             const isExpanded = activeDetailsPart === part.slug;
             const isEdited = editedSlugs.has(part.slug);
+            const coreSuggestion =
+              props.suggestion !== undefined && part.slug === 'core_use' && !isEdited ? props.suggestion : undefined;
             const showTextBox =
               isExpanded ||
               (isEdited && part.level !== undefined) ||
@@ -319,6 +322,29 @@ export function FunctionalityReportForm(props: {
                     </button>
                   </div>
                 </div>
+
+                {coreSuggestion !== undefined && (
+                  <div style={{ padding: '0 2px 10px 2px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 11, color: 'var(--us-text-dim)' }}>
+                      Suggested: <strong style={{ color: 'var(--us-gold)' }}>{coreSuggestion.level}</strong> — {coreSuggestion.evidence}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => chooseLevel(part.slug, coreSuggestion.level)}
+                      style={{
+                        background: 'rgba(185, 168, 123, 0.12)',
+                        border: '1px solid rgba(185, 168, 123, 0.3)',
+                        borderRadius: 'var(--us-radius-pill)',
+                        padding: '2px 10px',
+                        color: 'var(--us-gold)',
+                        fontSize: 11,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Apply
+                    </button>
+                  </div>
+                )}
 
                 {showTextBox && (
                   <div

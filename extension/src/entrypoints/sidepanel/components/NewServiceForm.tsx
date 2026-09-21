@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { composeNoteWithDigest } from '../../../lib/logs';
+import { type SessionMetadata } from '../../../lib/session';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Textarea } from '../../../components/ui/Textarea';
@@ -10,12 +11,13 @@ export function NewServiceForm(props: {
   url: string;
   notice?: string;
   evidence: EvidenceItem[];
+  metadata?: SessionMetadata;
   onBack: () => void;
   onError: (message: string | null) => void;
   onTakeScreenshot: () => Promise<void>;
 }) {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
+  const [name, setName] = useState(props.metadata?.name ?? '');
+  const [description, setDescription] = useState(props.metadata?.description ?? '');
   const [email, setEmail] = useState('');
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);

@@ -1,3 +1,4 @@
+import { normalizeServiceUrl } from '../lib/url';
 import { appendLog, clearSession, getSession, saveLastEndedSession, setSession, updateSession } from '../lib/session';
 import { sendSessionMessage, type ExtensionMessage, type SessionResponse } from '../lib/messaging';
 import { redactUrl, type RedactedRequestLog } from '../lib/redact';
@@ -99,6 +100,11 @@ async function handleMessage(message: ExtensionMessage, senderTabId?: number): P
 async function harvestTabMetadata(tabId: number): Promise<void> {
   try {
     const tab = await chrome.tabs.get(tabId);
+    if (tab.url !== undefined && normalizeServiceUrl(tab.url) !== null) {
+      await updateSession(tabId, (session) => {
+        session.metadata = { ...session.metadata, serviceUrl: normalizeServiceUrl(tab.url as string) ?? undefined };
+      });
+    }
     if (tab.favIconUrl !== undefined && tab.favIconUrl.length > 0) {
       await updateSession(tabId, (session) => {
         session.metadata = { ...session.metadata, favicon: tab.favIconUrl };

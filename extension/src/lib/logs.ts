@@ -1,5 +1,33 @@
 import type { RedactedRequestLog } from './redact';
+import { classifyLogs, type LogVerdict } from './classifier';
+import { checkDnsConsistency } from './dnsCheck';
 import { getSession, type TesterSession } from './session';
+
+function describeVerdict(verdict: LogVerdict): string[] {
+  const lines = [`Suggested core level: ${verdict.coreSuggestion ?? 'unknown'} — ${verdict.coreEvidence}`];
+  for (const host of verdict.failedApiHosts.slice(0, 3)) {
+    lines.push(`API failures: ${host.host} ×${host.failures} (${host.error})`);
+  }
+  return lines;
+}
+
+async function describeDns(session: TesterSession): Promise<string[]> {
+  const serviceUrl = session.metadata?.serviceUrl;
+  if (serviceUrl === undefined) return [];
+  let host: string;
+  try {
+    host = new URL(serviceUrl).hostname;
+  } catch {
+    return [];
+  }
+  const result = await checkDnsConsistency(host, session.logs);
+  if (!result.checked) return [];
+  return [
+    result.consistent === true
+      ? `DNS check: consistent with public DoH (${result.resolvedByNetwork?.length ?? 0} IPs)`
+      : `DNS check: possible DNS tampering — browser resolved ${result.resolvedByNetwork?.join(', ') ?? '?'} but public DoH returned ${result.resolvedByDoh?.join(', ') ?? '?'}`,
+  ];
+}
 
 export interface SessionLogDigest {
   totalRequests: number;
@@ -57,5 +85,7 @@ export async function composeNoteWithDigest(note: string | undefined): Promise<s
   const session = await getSession();
   if (session === undefined) return note;
   const digest = formatDigest(buildDigest(session.logs));
-  return [note, digest].filter(Boolean).join('\n\n');
+  const verdictLines = describeVerdict(classifyLogs(session.logs));
+  const dnsLines = await describeDns(session);
+  return [note, digest, ...verdictLines, ...dnsLines].filter(Boolean).join('\n\n');
 }

@@ -1,4 +1,5 @@
 import { formatDigest, buildDigest, toSessionJson } from '../../../lib/logs';
+import type { DnsCheckResult } from '../../../lib/dnsCheck';
 import type { TesterSession } from '../../../lib/session';
 import { Button } from '../../../components/ui/Button';
 import { Download, Play, Radio, Square } from 'lucide-react';
@@ -7,6 +8,7 @@ export function SessionCard(props: {
   tabId: number | null;
   session: TesterSession | null;
   endedSession: TesterSession | null;
+  dnsResult: DnsCheckResult | null;
   onStartTest: () => void;
   onEndTest: () => void;
   onExport: () => void;
@@ -75,30 +77,48 @@ export function SessionCard(props: {
           </p>
         </div>
       ) : props.endedSession !== null ? (
-        <div
-          style={{
-            backgroundColor: 'rgba(255, 255, 255, 0.02)',
-            border: '1px solid var(--us-border)',
-            borderRadius: 'var(--us-radius-control)',
-            padding: '10px 12px',
-          }}
-        >
-          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--us-gold)', marginBottom: 4, textTransform: 'uppercase' }}>
-            Last Session Log Summary
-          </div>
-          <pre
+        <>
+          <div
             style={{
-              fontSize: 11,
-              whiteSpace: 'pre-wrap',
-              margin: 0,
-              color: 'var(--us-text-muted)',
-              fontFamily: 'monospace',
-              lineHeight: 1.6,
+              backgroundColor: 'rgba(255, 255, 255, 0.02)',
+              border: '1px solid var(--us-border)',
+              borderRadius: 'var(--us-radius-control)',
+              padding: '10px 12px',
             }}
           >
-            {formatDigest(buildDigest(props.endedSession.logs))}
-          </pre>
-        </div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--us-gold)', marginBottom: 4, textTransform: 'uppercase' }}>
+              Last Session Log Summary
+            </div>
+            <pre
+              style={{
+                fontSize: 11,
+                whiteSpace: 'pre-wrap',
+                margin: 0,
+                color: 'var(--us-text-muted)',
+                fontFamily: 'monospace',
+                lineHeight: 1.6,
+              }}
+            >
+              {formatDigest(buildDigest(props.endedSession.logs))}
+            </pre>
+          </div>
+          {props.dnsResult !== null && props.dnsResult.checked && (
+            <div
+              style={{
+                fontSize: 11,
+                padding: '6px 10px',
+                borderRadius: 'var(--us-radius-control)',
+                border: `1px solid ${props.dnsResult.consistent ? 'var(--us-working-border)' : 'rgba(185, 168, 123, 0.4)'}`,
+                color: props.dnsResult.consistent ? 'var(--us-working-text)' : 'var(--us-gold-light)',
+                backgroundColor: props.dnsResult.consistent ? 'var(--us-working-bg)' : 'rgba(185, 168, 123, 0.1)',
+              }}
+            >
+              {props.dnsResult.consistent
+                ? `DNS check: consistent with public DoH (${props.dnsResult.resolvedByNetwork?.length ?? 0} IPs)`
+                : `DNS check: possible DNS tampering — browser resolved ${props.dnsResult.resolvedByNetwork?.join(', ') ?? '?'} but public DoH returned ${props.dnsResult.resolvedByDoh?.join(', ') ?? '?'}`}
+            </div>
+          )}
+        </>
       ) : (
         <p style={{ margin: 0, fontSize: 12, color: 'var(--us-text-dim)' }}>
           No active test session. Start a test to capture network logs while you browse the service.

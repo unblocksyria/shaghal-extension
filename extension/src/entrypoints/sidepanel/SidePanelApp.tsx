@@ -9,6 +9,8 @@ import { captureAndUploadScreenshot } from '../../lib/evidence';
 import { resolveTurnstileToken } from '../../lib/turnstile';
 import { sendSessionMessage } from '../../lib/messaging';
 import { normalizeServiceUrl } from '../../lib/url';
+import { classifyLogs, type LogVerdict } from '../../lib/classifier';
+import { checkDnsConsistency, type DnsCheckResult } from '../../lib/dnsCheck';
 import { DevTokenSettings } from './DevTokenSettings';
 import { useActiveTab } from './hooks/useActiveTab';
 import { useSessionState } from './hooks/useSessionState';
@@ -40,6 +42,13 @@ export function SidePanelApp() {
   const endedSession = sessionState.lastEnded;
   const autoCheckedRef = useRef(false);
   const serviceUrl = normalizeServiceUrl(activeTab.url ?? '');
+  const [dnsResult, setDnsResult] = useState<DnsCheckResult | null>(null);
+  const displayedSessionForVerdict = session ?? endedSession;
+  const verdict: LogVerdict | null = displayedSessionForVerdict !== null ? classifyLogs(displayedSessionForVerdict.logs) : null;
+  const suggestion =
+    verdict?.coreSuggestion !== undefined
+      ? { level: verdict.coreSuggestion, evidence: verdict.coreEvidence }
+      : undefined;
 
   const runDuplicateCheck = useCallback(async () => {
     if (serviceUrl === null) {
@@ -105,7 +114,19 @@ export function SidePanelApp() {
   };
 
   const endTest = async () => {
-    await sendSessionMessage({ type: 'END_TEST' });
+    const response = await sendSessionMessage({ type: 'END_TEST' });
+    const ended = response.ok ? response.session ?? null : null;
+    if (ended !== null && ended.metadata?.serviceUrl !== undefined) {
+      let host: string;
+      try {
+        host = new URL(ended.metadata.serviceUrl).hostname;
+      } catch {
+        return;
+      }
+      setDnsResult(await checkDnsConsistency(host, ended.logs));
+    } else {
+      setDnsResult(null);
+    }
   };
 
   const statusClass = error !== null ? 'status-error' : session !== null ? 'status-active' : 'status-idle';
@@ -147,6 +168,7 @@ export function SidePanelApp() {
             url={serviceUrl ?? ''}
             notice={duplicate?.message}
             evidence={evidence}
+            metadata={sessionState.active?.metadata ?? endedSession?.metadata}
             onBack={resetToCheck}
             onError={setError}
             onTakeScreenshot={takeScreenshot}
@@ -157,6 +179,7 @@ export function SidePanelApp() {
           <FunctionalityReportForm
             service={service}
             evidence={evidence}
+            suggestion={suggestion}
             onBack={resetToCheck}
             onError={setError}
             onTakeScreenshot={takeScreenshot}
@@ -273,6 +296,7 @@ export function SidePanelApp() {
             tabId={activeTab.tabId}
             session={session}
             endedSession={endedSession}
+            dnsResult={dnsResult}
             onStartTest={() => void startTest()}
             onEndTest={() => void endTest()}
             onExport={() => {

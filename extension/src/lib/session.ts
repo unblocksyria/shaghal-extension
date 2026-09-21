@@ -17,6 +17,7 @@ export interface SessionMetadata {
   description?: string;
   keywords?: string;
   favicon?: string;
+  serviceUrl?: string;
 }
 
 export interface TesterSession {
