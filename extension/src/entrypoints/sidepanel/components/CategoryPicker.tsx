@@ -30,7 +30,7 @@ export function CategoryPicker(props: {
   }, [props.selected, props.options]);
 
   return (
-    <div ref={containerRef} style={{ position: 'relative', display: 'grid', gap: 6 }}>
+    <div ref={containerRef} style={{ position: 'relative', display: 'grid', gap: 6, minWidth: 0 }}>
       {open && (
         <div
           style={{
@@ -47,6 +47,8 @@ export function CategoryPicker(props: {
             display: 'grid',
             gridTemplateRows: 'auto 1fr',
             maxHeight: 280,
+            minWidth: 0,
+            overflow: 'hidden',
           }}
         >
           <div style={{ position: 'relative', padding: 10 }}>
@@ -117,9 +119,12 @@ export function CategoryPicker(props: {
       >
         <span
           style={{
+            flex: 1,
+            minWidth: 0,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
+            textAlign: 'left',
             color: props.selected.size === 0 ? 'var(--us-text-dim)' : 'var(--us-text-primary)',
           }}
         >

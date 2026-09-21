@@ -175,6 +175,7 @@ export function FunctionalityReportForm(props: {
         borderRadius: 'var(--us-radius-card)',
         padding: '24px 20px',
         display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr)',
         gap: 18,
         boxShadow: 'var(--shadow-syrian-card)',
       }}

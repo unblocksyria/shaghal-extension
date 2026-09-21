@@ -50,6 +50,7 @@ export function NewServiceForm(props: {
         borderRadius: 'var(--us-radius-card)',
         padding: '24px 20px',
         display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr)',
         gap: 20,
         boxShadow: 'var(--shadow-syrian-card)',
       }}

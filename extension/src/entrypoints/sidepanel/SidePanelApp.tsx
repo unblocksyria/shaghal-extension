@@ -179,7 +179,7 @@ export function SidePanelApp() {
           activeRequestsCount={session?.logs.length ?? 0}
         />
 
-        <main style={{ padding: '0 16px 24px 16px', display: 'grid', gap: 14 }}>
+        <main style={{ padding: '0 16px 24px 16px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 14 }}>
           {error !== null && (
             <div
               style={{

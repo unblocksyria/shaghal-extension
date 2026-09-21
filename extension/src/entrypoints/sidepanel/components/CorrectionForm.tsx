@@ -116,6 +116,7 @@ export function CorrectionForm(props: {
         borderRadius: 'var(--us-radius-card)',
         padding: '24px 20px',
         display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr)',
         gap: 18,
         boxShadow: 'var(--shadow-syrian-card)',
       }}
@@ -206,7 +207,7 @@ export function CorrectionForm(props: {
                 </div>
               )}
               {isSelected && field.type === 'category' && (
-                <div style={{ paddingLeft: 26, display: 'grid', gap: 4 }}>
+                <div style={{ paddingLeft: 26, display: 'grid', gap: 4, minWidth: 0 }}>
                   {current.length > 0 && (
                     <div style={{ fontSize: 11, color: 'var(--us-text-dim)' }}>
                       Current: {current.length > 80 ? `${current.slice(0, 80)}…` : current}
