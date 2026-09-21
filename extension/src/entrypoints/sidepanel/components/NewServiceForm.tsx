@@ -6,7 +6,8 @@ import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Textarea } from '../../../components/ui/Textarea';
 import type { EvidenceItem } from '../types';
-import { ArrowLeft, Camera, Check, ExternalLink, FileText, WifiOff, Image as ImageIcon } from 'lucide-react';
+import { EvidenceThumbs } from './EvidenceThumbs';
+import { ArrowLeft, Camera, Check, WifiOff, Image as ImageIcon } from 'lucide-react';
 
 export function NewServiceForm(props: {
   url: string;
@@ -216,35 +217,8 @@ export function NewServiceForm(props: {
         </div>
 
         {props.evidence.length > 0 && (
-          <div style={{ display: 'grid', gap: 6, marginTop: 4 }}>
-            {props.evidence.map((item, idx) => (
-              <div
-                key={item.url}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '6px 10px',
-                  backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                  border: '1px solid var(--us-border)',
-                  borderRadius: 'var(--us-radius-control)',
-                  fontSize: 12,
-                }}
-              >
-                <span style={{ color: 'var(--us-text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <FileText size={13} color="var(--us-gold)" />
-                  {item.filename || `Evidence #${idx + 1}`}
-                </span>
-                <a
-                  href={item.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ color: 'var(--us-gold)', display: 'flex', alignItems: 'center', gap: 3, textDecoration: 'none' }}
-                >
-                  <ExternalLink size={12} /> View
-                </a>
-              </div>
-            ))}
+          <div style={{ marginTop: 4 }}>
+            <EvidenceThumbs evidence={props.evidence} />
           </div>
         )}
 

@@ -9,6 +9,7 @@ export function SessionCard(props: {
   session: TesterSession | null;
   endedSession: TesterSession | null;
   dnsResult: DnsCheckResult | null;
+  geoStatus: { text: string; warning: boolean } | null;
   onStartTest: () => void;
   onEndTest: () => void;
   onExport: () => void;
@@ -75,6 +76,9 @@ export function SessionCard(props: {
           <p style={{ margin: 0, fontSize: 11, color: 'var(--us-text-dim)', lineHeight: 1.5 }}>
             Only requests made after starting are captured. Refresh the page to log initial load requests.
           </p>
+          {props.geoStatus !== null && !props.geoStatus.warning && (
+            <div style={{ fontSize: 11, color: 'var(--us-working-text)' }}>Geo check: {props.geoStatus.text}</div>
+          )}
         </div>
       ) : props.endedSession !== null ? (
         <>

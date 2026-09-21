@@ -44,7 +44,7 @@ export function SidePanelApp() {
   const autoCheckedRef = useRef(false);
   const serviceUrl = normalizeServiceUrl(activeTab.url ?? '');
   const [dnsResult, setDnsResult] = useState<DnsCheckResult | null>(null);
-  const [geoWarningText, setGeoWarningText] = useState<string | null>(null);
+  const [geoStatus, setGeoStatus] = useState<{ text: string; warning: boolean } | null>(null);
   const displayedSessionForVerdict = session ?? endedSession;
   const verdict: LogVerdict | null = displayedSessionForVerdict !== null ? classifyLogs(displayedSessionForVerdict.logs) : null;
   const suggestion =
@@ -91,6 +91,32 @@ export function SidePanelApp() {
     void runDuplicateCheck();
   }, [serviceUrl, view, runDuplicateCheck]);
 
+  useEffect(() => {
+    if (session === null) {
+      setGeoStatus(null);
+      return;
+    }
+    let cancelled = false;
+    const run = () => {
+      void checkGeoLocation().then((result) => {
+        if (cancelled) return;
+        const warning = geoWarning(result);
+        setGeoStatus({
+          text:
+            warning ??
+            (result.checked ? `Browsing from ${result.country ?? result.countryCode} — no VPN detected` : 'Geo check unavailable'),
+          warning: warning !== null,
+        });
+      });
+    };
+    run();
+    const interval = setInterval(run, 20000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [session !== null]);
+
   const resetToCheck = () => {
     setDuplicate(null);
     setService(null);
@@ -113,13 +139,10 @@ export function SidePanelApp() {
   const startTest = async () => {
     if (activeTab.tabId === null) return;
     await sendSessionMessage({ type: 'START_TEST', tabId: activeTab.tabId });
-    setGeoWarningText(null);
-    void checkGeoLocation().then((result) => setGeoWarningText(geoWarning(result)));
   };
 
   const endTest = async () => {
     const response = await sendSessionMessage({ type: 'END_TEST' });
-    setGeoWarningText(null);
     const ended = response.ok ? response.session ?? null : null;
     if (ended !== null && ended.metadata?.serviceUrl !== undefined) {
       let host: string;
@@ -212,7 +235,7 @@ export function SidePanelApp() {
         />
 
         <main style={{ padding: '0 16px 24px 16px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 14 }}>
-          {geoWarningText !== null && (
+          {geoStatus !== null && geoStatus.warning && (
             <div
               role="alert"
               style={{
@@ -228,7 +251,7 @@ export function SidePanelApp() {
               }}
             >
               <WifiOff size={15} color="var(--us-gold)" style={{ flexShrink: 0, marginTop: 1 }} />
-              <div style={{ lineHeight: 1.5 }}>{geoWarningText}</div>
+              <div style={{ lineHeight: 1.5 }}>{geoStatus.text}</div>
             </div>
           )}
 
@@ -322,6 +345,7 @@ export function SidePanelApp() {
             session={session}
             endedSession={endedSession}
             dnsResult={dnsResult}
+            geoStatus={geoStatus}
             onStartTest={() => void startTest()}
             onEndTest={() => void endTest()}
             onExport={() => {

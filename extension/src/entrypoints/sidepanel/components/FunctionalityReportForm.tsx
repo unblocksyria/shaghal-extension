@@ -8,6 +8,7 @@ import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Textarea } from '../../../components/ui/Textarea';
 import type { EvidenceItem } from '../types';
+import { EvidenceThumbs } from './EvidenceThumbs';
 import { ArrowLeft, Camera, Check, Plus, Undo2, WifiOff } from 'lucide-react';
 
 interface PartEntry {
@@ -19,6 +20,8 @@ interface PartEntry {
   description: string;
   evidenceUrls: string[];
 }
+
+export const SUGGESTABLE_PARTS = new Set(['core_use', 'landing_page']);
 
 export function FunctionalityReportForm(props: {
   service: ServiceRecord;
@@ -264,8 +267,12 @@ export function FunctionalityReportForm(props: {
             const isNotChecked = part.level === undefined;
             const isExpanded = activeDetailsPart === part.slug;
             const isEdited = editedSlugs.has(part.slug);
-            const coreSuggestion =
-              props.suggestion !== undefined && part.slug === 'core_use' && !isEdited ? props.suggestion : undefined;
+            const partSuggestion =
+              props.suggestion !== undefined &&
+              SUGGESTABLE_PARTS.has(part.slug) &&
+              part.level !== props.suggestion.level
+                ? props.suggestion
+                : undefined;
             const showTextBox =
               isExpanded ||
               (isEdited && part.level !== undefined) ||
@@ -328,14 +335,14 @@ export function FunctionalityReportForm(props: {
                   </div>
                 </div>
 
-                {coreSuggestion !== undefined && (
+                {partSuggestion !== undefined && (
                   <div style={{ padding: '0 2px 10px 2px', display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 11, color: 'var(--us-text-dim)' }}>
-                      Suggested: <strong style={{ color: 'var(--us-gold)' }}>{coreSuggestion.level}</strong> — {coreSuggestion.evidence}
+                      Suggested: <strong style={{ color: 'var(--us-gold)' }}>{partSuggestion.level}</strong> — {partSuggestion.evidence}
                     </span>
                     <button
                       type="button"
-                      onClick={() => chooseLevel(part.slug, coreSuggestion.level)}
+                      onClick={() => chooseLevel(part.slug, partSuggestion.level)}
                       style={{
                         background: 'rgba(185, 168, 123, 0.12)',
                         border: '1px solid rgba(185, 168, 123, 0.3)',
@@ -396,6 +403,9 @@ export function FunctionalityReportForm(props: {
                         <Undo2 size={12} /> Cancel edit
                       </button>
                     </div>
+                    {part.evidenceUrls.length > 0 && (
+                      <EvidenceThumbs evidence={part.evidenceUrls.map((url) => ({ url, filename: '' }))} />
+                    )}
                   </div>
                 )}
               </div>
