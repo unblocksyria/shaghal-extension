@@ -12,10 +12,27 @@ export async function saveLastEndedSession(session: TesterSession): Promise<void
   await chrome.storage.local.set({ [LAST_ENDED_KEY]: session });
 }
 
+export interface SessionMetadata {
+  name?: string;
+  description?: string;
+  keywords?: string;
+  favicon?: string;
+}
+
 export interface TesterSession {
   tabId: number;
   startedAt: number;
   logs: RedactedRequestLog[];
+  metadata?: SessionMetadata;
+}
+
+export async function updateSession(tabId: number, update: (session: TesterSession) => void): Promise<void> {
+  return enqueueWrite(async () => {
+    const session = await getSession();
+    if (session === undefined || session.tabId !== tabId) return;
+    update(session);
+    await setSession(session);
+  });
 }
 
 export async function getSession(): Promise<TesterSession | undefined> {

@@ -1,4 +1,4 @@
-import { appendLog, clearSession, getSession, saveLastEndedSession, setSession } from '../lib/session';
+import { appendLog, clearSession, getSession, saveLastEndedSession, setSession, updateSession } from '../lib/session';
 import { sendSessionMessage, type ExtensionMessage, type SessionResponse } from '../lib/messaging';
 import { redactUrl, type RedactedRequestLog } from '../lib/redact';
 
@@ -46,8 +46,8 @@ function registerWebRequestCapture(): void {
 }
 
 function registerMessageHandling(): void {
-  chrome.runtime.onMessage.addListener((rawMessage, _sender, sendResponse) => {
-    void handleMessage(rawMessage as ExtensionMessage).then((result) => sendResponse(result));
+  chrome.runtime.onMessage.addListener((rawMessage, sender, sendResponse) => {
+    void handleMessage(rawMessage as ExtensionMessage, sender.tab?.id).then((result) => sendResponse(result));
     return true;
   });
 }
@@ -69,10 +69,19 @@ interface ChromeWithLegacySidebar {
   sidebarAction?: { open(): Promise<void> };
 }
 
-async function handleMessage(message: ExtensionMessage): Promise<SessionResponse> {
+async function handleMessage(message: ExtensionMessage, senderTabId?: number): Promise<SessionResponse> {
   switch (message.type) {
     case 'START_TEST': {
       await setSession({ tabId: message.tabId, startedAt: Date.now(), logs: [] });
+      void harvestTabMetadata(message.tabId);
+      return { ok: true };
+    }
+    case 'HARVEST_RESULT': {
+      if (senderTabId !== undefined) {
+        await updateSession(senderTabId, (session) => {
+          session.metadata = { ...session.metadata, ...message.payload };
+        });
+      }
       return { ok: true };
     }
     case 'END_TEST': {
@@ -84,5 +93,22 @@ async function handleMessage(message: ExtensionMessage): Promise<SessionResponse
     case 'GET_SESSION': {
       return { ok: true, session: (await getSession()) ?? null };
     }
+  }
+}
+
+async function harvestTabMetadata(tabId: number): Promise<void> {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    if (tab.favIconUrl !== undefined && tab.favIconUrl.length > 0) {
+      await updateSession(tabId, (session) => {
+        session.metadata = { ...session.metadata, favicon: tab.favIconUrl };
+      });
+    }
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ['/harvester.js'],
+    });
+  } catch {
+    // Pages without DOM access (chrome://, web store) are silently skipped
   }
 }

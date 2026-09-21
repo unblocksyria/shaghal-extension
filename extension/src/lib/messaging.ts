@@ -1,9 +1,16 @@
 import type { TesterSession } from './session';
 
+export interface HarvestedMetadata {
+  name?: string;
+  description?: string;
+  keywords?: string;
+}
+
 export type ExtensionMessage =
   | { type: 'START_TEST'; tabId: number }
   | { type: 'END_TEST' }
-  | { type: 'GET_SESSION' };
+  | { type: 'GET_SESSION' }
+  | { type: 'HARVEST_RESULT'; payload: HarvestedMetadata };
 
 export interface SessionResponse {
   ok: boolean;
