@@ -4,6 +4,7 @@ import { composeNoteWithDigest } from '../../../lib/logs';
 import { resolveTurnstileToken } from '../../../lib/turnstile';
 import { getFunctionalities, type FunctionalityItem, type ServiceRecord } from '../../../lib/endpoints';
 import { Button } from '../../../components/ui/Button';
+import { Input } from '../../../components/ui/Input';
 import { Textarea } from '../../../components/ui/Textarea';
 import type { EvidenceItem } from '../types';
 import { ArrowLeft, Camera, Check, Plus, Undo2, WifiOff } from 'lucide-react';
@@ -46,6 +47,7 @@ export function FunctionalityReportForm(props: {
   const preEditStateRef = useRef<Map<string, Omit<PartEntry, 'slug' | 'name' | 'isCore' | 'trackedLevel'>>>(new Map());
   const [catalogue, setCatalogue] = useState<FunctionalityItem[] | null>(null);
   const [note, setNote] = useState('');
+  const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -152,6 +154,7 @@ export function FunctionalityReportForm(props: {
         description: part.description.length > 0 ? part.description : undefined,
         evidenceUrls: part.evidenceUrls.length > 0 ? part.evidenceUrls : undefined,
       })),
+      submitterEmail: email.trim().length > 0 ? email.trim() : undefined,
       submitterNote: noteWithDigest,
       evidenceUrls: props.evidence.map((item) => item.url),
     });
@@ -412,6 +415,13 @@ export function FunctionalityReportForm(props: {
           )}
         </div>
       )}
+
+      <Input
+        label="Your Email"
+        placeholder="Optional, in case we need to contact you"
+        value={email}
+        onChange={(event) => setEmail(event.target.value)}
+      />
 
       <Textarea
         label="General Report Note"

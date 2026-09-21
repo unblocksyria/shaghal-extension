@@ -44,6 +44,16 @@ export interface FunctionalityItem {
   isCore: boolean;
 }
 
+export interface CategoryItem {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export async function getCategories(): Promise<ApiResult<CategoryItem[]>> {
+  return apiRequest<CategoryItem[]>('/categories');
+}
+
 export async function getFunctionalities(): Promise<ApiResult<FunctionalityItem[]>> {
   return apiRequest<FunctionalityItem[]>('/functionalities');
 }

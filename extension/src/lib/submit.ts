@@ -6,6 +6,7 @@ export interface SubmitServiceInput {
   name: string;
   url: string;
   description?: string;
+  submitterEmail?: string;
   submitterNote?: string;
   evidenceUrls: string[];
 }
@@ -28,6 +29,7 @@ export async function submitService(input: SubmitServiceInput) {
       name: input.name,
       url: input.url,
       description: input.description ?? null,
+      submitterEmail: input.submitterEmail ?? null,
       submitterNote: input.submitterNote ?? null,
       evidenceUrls: input.evidenceUrls,
       locale: 'en',
@@ -39,6 +41,7 @@ export async function submitService(input: SubmitServiceInput) {
 export interface SubmitFunctionalityReportInput {
   serviceId: string;
   items: { slug?: string; proposedName?: string; level: 'working' | 'failing' | 'unknown' }[];
+  submitterEmail?: string;
   submitterNote?: string;
   evidenceUrls: string[];
 }
@@ -66,6 +69,7 @@ export async function submitCorrection(input: SubmitCorrectionInput) {
     body: {
       serviceId: input.serviceId,
       changes: input.changes,
+      submitterEmail: input.submitterEmail ?? null,
       submitterNote: input.submitterNote ?? null,
       evidenceUrls: input.evidenceUrls,
       locale: 'en',
@@ -82,6 +86,7 @@ export async function submitFunctionalityReport(input: SubmitFunctionalityReport
     body: {
       serviceId: input.serviceId,
       items: input.items,
+      submitterEmail: input.submitterEmail ?? null,
       submitterNote: input.submitterNote ?? null,
       evidenceUrls: input.evidenceUrls,
       locale: 'en',

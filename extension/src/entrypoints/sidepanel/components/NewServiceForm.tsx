@@ -16,6 +16,7 @@ export function NewServiceForm(props: {
 }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [email, setEmail] = useState('');
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
@@ -28,6 +29,7 @@ export function NewServiceForm(props: {
       name,
       url: props.url,
       description: description.length > 0 ? description : undefined,
+      submitterEmail: email.trim().length > 0 ? email.trim() : undefined,
       submitterNote: noteWithDigest,
       evidenceUrls: props.evidence.map((item) => item.url),
     });
@@ -242,6 +244,13 @@ export function NewServiceForm(props: {
           Screenshots are how we verify a report. Reviewers reject reports they cannot verify, so add a screenshot of the block or error message.
         </p>
       </div>
+
+      <Input
+        label="Your Email"
+        placeholder="Optional, in case we need to contact you"
+        value={email}
+        onChange={(event) => setEmail(event.target.value)}
+      />
 
       <Textarea
         label="Additional Notes"

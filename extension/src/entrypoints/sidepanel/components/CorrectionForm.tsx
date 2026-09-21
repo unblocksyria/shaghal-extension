@@ -4,7 +4,8 @@ import { submitCorrection, type CorrectionType } from '../../../lib/submit';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Textarea } from '../../../components/ui/Textarea';
-import type { ServiceRecord } from '../../../lib/endpoints';
+import { getCategories, type CategoryItem, type ServiceRecord } from '../../../lib/endpoints';
+import { CategoryPicker } from './CategoryPicker';
 import type { EvidenceItem } from '../types';
 import { ArrowLeft, Camera, Check, ExternalLink, FileText, WifiOff, Image as ImageIcon } from 'lucide-react';
 
@@ -47,6 +48,26 @@ export function CorrectionForm(props: {
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
+  const [categoryOptions, setCategoryOptions] = useState<CategoryItem[]>([]);
+
+  const loadCategoryOptions = async () => {
+    if (categoryOptions.length > 0) return;
+    const result = await getCategories();
+    if (result.ok) {
+      setCategoryOptions(result.data);
+    } else {
+      props.onError(`Could not load categories: ${result.error.message}`);
+    }
+  };
+
+  const selectedCategoryNames = (proposals['category'] ?? '')
+    .split(',')
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0);
+
+  const setSelectedCategoryNames = (names: Set<string>) => {
+    setProposals((prev) => ({ ...prev, category: [...names].join(', ') }));
+  };
 
   const toggleField = (type: CorrectionType) => {
     setProposals((current) => (current[type] === undefined ? { ...current, [type]: currentValue(props.service, type) } : current));
@@ -56,6 +77,7 @@ export function CorrectionForm(props: {
       else next.add(type);
       return next;
     });
+    if (type === 'category') void loadCategoryOptions();
   };
 
   const changes = CORRECTION_FIELDS.filter((field) => selected.has(field.type)).map((field) => ({
@@ -162,7 +184,7 @@ export function CorrectionForm(props: {
                 <input type="checkbox" checked={isSelected} onChange={() => toggleField(field.type)} />
                 <span>{field.label}</span>
               </label>
-              {isSelected && field.type !== 'other' && (
+              {isSelected && field.type !== 'other' && field.type !== 'category' && (
                 <div style={{ paddingLeft: 26 }}>
                   {current.length > 0 && (
                     <div style={{ fontSize: 11, color: 'var(--us-text-dim)', marginBottom: 4 }}>
@@ -181,6 +203,23 @@ export function CorrectionForm(props: {
                       onChange={(event) => setProposals((prev) => ({ ...prev, [field.type]: event.target.value }))}
                     />
                   )}
+                </div>
+              )}
+              {isSelected && field.type === 'category' && (
+                <div style={{ paddingLeft: 26, display: 'grid', gap: 4 }}>
+                  {current.length > 0 && (
+                    <div style={{ fontSize: 11, color: 'var(--us-text-dim)' }}>
+                      Current: {current.length > 80 ? `${current.slice(0, 80)}…` : current}
+                    </div>
+                  )}
+                  <CategoryPicker
+                    options={categoryOptions}
+                    selected={new Set(selectedCategoryNames)}
+                    onChange={setSelectedCategoryNames}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--us-text-dim)' }}>
+                    Select all categories this service belongs to
+                  </span>
                 </div>
               )}
               {isSelected && field.type === 'other' && (
