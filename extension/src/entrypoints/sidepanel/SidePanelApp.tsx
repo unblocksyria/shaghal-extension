@@ -8,6 +8,7 @@ import {
 import { captureAndUploadScreenshot } from '../../lib/evidence';
 import { resolveTurnstileToken } from '../../lib/turnstile';
 import { sendSessionMessage } from '../../lib/messaging';
+import { normalizeServiceUrl } from '../../lib/url';
 import { DevTokenSettings } from './DevTokenSettings';
 import { useActiveTab } from './hooks/useActiveTab';
 import { useSessionState } from './hooks/useSessionState';
@@ -38,13 +39,17 @@ export function SidePanelApp() {
   const session = sessionState.active;
   const endedSession = sessionState.lastEnded;
   const lastCheckedUrlRef = useRef<string | null>(null);
+  const serviceUrl = normalizeServiceUrl(activeTab.url ?? '');
 
   const runDuplicateCheck = useCallback(async () => {
-    if (activeTab.url === null) return;
+    if (serviceUrl === null) {
+      setError('Open a real website (http or https) in the active tab to test it.');
+      return;
+    }
     setError(null);
     setChecking(true);
     try {
-      const result = await checkDuplicate(activeTab.url);
+      const result = await checkDuplicate(serviceUrl);
       if (!result.ok) {
         setError(`Duplicate check failed: ${result.error.message}`);
         return;
@@ -66,14 +71,14 @@ export function SidePanelApp() {
     } finally {
       setChecking(false);
     }
-  }, [activeTab.url]);
+  }, [serviceUrl]);
 
   useEffect(() => {
-    if (view !== 'check' || activeTab.url === null) return;
-    if (lastCheckedUrlRef.current === activeTab.url) return;
-    lastCheckedUrlRef.current = activeTab.url;
+    if (view !== 'check' || serviceUrl === null) return;
+    if (lastCheckedUrlRef.current === serviceUrl) return;
+    lastCheckedUrlRef.current = serviceUrl;
     void runDuplicateCheck();
-  }, [activeTab.url, view, runDuplicateCheck]);
+  }, [serviceUrl, view, runDuplicateCheck]);
 
   const resetToCheck = () => {
     lastCheckedUrlRef.current = null;
@@ -140,7 +145,7 @@ export function SidePanelApp() {
       case 'new-service':
         return (
           <NewServiceForm
-            url={activeTab.url ?? ''}
+            url={serviceUrl ?? ''}
             notice={duplicate?.message}
             evidence={evidence}
             onBack={resetToCheck}
@@ -245,7 +250,10 @@ export function SidePanelApp() {
             </div>
             {activeTab.url !== null && (
               <button
-                onClick={() => void runDuplicateCheck()}
+                onClick={() => {
+                  lastCheckedUrlRef.current = null;
+                  void runDuplicateCheck();
+                }}
                 disabled={checking}
                 title="Re-check this URL"
                 style={{
