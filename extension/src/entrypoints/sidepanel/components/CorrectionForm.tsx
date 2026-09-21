@@ -44,11 +44,12 @@ export function CorrectionForm(props: {
 }) {
   const [selected, setSelected] = useState<Set<CorrectionType>>(new Set());
   const [proposals, setProposals] = useState<Partial<Record<CorrectionType, string>>>({});
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [categoryOptions, setCategoryOptions] = useState<CategoryItem[]>([]);
   const [email, setEmail] = useState('');
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
-  const [categoryOptions, setCategoryOptions] = useState<CategoryItem[]>([]);
 
   const loadCategoryOptions = async () => {
     if (categoryOptions.length > 0) return;
@@ -60,29 +61,29 @@ export function CorrectionForm(props: {
     }
   };
 
-  const selectedCategoryNames = (proposals['category'] ?? '')
-    .split(',')
-    .map((name) => name.trim())
-    .filter((name) => name.length > 0);
-
-  const setSelectedCategoryNames = (names: Set<string>) => {
-    setProposals((prev) => ({ ...prev, category: [...names].join(', ') }));
-  };
-
   const toggleField = (type: CorrectionType) => {
-    setProposals((current) => (current[type] === undefined ? { ...current, [type]: currentValue(props.service, type) } : current));
+    if (type !== 'category') {
+      setProposals((current) =>
+        current[type] === undefined ? { ...current, [type]: currentValue(props.service, type) } : current,
+      );
+    } else {
+      setSelectedCategories(props.service.categories?.map((category) => category.name) ?? []);
+      void loadCategoryOptions();
+    }
     setSelected((current) => {
       const next = new Set(current);
       if (next.has(type)) next.delete(type);
       else next.add(type);
       return next;
     });
-    if (type === 'category') void loadCategoryOptions();
   };
 
   const changes = CORRECTION_FIELDS.filter((field) => selected.has(field.type)).map((field) => ({
     correctionType: field.type,
-    proposedValue: (proposals[field.type] ?? '').trim(),
+    proposedValue:
+      field.type === 'category'
+        ? selectedCategories.join(', ').trim()
+        : (proposals[field.type] ?? '').trim(),
   }));
   const validChanges = changes.filter((change) => change.proposedValue.length > 0);
 
@@ -215,8 +216,8 @@ export function CorrectionForm(props: {
                   )}
                   <CategoryPicker
                     options={categoryOptions}
-                    selected={new Set(selectedCategoryNames)}
-                    onChange={setSelectedCategoryNames}
+                    selected={new Set(selectedCategories)}
+                    onChange={(names) => setSelectedCategories([...names])}
                   />
                   <span style={{ fontSize: 11, color: 'var(--us-text-dim)' }}>
                     Select all categories this service belongs to
