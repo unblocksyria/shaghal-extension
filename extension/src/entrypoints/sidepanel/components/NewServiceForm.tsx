@@ -17,6 +17,7 @@ export function NewServiceForm(props: {
   onBack: () => void;
   onError: (message: string | null) => void;
   onTakeScreenshot: () => Promise<void>;
+  onRemoveEvidence: (url: string) => void;
 }) {
   const [name, setName] = useState(props.metadata?.name ?? '');
   const [description, setDescription] = useState(props.metadata?.description ?? '');
@@ -218,7 +219,7 @@ export function NewServiceForm(props: {
 
         {props.evidence.length > 0 && (
           <div style={{ marginTop: 4 }}>
-            <EvidenceThumbs evidence={props.evidence} />
+            <EvidenceThumbs evidence={props.evidence} onRemove={props.onRemoveEvidence} />
           </div>
         )}
 

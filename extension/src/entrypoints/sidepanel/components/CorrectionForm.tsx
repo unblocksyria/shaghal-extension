@@ -43,6 +43,7 @@ export function CorrectionForm(props: {
   onBack: () => void;
   onError: (message: string | null) => void;
   onTakeScreenshot: () => Promise<void>;
+  onRemoveEvidence: (url: string) => void;
 }) {
   const [selected, setSelected] = useState<Set<CorrectionType>>(new Set());
   const [proposals, setProposals] = useState<Partial<Record<CorrectionType, string>>>({});
@@ -317,7 +318,7 @@ export function CorrectionForm(props: {
 
         {props.evidence.length > 0 && (
           <div style={{ marginTop: 4 }}>
-            <EvidenceThumbs evidence={props.evidence} />
+            <EvidenceThumbs evidence={props.evidence} onRemove={props.onRemoveEvidence} />
           </div>
         )}
 

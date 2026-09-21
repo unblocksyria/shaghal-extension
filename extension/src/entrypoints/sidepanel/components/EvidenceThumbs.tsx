@@ -1,5 +1,5 @@
 import type { EvidenceItem } from '../types';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, X } from 'lucide-react';
 
 export function EvidenceThumbs(props: { evidence: EvidenceItem[]; onRemove?: (url: string) => void }) {
   if (props.evidence.length === 0) return null;
@@ -24,6 +24,31 @@ export function EvidenceThumbs(props: { evidence: EvidenceItem[]; onRemove?: (ur
             alt={`Evidence #${index + 1}`}
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
           />
+          {props.onRemove !== undefined && (
+            <button
+              type="button"
+              title="Remove from report (file stays on the server)"
+              onClick={() => props.onRemove?.(item.url)}
+              style={{
+                position: 'absolute',
+                top: 3,
+                left: 3,
+                width: 18,
+                height: 18,
+                borderRadius: '50%',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#FFFFFF',
+                backgroundColor: 'rgba(0, 0, 0, 0.55)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 0,
+              }}
+            >
+              <X size={11} />
+            </button>
+          )}
           <div
             style={{
               position: 'absolute',
@@ -33,6 +58,7 @@ export function EvidenceThumbs(props: { evidence: EvidenceItem[]; onRemove?: (ur
               justifyContent: 'flex-end',
               padding: 4,
               background: 'linear-gradient(transparent 55%, rgba(0, 0, 0, 0.6))',
+              pointerEvents: 'none',
             }}
           >
             <a

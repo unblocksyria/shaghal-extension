@@ -404,7 +404,15 @@ export function FunctionalityReportForm(props: {
                       </button>
                     </div>
                     {part.evidenceUrls.length > 0 && (
-                      <EvidenceThumbs evidence={part.evidenceUrls.map((url) => ({ url, filename: '' }))} />
+                      <EvidenceThumbs
+                        evidence={part.evidenceUrls.map((url) => ({ url, filename: '' }))}
+                        onRemove={(url) =>
+                          updatePart(part.slug, (current) => ({
+                            ...current,
+                            evidenceUrls: current.evidenceUrls.filter((existing) => existing !== url),
+                          }))
+                        }
+                      />
                     )}
                   </div>
                 )}

@@ -123,6 +123,10 @@ export function SidePanelApp() {
     setView('check');
   };
 
+  const removeEvidence = (url: string) => {
+    setEvidence((current) => current.filter((item) => item.url !== url));
+  };
+
   const takeScreenshot = async () => {
     setError(null);
     const token = await resolveTurnstileToken();
@@ -188,6 +192,7 @@ export function SidePanelApp() {
             onBack={resetToCheck}
             onError={setError}
             onTakeScreenshot={takeScreenshot}
+            onRemoveEvidence={removeEvidence}
           />
         );
       case 'new-service':
@@ -200,6 +205,7 @@ export function SidePanelApp() {
             onBack={resetToCheck}
             onError={setError}
             onTakeScreenshot={takeScreenshot}
+            onRemoveEvidence={removeEvidence}
           />
         );
       case 'report-functionality':
