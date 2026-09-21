@@ -7,7 +7,12 @@ export default defineConfig({
     description: 'Internal testing tool for unblocksyria.com reporters',
     version: '0.1.0',
     permissions: ['activeTab', 'storage', 'sidePanel', 'tabs', 'webRequest'],
-    host_permissions: ['https://api.unblocksyria.com/*', '<all_urls>'],
+    host_permissions: [
+      'https://api.unblocksyria.com/*',
+      '<all_urls>',
+      'https://cloudflare-dns.com/*',
+      'https://ipwho.is/*',
+    ],
     action: { default_title: 'Open Unblock Syria Tester' },
     icons: {
       16: 'icons/icon-16.png',
