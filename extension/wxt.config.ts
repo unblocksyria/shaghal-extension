@@ -6,7 +6,10 @@ export default defineConfig({
     name: 'Unblock Syria Tester',
     description: 'Internal testing tool for unblocksyria.com reporters',
     version: '0.1.0',
-    permissions: ['activeTab', 'storage', 'sidePanel', 'tabs', 'webRequest', 'scripting'],
+    permissions:
+      browser === 'firefox'
+        ? ['activeTab', 'storage', 'tabs', 'webRequest', 'scripting']
+        : ['activeTab', 'storage', 'sidePanel', 'tabs', 'webRequest', 'scripting'],
     host_permissions: [
       'https://api.unblocksyria.com/*',
       '<all_urls>',

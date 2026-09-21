@@ -3,6 +3,10 @@ import type { RedactedRequestLog } from './redact';
 const SESSION_KEY = 'testerSession';
 const LAST_ENDED_KEY = 'lastEndedSession';
 
+function sessionArea(): chrome.storage.StorageArea {
+  return chrome.storage.session ?? chrome.storage.local;
+}
+
 export async function getLastEndedSession(): Promise<TesterSession | undefined> {
   const stored = await chrome.storage.local.get(LAST_ENDED_KEY);
   return stored[LAST_ENDED_KEY] as TesterSession | undefined;
@@ -37,16 +41,16 @@ export async function updateSession(tabId: number, update: (session: TesterSessi
 }
 
 export async function getSession(): Promise<TesterSession | undefined> {
-  const stored = await chrome.storage.session.get(SESSION_KEY);
+  const stored = await sessionArea().get(SESSION_KEY);
   return stored[SESSION_KEY] as TesterSession | undefined;
 }
 
 export async function setSession(session: TesterSession): Promise<void> {
-  await chrome.storage.session.set({ [SESSION_KEY]: session });
+  await sessionArea().set({ [SESSION_KEY]: session });
 }
 
 export async function clearSession(): Promise<void> {
-  await chrome.storage.session.remove(SESSION_KEY);
+  await sessionArea().remove(SESSION_KEY);
 }
 
 export async function appendLog(tabId: number, log: RedactedRequestLog): Promise<void> {

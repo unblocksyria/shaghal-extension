@@ -112,7 +112,7 @@ async function harvestTabMetadata(tabId: number): Promise<void> {
     }
     await chrome.scripting.executeScript({
       target: { tabId },
-      files: ['/harvester.js'],
+      files: ['harvester.js'],
     });
   } catch {
     // Pages without DOM access (chrome://, web store) are silently skipped
