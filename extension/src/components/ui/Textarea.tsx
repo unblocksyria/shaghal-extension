@@ -20,7 +20,7 @@ export const Textarea: React.FC<TextareaProps> = ({
   const generatedId = id ?? (label ? `textarea-${label.toLowerCase().replace(/[^a-z0-9]/g, '-')}` : undefined);
 
   return (
-    <div style={{ display: 'grid', gap: 6, width: '100%' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 6, width: '100%' }}>
       {label && (
         <label
           htmlFor={generatedId}

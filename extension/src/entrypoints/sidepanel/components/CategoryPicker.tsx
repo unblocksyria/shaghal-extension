@@ -30,7 +30,10 @@ export function CategoryPicker(props: {
   }, [props.selected, props.options]);
 
   return (
-    <div ref={containerRef} style={{ position: 'relative', display: 'grid', gap: 6, minWidth: 0 }}>
+    <div
+      ref={containerRef}
+      style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 6, minWidth: 0 }}
+    >
       {open && (
         <div
           style={{

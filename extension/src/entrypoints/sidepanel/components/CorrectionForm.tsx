@@ -172,7 +172,7 @@ export function CorrectionForm(props: {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 10 }}>
         <label style={{ fontSize: 14, fontWeight: 500, color: 'var(--us-text-primary)' }}>
           What needs to be corrected? <span style={{ color: 'var(--us-gold)', fontWeight: 700 }}>*</span>
         </label>
@@ -180,13 +180,13 @@ export function CorrectionForm(props: {
           const isSelected = selected.has(field.type);
           const current = currentValue(props.service, field.type);
           return (
-            <div key={field.type} style={{ display: 'grid', gap: 6 }}>
+            <div key={field.type} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 6 }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--us-text-primary)', cursor: 'pointer' }}>
                 <input type="checkbox" checked={isSelected} onChange={() => toggleField(field.type)} />
                 <span>{field.label}</span>
               </label>
               {isSelected && field.type !== 'other' && field.type !== 'category' && (
-                <div style={{ paddingLeft: 26 }}>
+                <div style={{ paddingLeft: 26, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 6 }}>
                   {current.length > 0 && (
                     <div style={{ fontSize: 11, color: 'var(--us-text-dim)', marginBottom: 4 }}>
                       Current: {current.length > 80 ? `${current.slice(0, 80)}…` : current}
@@ -207,7 +207,7 @@ export function CorrectionForm(props: {
                 </div>
               )}
               {isSelected && field.type === 'category' && (
-                <div style={{ paddingLeft: 26, display: 'grid', gap: 4, minWidth: 0 }}>
+                <div style={{ paddingLeft: 26, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 4 }}>
                   {current.length > 0 && (
                     <div style={{ fontSize: 11, color: 'var(--us-text-dim)' }}>
                       Current: {current.length > 80 ? `${current.slice(0, 80)}…` : current}
@@ -224,7 +224,7 @@ export function CorrectionForm(props: {
                 </div>
               )}
               {isSelected && field.type === 'other' && (
-                <div style={{ paddingLeft: 26 }}>
+                <div style={{ paddingLeft: 26, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)' }}>
                   <Textarea
                     placeholder="What should we know?"
                     value={proposals[field.type] ?? ''}
