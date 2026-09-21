@@ -9,7 +9,7 @@
     "build": "wxt build",
     "build:firefox": "wxt build -b firefox",
     "zip": "wxt build && wxt zip",
-    "zip:firefox": "wxt build -b firefox && wxt zip -b firefox",
+    "zip:firefox": "wxt build -b firefox && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/repack-firefox.ps1",
     "postinstall": "wxt prepare"
   },
   "dependencies": {
