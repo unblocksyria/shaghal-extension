@@ -38,7 +38,7 @@ export function SidePanelApp() {
   const sessionState = useSessionState();
   const session = sessionState.active;
   const endedSession = sessionState.lastEnded;
-  const lastCheckedUrlRef = useRef<string | null>(null);
+  const autoCheckedRef = useRef(false);
   const serviceUrl = normalizeServiceUrl(activeTab.url ?? '');
 
   const runDuplicateCheck = useCallback(async () => {
@@ -74,14 +74,13 @@ export function SidePanelApp() {
   }, [serviceUrl]);
 
   useEffect(() => {
+    if (autoCheckedRef.current) return;
     if (view !== 'check' || serviceUrl === null) return;
-    if (lastCheckedUrlRef.current === serviceUrl) return;
-    lastCheckedUrlRef.current = serviceUrl;
+    autoCheckedRef.current = true;
     void runDuplicateCheck();
   }, [serviceUrl, view, runDuplicateCheck]);
 
   const resetToCheck = () => {
-    lastCheckedUrlRef.current = null;
     setDuplicate(null);
     setService(null);
     setView('check');
@@ -245,15 +244,12 @@ export function SidePanelApp() {
                 }}
                 title={activeTab.url ?? ''}
               >
-                {activeTab.url ?? 'No active tab'}
+                {serviceUrl ?? activeTab.url ?? 'No active tab'}
               </div>
             </div>
             {activeTab.url !== null && (
               <button
-                onClick={() => {
-                  lastCheckedUrlRef.current = null;
-                  void runDuplicateCheck();
-                }}
+                onClick={() => void runDuplicateCheck()}
                 disabled={checking}
                 title="Re-check this URL"
                 style={{
