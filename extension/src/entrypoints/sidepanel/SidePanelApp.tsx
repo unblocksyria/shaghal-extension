@@ -11,6 +11,7 @@ import { sendSessionMessage } from '../../lib/messaging';
 import { normalizeServiceUrl } from '../../lib/url';
 import { classifyLogs, type LogVerdict } from '../../lib/classifier';
 import { checkDnsConsistency, type DnsCheckResult } from '../../lib/dnsCheck';
+import { checkGeoLocation, geoWarning } from '../../lib/geo';
 import { DevTokenSettings } from './DevTokenSettings';
 import { useActiveTab } from './hooks/useActiveTab';
 import { useSessionState } from './hooks/useSessionState';
@@ -23,7 +24,7 @@ import { SessionCard, downloadSessionJson } from './components/SessionCard';
 import { BrandHeader } from '../../components/ui/BrandHeader';
 import { LatticeBackground } from '../../components/LatticeBackground';
 import type { EvidenceItem } from './types';
-import { AlertTriangle, Globe, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Globe, RefreshCw, WifiOff } from 'lucide-react';
 import '../../styles/theme.css';
 
 type PanelView = 'settings' | 'check' | 'choose-report' | 'new-service' | 'correction' | 'report-functionality';
@@ -43,6 +44,7 @@ export function SidePanelApp() {
   const autoCheckedRef = useRef(false);
   const serviceUrl = normalizeServiceUrl(activeTab.url ?? '');
   const [dnsResult, setDnsResult] = useState<DnsCheckResult | null>(null);
+  const [geoWarningText, setGeoWarningText] = useState<string | null>(null);
   const displayedSessionForVerdict = session ?? endedSession;
   const verdict: LogVerdict | null = displayedSessionForVerdict !== null ? classifyLogs(displayedSessionForVerdict.logs) : null;
   const suggestion =
@@ -111,10 +113,13 @@ export function SidePanelApp() {
   const startTest = async () => {
     if (activeTab.tabId === null) return;
     await sendSessionMessage({ type: 'START_TEST', tabId: activeTab.tabId });
+    setGeoWarningText(null);
+    void checkGeoLocation().then((result) => setGeoWarningText(geoWarning(result)));
   };
 
   const endTest = async () => {
     const response = await sendSessionMessage({ type: 'END_TEST' });
+    setGeoWarningText(null);
     const ended = response.ok ? response.session ?? null : null;
     if (ended !== null && ended.metadata?.serviceUrl !== undefined) {
       let host: string;
@@ -207,6 +212,26 @@ export function SidePanelApp() {
         />
 
         <main style={{ padding: '0 16px 24px 16px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 14 }}>
+          {geoWarningText !== null && (
+            <div
+              role="alert"
+              style={{
+                border: '1px solid rgba(185, 168, 123, 0.4)',
+                backgroundColor: 'rgba(185, 168, 123, 0.1)',
+                borderRadius: 'var(--us-radius-control)',
+                padding: '10px 14px',
+                display: 'flex',
+                gap: 10,
+                alignItems: 'flex-start',
+                fontSize: 12,
+                color: 'var(--us-gold-light)',
+              }}
+            >
+              <WifiOff size={15} color="var(--us-gold)" style={{ flexShrink: 0, marginTop: 1 }} />
+              <div style={{ lineHeight: 1.5 }}>{geoWarningText}</div>
+            </div>
+          )}
+
           {error !== null && (
             <div
               style={{
