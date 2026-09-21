@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { composeNoteWithDigest } from '../../../lib/logs';
+import { getSavedEmail } from '../../../lib/settings';
 import { type SessionMetadata } from '../../../lib/session';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
@@ -19,6 +20,10 @@ export function NewServiceForm(props: {
   const [name, setName] = useState(props.metadata?.name ?? '');
   const [description, setDescription] = useState(props.metadata?.description ?? '');
   const [email, setEmail] = useState('');
+
+  useEffect(() => {
+    void getSavedEmail().then(setEmail);
+  }, []);
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);

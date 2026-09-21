@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { composeNoteWithDigest } from '../../../lib/logs';
 import { submitCorrection, type CorrectionType } from '../../../lib/submit';
+import { getSavedEmail } from '../../../lib/settings';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Textarea } from '../../../components/ui/Textarea';
@@ -47,6 +48,10 @@ export function CorrectionForm(props: {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [categoryOptions, setCategoryOptions] = useState<CategoryItem[]>([]);
   const [email, setEmail] = useState('');
+
+  useEffect(() => {
+    void getSavedEmail().then(setEmail);
+  }, []);
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);

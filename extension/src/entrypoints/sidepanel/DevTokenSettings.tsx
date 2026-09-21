@@ -1,22 +1,27 @@
 import { useEffect, useState } from 'react';
 import * as Switch from '@radix-ui/react-switch';
 import { isTurnstileSkipped, setTurnstileSkipped, writeDevToken } from '../../lib/turnstile';
+import { getSavedEmail, saveEmail } from '../../lib/settings';
 import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { Card } from '../../components/ui/Card';
-import { ArrowLeft, Check, KeyRound, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Check, KeyRound, ShieldAlert, AtSign } from 'lucide-react';
 
 export function DevTokenSettings(props: { onBack: () => void }) {
   const [token, setToken] = useState('');
   const [skipped, setSkipped] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [email, setEmail] = useState('');
 
   useEffect(() => {
     void isTurnstileSkipped().then(setSkipped);
+    void getSavedEmail().then(setEmail);
   }, []);
 
   const saveToken = async () => {
     await writeDevToken(token.trim());
+    await saveEmail(email);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };
@@ -98,6 +103,23 @@ export function DevTokenSettings(props: { onBack: () => void }) {
             />
           </Switch.Root>
         </div>
+      </Card>
+
+      {/* Tester email (used across all reports) */}
+      <Card variant="default" padding="md" style={{ display: 'grid', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <AtSign size={15} color="var(--us-text-muted)" />
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--us-text-primary)' }}>Your Email</span>
+        </div>
+        <p style={{ margin: 0, fontSize: 12, color: 'var(--us-text-muted)', lineHeight: 1.5 }}>
+          Saved once and pre-filled in every report so you can skip typing it each time:
+        </p>
+        <Input
+          type="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder="tester@example.com"
+        />
       </Card>
 
       {/* Manual Token Fallback */}

@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { captureAndUploadScreenshot } from '../../../lib/evidence';
 import { composeNoteWithDigest } from '../../../lib/logs';
 import { resolveTurnstileToken } from '../../../lib/turnstile';
+import { getSavedEmail } from '../../../lib/settings';
 import { getFunctionalities, type FunctionalityItem, type ServiceRecord } from '../../../lib/endpoints';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
@@ -49,6 +50,10 @@ export function FunctionalityReportForm(props: {
   const [catalogue, setCatalogue] = useState<FunctionalityItem[] | null>(null);
   const [note, setNote] = useState('');
   const [email, setEmail] = useState('');
+
+  useEffect(() => {
+    void getSavedEmail().then(setEmail);
+  }, []);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
 
