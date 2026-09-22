@@ -1,7 +1,7 @@
 {
   "name": "fast-com",
   "description": "Real capture 2026-09-21T18:03Z, trimmed: landing page renders with HTTP 200 but every speed-test API call fails, so the core service is unusable.",
-  "expectedSuggestion": "failing",
+  "expectedParts": { "landing_page": "working", "core_use": "failing" },
   "contentSignal": null,
   "logs": [
     { "url": "https://fast.com/", "method": "GET", "statusCode": 200, "error": null, "timestamp": 1790013785527, "resourceType": "main_frame" },
