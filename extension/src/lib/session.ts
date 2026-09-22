@@ -76,17 +76,18 @@ export async function appendLog(tabId: number, log: RedactedRequestLog): Promise
 }
 
 export async function recordContentSignal(tabId: number, signal: Omit<ContentSignal, 'at'>): Promise<void> {
-  return enqueueWrite(async () => {
-    await updateSession(tabId, (session) => {
-      const stored: ContentSignal = { ...signal, at: Date.now() };
-      session.contentSignal = stored;
-      session.contentHistory = [...(session.contentHistory ?? []), stored].slice(-CONTENT_HISTORY_LIMIT);
-    });
+  return updateSession(tabId, (session) => {
+    const stored: ContentSignal = { ...signal, at: Date.now() };
+    session.contentSignal = stored;
+    session.contentHistory = [...(session.contentHistory ?? []), stored].slice(-CONTENT_HISTORY_LIMIT);
   });
 }
 
 let writeQueue: Promise<void> = Promise.resolve();
 
+// Queueing is not reentrant: a queued operation must never call enqueueWrite,
+// updateSession, or appendLog — an operation that awaits another queued
+// operation deadlocks the queue and blocks every later write (e.g. appendLog).
 function enqueueWrite(operation: () => Promise<void>): Promise<void> {
   writeQueue = writeQueue.then(operation, operation);
   return writeQueue;
