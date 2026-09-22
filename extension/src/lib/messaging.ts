@@ -1,4 +1,4 @@
-import type { TesterSession } from './session';
+import type { TesterSession, ContentSignal } from './session';
 
 export interface HarvestedMetadata {
   name?: string;
@@ -10,7 +10,8 @@ export type ExtensionMessage =
   | { type: 'START_TEST'; tabId: number }
   | { type: 'END_TEST' }
   | { type: 'GET_SESSION' }
-  | { type: 'HARVEST_RESULT'; payload: HarvestedMetadata };
+  | { type: 'HARVEST_RESULT'; payload: HarvestedMetadata }
+  | { type: 'BLOCKPAGE_RESULT'; payload: Omit<ContentSignal, 'at'> };
 
 export interface SessionResponse {
   ok: boolean;

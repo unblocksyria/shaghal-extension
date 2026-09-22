@@ -1,4 +1,5 @@
 import type { RedactedRequestLog } from './redact';
+import type { BlockTier } from './blocklist';
 
 const SESSION_KEY = 'testerSession';
 const LAST_ENDED_KEY = 'lastEndedSession';
@@ -24,11 +25,23 @@ export interface SessionMetadata {
   serviceUrl?: string;
 }
 
+export interface ContentSignal {
+  matchedPhrase: string | null;
+  tier?: BlockTier;
+  pageTitle: string | null;
+  pageUrl: string | null;
+  at: number;
+}
+
+const CONTENT_HISTORY_LIMIT = 10;
+
 export interface TesterSession {
   tabId: number;
   startedAt: number;
   logs: RedactedRequestLog[];
   metadata?: SessionMetadata;
+  contentSignal?: ContentSignal;
+  contentHistory?: ContentSignal[];
 }
 
 export async function updateSession(tabId: number, update: (session: TesterSession) => void): Promise<void> {
@@ -59,6 +72,16 @@ export async function appendLog(tabId: number, log: RedactedRequestLog): Promise
     if (session === undefined || session.tabId !== tabId) return;
     session.logs.push(log);
     await setSession(session);
+  });
+}
+
+export async function recordContentSignal(tabId: number, signal: Omit<ContentSignal, 'at'>): Promise<void> {
+  return enqueueWrite(async () => {
+    await updateSession(tabId, (session) => {
+      const stored: ContentSignal = { ...signal, at: Date.now() };
+      session.contentSignal = stored;
+      session.contentHistory = [...(session.contentHistory ?? []), stored].slice(-CONTENT_HISTORY_LIMIT);
+    });
   });
 }
 
