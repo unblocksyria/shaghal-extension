@@ -7,6 +7,7 @@ import { Input } from '../../../components/ui/Input';
 import { Textarea } from '../../../components/ui/Textarea';
 import type { EvidenceItem } from '../types';
 import { EvidenceThumbs } from './EvidenceThumbs';
+import { useVpnWarning } from '../hooks/useVpnWarning';
 import { ArrowLeft, Camera, Check, WifiOff, Image as ImageIcon } from 'lucide-react';
 
 export function NewServiceForm(props: {
@@ -30,6 +31,7 @@ export function NewServiceForm(props: {
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
+  const vpnWarning = useVpnWarning();
 
   const submit = async () => {
     setSubmitting(true);
@@ -114,26 +116,26 @@ export function NewServiceForm(props: {
         </p>
       </div>
 
-      <div
-        role="alert"
-        style={{
-          border: '1px solid rgba(185, 168, 123, 0.4)',
-          backgroundColor: 'rgba(185, 168, 123, 0.10)',
-          borderRadius: 'var(--us-radius-control)',
-          padding: '12px 14px',
-          display: 'flex',
-          gap: 12,
-          alignItems: 'flex-start',
-        }}
-      >
-        <WifiOff size={18} color="var(--us-gold)" style={{ flexShrink: 0, marginTop: 2 }} />
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 3 }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#FFFFFF' }}>Please disable your VPN</span>
-          <span style={{ fontSize: 12, color: 'var(--us-gold-light)', lineHeight: 1.5 }}>
-            Make sure you&apos;re browsing from Syria without a VPN. This helps us accurately check whether the service you&apos;re reporting works from Syria.
-          </span>
+      {vpnWarning !== null && (
+        <div
+          role="alert"
+          style={{
+            border: '1px solid rgba(185, 168, 123, 0.4)',
+            backgroundColor: 'rgba(185, 168, 123, 0.10)',
+            borderRadius: 'var(--us-radius-control)',
+            padding: '12px 14px',
+            display: 'flex',
+            gap: 12,
+            alignItems: 'flex-start',
+          }}
+        >
+          <WifiOff size={18} color="var(--us-gold)" style={{ flexShrink: 0, marginTop: 2 }} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 3 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#FFFFFF' }}>VPN detected</span>
+            <span style={{ fontSize: 12, color: 'var(--us-gold-light)', lineHeight: 1.5 }}>{vpnWarning}</span>
+          </div>
         </div>
-      </div>
+      )}
 
       {props.notice !== undefined && (
         <div
