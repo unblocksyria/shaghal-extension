@@ -104,10 +104,7 @@ export function SidePanelApp() {
   }, [serviceUrl, view, runDuplicateCheck]);
 
   useEffect(() => {
-    if (session === null) {
-      setGeoStatus(null);
-      return;
-    }
+    const recording = session !== null;
     let cancelled = false;
     const run = () => {
       void checkGeoLocation().then((result) => {
@@ -122,7 +119,7 @@ export function SidePanelApp() {
       });
     };
     run();
-    const interval = setInterval(run, 20000);
+    const interval = setInterval(run, recording ? 20000 : 120000);
     return () => {
       cancelled = true;
       clearInterval(interval);

@@ -9,8 +9,7 @@ import { Input } from '../../../components/ui/Input';
 import { Textarea } from '../../../components/ui/Textarea';
 import type { EvidenceItem } from '../types';
 import { EvidenceThumbs } from './EvidenceThumbs';
-import { useVpnWarning } from '../hooks/useVpnWarning';
-import { ArrowLeft, Camera, Check, Plus, Undo2, WifiOff } from 'lucide-react';
+import { ArrowLeft, Camera, Check, Plus, Undo2 } from 'lucide-react';
 
 interface PartEntry {
   slug: string;
@@ -58,7 +57,6 @@ export function FunctionalityReportForm(props: {
   const [catalogue, setCatalogue] = useState<FunctionalityItem[] | null>(null);
   const [note, setNote] = useState('');
   const [email, setEmail] = useState('');
-  const vpnWarning = useVpnWarning();
 
   useEffect(() => {
     void getSavedEmail().then(setEmail);
@@ -258,24 +256,6 @@ export function FunctionalityReportForm(props: {
           Report what works and what fails from Syria. Every report is reviewed before updating the catalog.
         </p>
       </div>
-
-      {vpnWarning !== null && (
-        <div
-          role="alert"
-          style={{
-            border: '1px solid rgba(185, 168, 123, 0.4)',
-            backgroundColor: 'rgba(185, 168, 123, 0.10)',
-            borderRadius: 'var(--us-radius-control)',
-            padding: '10px 14px',
-            display: 'flex',
-            gap: 10,
-            alignItems: 'flex-start',
-          }}
-        >
-          <WifiOff size={16} color="var(--us-gold)" style={{ flexShrink: 0, marginTop: 2 }} />
-          <div style={{ fontSize: 12, color: 'var(--us-gold-light)', lineHeight: 1.5 }}>{vpnWarning}</div>
-        </div>
-      )}
 
       {parts.length === 0 ? (
         <div
