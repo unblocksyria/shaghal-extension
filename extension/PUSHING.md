@@ -1,13 +1,13 @@
 # Publishing this repo to the unblocksyria GitHub org
 
-Do this once GitHub org access is granted (remote does not exist yet).
+Remote: **https://github.com/unblocksyria/shaghal-chrome-extension** (HTTPS; added 2026-09-22).
 
-1. Create the repo in the org (empty, no README — this repo already has history):
-   suggested name: `unblocksyria-tester-extension`
-2. Then from the project root:
+1. Repo created in the org (empty, no README — this repo already has history):
+   `unblocksyria/shaghal-chrome-extension`
+2. From the project root:
 
 ```
-git remote add origin git@github.com:unblocksyria/unblocksyria-tester-extension.git
+git remote add origin https://github.com/unblocksyria/shaghal-chrome-extension.git
 git push -u origin main
 ```
 
