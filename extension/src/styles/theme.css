@@ -336,6 +336,27 @@ h1, h2 {
   }
 }
 
+/* Very narrow panels: stack the field name above its Works/Fails/Not-checked control */
+@media (max-width: 360px) {
+  .us-func-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .us-func-row > .us-func-label {
+    flex: none;
+  }
+  .us-func-row > div:last-child {
+    width: 100%;
+  }
+  .us-func-row > div:last-child > .us-seg-container {
+    flex: 1;
+    display: flex;
+  }
+  .us-func-row > div:last-child > .us-seg-container > .us-seg-btn {
+    flex: 1;
+  }
+}
+
 .us-seg-btn:hover:not(.active-works):not(.active-fails):not(.active-notchecked) {
   color: #FFFFFF;
   background: rgba(255, 255, 255, 0.04);

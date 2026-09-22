@@ -47,7 +47,6 @@ export function FunctionalityReportForm(props: {
       evidence: [],
     })),
   );
-  const [activeDetailsPart, setActiveDetailsPart] = useState<string | null>(null);
   const [editedSlugs, setEditedSlugs] = useState<Set<string>>(new Set());
   const preEditStateRef = useRef<Map<string, Omit<PartEntry, 'slug' | 'name' | 'isCore' | 'trackedLevel'>>>(new Map());
   const [catalogue, setCatalogue] = useState<FunctionalityItem[] | null>(null);
@@ -80,7 +79,6 @@ export function FunctionalityReportForm(props: {
 
   const openEditor = (slug: string) => {
     ensurePreEditSnapshot(slug);
-    setActiveDetailsPart(slug);
   };
 
   const chooseLevel = (slug: string, level: 'working' | 'failing') => {
@@ -109,7 +107,6 @@ export function FunctionalityReportForm(props: {
       next.delete(slug);
       return next;
     });
-    setActiveDetailsPart(null);
   };
 
   const addCataloguePart = (functionality: FunctionalityItem) => {
@@ -299,7 +296,6 @@ export function FunctionalityReportForm(props: {
             const isWorks = part.level === 'working';
             const isFails = part.level === 'failing';
             const isNotChecked = part.level === undefined;
-            const isExpanded = activeDetailsPart === part.slug;
             const isEdited = editedSlugs.has(part.slug);
             const partSuggestion =
               props.suggestion !== undefined &&
@@ -308,10 +304,7 @@ export function FunctionalityReportForm(props: {
                 ? props.suggestion
                 : undefined;
             const showTextBox =
-              isExpanded ||
-              (isEdited && part.level !== undefined) ||
-              part.description.length > 0 ||
-              part.evidence.length > 0;
+              (isEdited && part.level !== undefined) || part.description.length > 0 || part.evidence.length > 0;
 
             return (
               <div key={part.slug} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)' }}>
@@ -344,34 +337,12 @@ export function FunctionalityReportForm(props: {
                         Not checked
                       </button>
                     </div>
-
-                    <button
-                      type="button"
-                      title={showTextBox ? 'Observation note' : 'Add observation note or screenshot'}
-                      onClick={() => (isExpanded ? setActiveDetailsPart(null) : openEditor(part.slug))}
-                      style={{
-                        background: showTextBox ? 'rgba(185, 168, 123, 0.12)' : 'transparent',
-                        border: showTextBox ? '1px solid rgba(185, 168, 123, 0.3)' : '1px solid transparent',
-                        borderRadius: '6px',
-                        padding: '4px 6px',
-                        color: showTextBox ? 'var(--us-gold)' : 'var(--us-text-dim)',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 3,
-                        fontSize: 11,
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      <Camera size={13} />
-                      {part.evidence.length > 0 && <span>{part.evidence.length}</span>}
-                    </button>
                   </div>
                 </div>
 
                 {partSuggestion !== undefined && (
                   <div style={{ padding: '0 2px 10px 2px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 11, color: 'var(--us-text-dim)' }}>
+                    <span style={{ fontSize: 11, color: 'var(--us-text-dim)', minWidth: 0 }}>
                       Suggested: <strong style={{ color: 'var(--us-gold)' }}>{partSuggestion.level}</strong> — {partSuggestion.evidence}
                     </span>
                     <button
@@ -385,6 +356,8 @@ export function FunctionalityReportForm(props: {
                         color: 'var(--us-gold)',
                         fontSize: 11,
                         cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0,
                       }}
                     >
                       Apply
