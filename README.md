@@ -1,5 +1,7 @@
 # شغّال؟ — Unblock Syria Tester Extension
 
+Report service status from your browser.
+
 Internal Chrome extension for **unblocksyria.com** testers. It helps testers check whether
 websites and services work from Syria and report their findings to the catalog, capturing
 network logs as evidence of what works and what doesn't.
