@@ -1,7 +1,7 @@
 {
   "name": "chatgpt-with-vpn",
   "description": "Real capture 2026-09-21T17:43Z, trimmed: page loaded over VPN and the core APIs eventually answered 2xx after retries.",
-  "expectedSuggestion": "working",
+  "expectedParts": { "landing_page": "working", "core_use": "working" },
   "contentSignal": null,
   "logs": [
     { "url": "https://chatgpt.com/images/", "method": "GET", "statusCode": null, "error": "net::ERR_TIMED_OUT", "timestamp": 1790012697341, "resourceType": "main_frame" },
@@ -9,6 +9,7 @@
     { "url": "https://chatgpt.com/cdn/assets/root-ks7zmc1f.js", "method": "GET", "statusCode": 200, "error": null, "timestamp": 1790012710464, "resourceType": "script" },
     { "url": "https://chatgpt.com/images/", "method": "GET", "statusCode": 200, "error": null, "timestamp": 1790012710347, "resourceType": "main_frame" },
     { "url": "https://chatgpt.com/backend-anon/images/styles", "method": "GET", "statusCode": 200, "error": null, "timestamp": 1790012716241, "resourceType": "xmlhttprequest" },
-    { "url": "https://chatgpt.com/backend-anon/conversation/init", "method": "POST", "statusCode": 200, "error": null, "timestamp": 1790012716812, "resourceType": "xmlhttprequest" }
+    { "url": "https://chatgpt.com/backend-anon/conversation/init", "method": "POST", "statusCode": 200, "error": null, "timestamp": 1790012716812, "resourceType": "xmlhttprequest" },
+    { "url": "https://chatgpt.com/backend-anon/me", "method": "GET", "statusCode": 200, "error": null, "timestamp": 1790012716394, "resourceType": "xmlhttprequest" }
   ]
 }

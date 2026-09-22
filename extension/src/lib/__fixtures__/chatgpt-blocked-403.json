@@ -1,7 +1,7 @@
 {
   "name": "chatgpt-without-vpn",
   "description": "Real capture 2026-09-21T18:01Z, trimmed: main frame denied with 403 while no VPN was active.",
-  "expectedSuggestion": "failing",
+  "expectedParts": { "landing_page": "failing", "core_use": "failing" },
   "contentSignal": null,
   "logs": [
     { "url": "https://chatgpt.com/cdn/assets/5a03ffd8.js", "method": "GET", "statusCode": 200, "error": null, "timestamp": 1790013691581, "resourceType": "script" },

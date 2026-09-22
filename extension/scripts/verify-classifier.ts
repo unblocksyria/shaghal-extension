@@ -7,10 +7,13 @@ import type { ContentSignal } from '../src/lib/session';
 
 const FIXTURE_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'lib', '__fixtures__');
 
+type PartSlug = 'landing_page' | 'core_use';
+type ExpectedLevel = 'working' | 'failing' | 'none';
+
 interface Fixture {
   name: string;
   description: string;
-  expectedSuggestion: 'working' | 'failing' | 'none';
+  expectedParts: Record<PartSlug, ExpectedLevel>;
   contentSignal: ContentSignal | null;
   logs: RedactedRequestLog[];
 }
@@ -26,15 +29,20 @@ function verify(): number {
   let failing = 0;
   for (const fixture of fixtures) {
     const verdict = classifyLogs(fixture.logs, fixture.contentSignal ?? undefined);
-    const actual = verdict.coreSuggestion ?? 'none';
-    const passed = actual === fixture.expectedSuggestion;
-    if (!passed) failing += 1;
-    console.log(`${passed ? 'PASS' : 'FAIL'}  ${fixture.name} → ${actual} — ${verdict.coreEvidence}`);
+    for (const slug of ['landing_page', 'core_use'] as const) {
+      const expected = fixture.expectedParts[slug];
+      const actual = verdict.parts[slug].level ?? 'none';
+      const passed = actual === expected;
+      if (!passed) failing += 1;
+      console.log(
+        `${passed ? 'PASS' : 'FAIL'}  ${fixture.name} [${slug}] → ${actual} — ${verdict.parts[slug].evidence}`,
+      );
+    }
     for (const warning of verdict.coreWarnings) console.log(`      warning: ${warning}`);
   }
   return failing;
 }
 
 const failing = verify();
-console.log(failing === 0 ? '\nAll fixtures pass.' : `\n${failing} fixture(s) failed.`);
+console.log(failing === 0 ? '\nAll fixtures pass.' : `\n${failing} assertion(s) failed.`);
 process.exit(failing === 0 ? 0 : 1);

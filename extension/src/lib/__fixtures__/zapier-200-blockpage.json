@@ -1,7 +1,7 @@
 {
   "name": "zapier",
   "description": "Real capture 2026-09-22T08:17Z, trimmed: the sanctions block page was served with HTTP 200, so the network layer alone says 'working'; the content signal carries the truth.",
-  "expectedSuggestion": "failing",
+  "expectedParts": { "landing_page": "failing", "core_use": "failing" },
   "contentSignal": {
     "matchedPhrase": "unavailable in your location",
     "tier": "strong",

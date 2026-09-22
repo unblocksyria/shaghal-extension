@@ -1,6 +1,8 @@
 import type { RedactedRequestLog } from './redact';
 import type { ContentSignal } from './session';
 import type { BlockTier } from './blocklist';
+import { isSameSite } from './sameSite';
+import { hostOf } from './url';
 
 export interface SuspiciousHost {
   host: string;
@@ -9,9 +11,13 @@ export interface SuspiciousHost {
   error: string;
 }
 
+export interface PartVerdict {
+  level?: 'working' | 'failing';
+  evidence: string;
+}
+
 export interface LogVerdict {
-  coreSuggestion?: 'working' | 'failing';
-  coreEvidence: string;
+  parts: { landing_page: PartVerdict; core_use: PartVerdict };
   coreWarnings: string[];
   blockedMessage?: string;
   blockedMessageTier?: BlockTier;
@@ -22,6 +28,8 @@ export interface LogVerdict {
 
 const DENIED_STATUS = new Set([403, 451]);
 const API_COLLAPSE_FAILURE_THRESHOLD = 5;
+const HEALTHY_API_SUCCESS_THRESHOLD = 3;
+const HEALTHY_MAX_FAILURE_RATIO = 0.25;
 
 interface MainFrameSummary {
   successes: number;
@@ -38,6 +46,7 @@ interface HostTraffic {
 
 interface TrafficScan {
   main: MainFrameSummary;
+  mainHost?: string;
   apiHosts: Map<string, HostTraffic>;
   deniedCount: number;
   abortedCount: number;
@@ -59,16 +68,12 @@ function errorClass(error: string): 'dns' | 'network' | 'blocked' | 'aborted' | 
   return 'other';
 }
 
-function hostOf(rawUrl: string): string {
-  try {
-    return new URL(rawUrl).host;
-  } catch {
-    return rawUrl;
-  }
-}
-
 function isApiRequest(resourceType: string): boolean {
   return resourceType === 'xmlhttprequest' || resourceType === 'fetch';
+}
+
+function describeFailure(log: RedactedRequestLog): string {
+  return log.error ?? `HTTP ${log.statusCode}`;
 }
 
 function recordApiFailure(hosts: Map<string, HostTraffic>, log: RedactedRequestLog): void {
@@ -85,8 +90,16 @@ function recordApiSuccess(hosts: Map<string, HostTraffic>, log: RedactedRequestL
   hosts.set(host, traffic);
 }
 
-function describeFailure(log: RedactedRequestLog): string {
-  return log.error ?? `HTTP ${log.statusCode}`;
+function scanMainOutcome(main: MainFrameSummary, log: RedactedRequestLog): void {
+  if (log.statusCode !== null && log.statusCode < 400) {
+    main.successes += 1;
+    return;
+  }
+  if (log.statusCode !== null && DENIED_STATUS.has(log.statusCode)) {
+    main.denied += 1;
+    return;
+  }
+  if (log.error !== null) main.networkError = true;
 }
 
 function scanTraffic(logs: RedactedRequestLog[]): TrafficScan {
@@ -105,6 +118,7 @@ function scanTraffic(logs: RedactedRequestLog[]): TrafficScan {
     if (log.statusCode !== null && DENIED_STATUS.has(log.statusCode)) scan.deniedCount += 1;
 
     if (log.resourceType === 'main_frame') {
+      if (scan.mainHost === undefined) scan.mainHost = hostOf(log.url);
       scanMainOutcome(scan.main, log);
       continue;
     }
@@ -118,28 +132,22 @@ function scanTraffic(logs: RedactedRequestLog[]): TrafficScan {
   return scan;
 }
 
-function scanMainOutcome(main: MainFrameSummary, log: RedactedRequestLog): void {
-  if (log.statusCode !== null && log.statusCode < 400) {
-    main.successes += 1;
-    return;
-  }
-  if (log.statusCode !== null && DENIED_STATUS.has(log.statusCode)) {
-    main.denied += 1;
-    return;
-  }
-  if (log.error !== null) main.networkError = true;
+function hasStrongContentMatch(contentSignal?: ContentSignal): boolean {
+  return contentSignal?.matchedPhrase != null && (contentSignal.tier ?? 'weak') === 'strong';
 }
 
-function collapsedHost(apiHosts: Map<string, HostTraffic>): HostTraffic | undefined {
-  return [...apiHosts.values()].find(
-    (traffic) => traffic.failures >= API_COLLAPSE_FAILURE_THRESHOLD && traffic.successes === 0,
-  );
+function hasWeakContentMatch(contentSignal?: ContentSignal): boolean {
+  return contentSignal?.matchedPhrase != null && (contentSignal.tier ?? 'weak') !== 'strong';
+}
+
+function sameSiteTraffic(scan: TrafficScan, serviceHost?: string): HostTraffic[] {
+  if (serviceHost === undefined) return [];
+  return [...scan.apiHosts.values()].filter((traffic) => isSameSite(traffic.host, serviceHost));
 }
 
 function collectWarnings(scan: TrafficScan, contentSignal?: ContentSignal): string[] {
   const warnings: string[] = [];
-  const weakMatch = contentSignal?.matchedPhrase != null && (contentSignal.tier ?? 'weak') === 'weak';
-  if (weakMatch) {
+  if (hasWeakContentMatch(contentSignal)) {
     warnings.push(`Possible block message on page ("${contentSignal?.matchedPhrase}") — verify manually`);
   }
   for (const traffic of scan.apiHosts.values()) {
@@ -150,10 +158,73 @@ function collectWarnings(scan: TrafficScan, contentSignal?: ContentSignal): stri
   return warnings;
 }
 
-export function classifyLogs(logs: RedactedRequestLog[], contentSignal?: ContentSignal): LogVerdict {
+function assessLandingPage(scan: TrafficScan, contentSignal?: ContentSignal): PartVerdict {
+  if (hasStrongContentMatch(contentSignal)) {
+    return { level: 'failing', evidence: `Block message detected on page: "${contentSignal?.matchedPhrase}"` };
+  }
+  if (scan.main.denied > 0) {
+    return { level: 'failing', evidence: `Main page was denied ${scan.main.denied} time(s) with 403/451` };
+  }
+  if (scan.main.successes > 0) {
+    return { level: 'working', evidence: `${scan.main.successes} main page load(s) succeeded` };
+  }
+  if (scan.main.networkError) {
+    return { level: 'failing', evidence: 'Main page request failed with a network error' };
+  }
+  return { evidence: 'No main page load captured' };
+}
+
+function assessCoreUse(scan: TrafficScan, contentSignal?: ContentSignal, serviceHost?: string): PartVerdict {
+  const traffic = sameSiteTraffic(scan, serviceHost);
+
+  if (hasStrongContentMatch(contentSignal)) {
+    return { level: 'failing', evidence: `Block message detected on page: "${contentSignal?.matchedPhrase}"` };
+  }
+  const collapse = traffic.find(
+    (entry) => entry.failures >= API_COLLAPSE_FAILURE_THRESHOLD && entry.successes === 0,
+  );
+  if (collapse !== undefined) {
+    return { level: 'failing', evidence: `Page loads but ${collapse.failures} API calls to ${collapse.host} all failed` };
+  }
+  if (scan.main.denied > 0) {
+    return { level: 'failing', evidence: `Service unreachable — main page was denied ${scan.main.denied} time(s)` };
+  }
+  if (scan.main.networkError && scan.main.successes === 0) {
+    return { level: 'failing', evidence: 'Main page request failed with a network error' };
+  }
+
+  const failures = traffic.reduce((total, entry) => total + entry.failures, 0);
+  const successes = traffic.reduce((total, entry) => total + entry.successes, 0);
+  const failureRatio = failures / (failures + successes);
+
+  if (successes >= HEALTHY_API_SUCCESS_THRESHOLD && failureRatio <= HEALTHY_MAX_FAILURE_RATIO) {
+    return {
+      level: 'working',
+      evidence: `${successes} API call(s) succeeded${failures > 0 ? `, ${failures} failed` : ' with no failures'}`,
+    };
+  }
+  if (traffic.length === 0) {
+    const landing = assessLandingPage(scan, contentSignal);
+    return {
+      level: landing.level,
+      evidence: landing.level === undefined ? landing.evidence : `No API calls observed — ${landing.evidence.toLowerCase()}`,
+    };
+  }
+  if (failures > 0) {
+    return { evidence: `${failures} of ${failures + successes} same-site API call(s) failed` };
+  }
+  return { evidence: 'Not enough API activity to judge' };
+}
+
+export function classifyLogs(logs: RedactedRequestLog[], contentSignal?: ContentSignal, serviceHost?: string): LogVerdict {
   const scan = scanTraffic(logs);
+  const resolvedServiceHost = serviceHost ?? scan.mainHost;
+
   const verdict: LogVerdict = {
-    coreEvidence: `${scan.main.successes} main page load${scan.main.successes === 1 ? '' : 's'} succeeded`,
+    parts: {
+      landing_page: assessLandingPage(scan, contentSignal),
+      core_use: assessCoreUse(scan, contentSignal, resolvedServiceHost),
+    },
     coreWarnings: collectWarnings(scan, contentSignal),
     deniedCount: scan.deniedCount,
     failedApiHosts: [...scan.apiHosts.values()].sort((a, b) => b.failures - a.failures),
@@ -163,25 +234,6 @@ export function classifyLogs(logs: RedactedRequestLog[], contentSignal?: Content
   if (contentSignal?.matchedPhrase != null) {
     verdict.blockedMessage = contentSignal.matchedPhrase;
     verdict.blockedMessageTier = contentSignal.tier ?? 'weak';
-  }
-
-  if (verdict.blockedMessageTier === 'strong') {
-    verdict.coreSuggestion = 'failing';
-    verdict.coreEvidence = `Block message detected on page: "${contentSignal?.matchedPhrase}"`;
-  } else if (scan.main.denied > 0) {
-    verdict.coreSuggestion = 'failing';
-    verdict.coreEvidence = `Main page was denied ${scan.main.denied} time(s) with 403/451`;
-  } else {
-    const collapse = collapsedHost(scan.apiHosts);
-    if (collapse !== undefined) {
-      verdict.coreSuggestion = 'failing';
-      verdict.coreEvidence = `Page loads but ${collapse.failures} API calls to ${collapse.host} all failed`;
-    } else if (scan.main.successes > 0) {
-      verdict.coreSuggestion = 'working';
-    } else if (scan.main.networkError) {
-      verdict.coreSuggestion = 'failing';
-      verdict.coreEvidence = 'Main page request failed with a network error';
-    }
   }
 
   return verdict;
