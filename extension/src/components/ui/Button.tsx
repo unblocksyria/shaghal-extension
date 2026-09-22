@@ -91,6 +91,8 @@ export const Button: React.FC<ButtonProps> = ({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
+        maxWidth: '100%',
+        minWidth: 0,
         cursor: disabled ? 'not-allowed' : 'pointer',
         transition: 'all 0.18s cubic-bezier(0.215, 0.61, 0.355, 1)',
         width: fullWidth ? '100%' : 'auto',

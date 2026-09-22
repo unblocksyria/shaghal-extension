@@ -282,6 +282,7 @@ export function FunctionalityReportForm(props: {
             borderRadius: 'var(--us-radius-control)',
             border: '1px solid var(--us-border)',
             display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr)',
             gap: 10,
           }}
         >
@@ -293,7 +294,7 @@ export function FunctionalityReportForm(props: {
           </Button>
         </div>
       ) : (
-        <div style={{ display: 'grid' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)' }}>
           {parts.map((part) => {
             const isWorks = part.level === 'working';
             const isFails = part.level === 'failing';
@@ -396,6 +397,7 @@ export function FunctionalityReportForm(props: {
                     style={{
                       padding: '8px 2px 14px 2px',
                       display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 1fr)',
                       gap: 8,
                       animation: 'usFadeIn 0.15s ease-out forwards',
                     }}
@@ -468,7 +470,7 @@ export function FunctionalityReportForm(props: {
           Add another part from catalogue
         </Button>
       ) : (
-        <div style={{ display: 'grid', gap: 6, fontSize: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 6, fontSize: 12 }}>
           <span style={{ fontWeight: 600, color: 'var(--us-text-muted)' }}>Additional Parts:</span>
           {catalogue.length === 0 ? (
             <span style={{ color: 'var(--us-text-dim)' }}>All catalogue parts added.</span>

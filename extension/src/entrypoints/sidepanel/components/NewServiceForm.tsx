@@ -105,7 +105,7 @@ export function NewServiceForm(props: {
         </span>
       </div>
 
-      <div style={{ display: 'grid', gap: 4 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 4 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: '#FFFFFF', letterSpacing: '-0.02em' }}>
           Report a Service
         </h1>
@@ -127,7 +127,7 @@ export function NewServiceForm(props: {
         }}
       >
         <WifiOff size={18} color="var(--us-gold)" style={{ flexShrink: 0, marginTop: 2 }} />
-        <div style={{ display: 'grid', gap: 3 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 3 }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: '#FFFFFF' }}>Please disable your VPN</span>
           <span style={{ fontSize: 12, color: 'var(--us-gold-light)', lineHeight: 1.5 }}>
             Make sure you&apos;re browsing from Syria without a VPN. This helps us accurately check whether the service you&apos;re reporting works from Syria.
@@ -169,7 +169,7 @@ export function NewServiceForm(props: {
         rows={3}
       />
 
-      <div style={{ display: 'grid', gap: 6 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <label style={{ fontSize: 14, fontWeight: 500, color: 'var(--us-text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
             Evidence Screenshots

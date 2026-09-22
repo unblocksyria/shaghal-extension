@@ -27,6 +27,7 @@ export function SessionCard(props: {
         borderRadius: 'var(--us-radius-card)',
         padding: '18px 20px',
         display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr)',
         gap: 12,
         boxShadow: 'var(--shadow-syrian-card)',
       }}
@@ -54,7 +55,7 @@ export function SessionCard(props: {
       </div>
 
       {props.session !== null ? (
-        <div style={{ display: 'grid', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 8 }}>
           <div
             style={{
               display: 'flex',
@@ -154,7 +155,7 @@ function VerdictSummary(props: { verdict: LogVerdict | null; logs: RedactedReque
   }
   if (props.verdict === null || props.verdict.coreSuggestion === undefined) {
     return (
-      <div style={{ display: 'grid', gap: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 8 }}>
         <GuidanceChip text="No strong signal captured — verify the page manually" />
         <WarningList warnings={props.verdict?.coreWarnings ?? []} />
       </div>
@@ -165,7 +166,7 @@ function VerdictSummary(props: { verdict: LogVerdict | null; logs: RedactedReque
   const isWorking = coreSuggestion === 'working';
 
   return (
-    <div style={{ display: 'grid', gap: 8 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 8 }}>
       <div
         style={{
           border: `1px solid ${isWorking ? 'var(--us-working-border)' : 'var(--us-failing-border)'}`,
@@ -217,7 +218,7 @@ function GuidanceChip(props: { text: string }) {
 function WarningList(props: { warnings: string[] }) {
   if (props.warnings.length === 0) return null;
   return (
-    <div style={{ display: 'grid', gap: 6 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 6 }}>
       {props.warnings.map((warning) => (
         <div
           key={warning}
