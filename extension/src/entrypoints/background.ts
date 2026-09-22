@@ -1,10 +1,11 @@
 import { normalizeServiceUrl } from '../lib/url';
-import { appendLog, clearSession, getSession, saveLastEndedSession, setSession, updateSession } from '../lib/session';
+import { appendLog, clearSession, getSession, recordContentSignal, saveLastEndedSession, setSession, updateSession } from '../lib/session';
 import { sendSessionMessage, type ExtensionMessage, type SessionResponse } from '../lib/messaging';
 import { redactUrl, type RedactedRequestLog } from '../lib/redact';
 
 export default defineBackground(() => {
   registerWebRequestCapture();
+  registerContentScan();
   registerMessageHandling();
   registerPanelOpenBehavior();
 });
@@ -53,6 +54,23 @@ function registerMessageHandling(): void {
   });
 }
 
+function registerContentScan(): void {
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    if (changeInfo.status !== 'complete' && changeInfo.url === undefined) return;
+    void injectBlockPageScanner(tabId);
+  });
+}
+
+async function injectBlockPageScanner(tabId: number): Promise<void> {
+  const session = await getSession();
+  if (session === undefined || session.tabId !== tabId) return;
+  try {
+    await chrome.scripting.executeScript({ target: { tabId }, files: ['blockpage.js'] });
+  } catch {
+    // Pages without DOM access (chrome://, web store) are silently skipped
+  }
+}
+
 function registerPanelOpenBehavior(): void {
   if (typeof chrome.sidePanel !== 'undefined') {
     void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => undefined);
@@ -82,6 +100,12 @@ async function handleMessage(message: ExtensionMessage, senderTabId?: number): P
         await updateSession(senderTabId, (session) => {
           session.metadata = { ...session.metadata, ...message.payload };
         });
+      }
+      return { ok: true };
+    }
+    case 'BLOCKPAGE_RESULT': {
+      if (senderTabId !== undefined) {
+        await recordContentSignal(senderTabId, message.payload);
       }
       return { ok: true };
     }
