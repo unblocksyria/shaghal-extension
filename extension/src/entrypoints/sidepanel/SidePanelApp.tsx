@@ -45,7 +45,10 @@ export function SidePanelApp() {
   const [dnsResult, setDnsResult] = useState<DnsCheckResult | null>(null);
   const [geoStatus, setGeoStatus] = useState<{ text: string; warning: boolean } | null>(null);
   const displayedSessionForVerdict = session ?? endedSession;
-  const verdict: LogVerdict | null = displayedSessionForVerdict !== null ? classifyLogs(displayedSessionForVerdict.logs) : null;
+  const verdict: LogVerdict | null =
+    displayedSessionForVerdict !== null
+      ? classifyLogs(displayedSessionForVerdict.logs, displayedSessionForVerdict.contentSignal)
+      : null;
   const suggestion =
     verdict?.coreSuggestion !== undefined
       ? { level: verdict.coreSuggestion, evidence: verdict.coreEvidence }
@@ -353,6 +356,7 @@ export function SidePanelApp() {
             tabId={activeTab.tabId}
             session={session}
             endedSession={endedSession}
+            verdict={verdict}
             dnsResult={dnsResult}
             geoStatus={geoStatus}
             onStartTest={() => void startTest()}

@@ -1,13 +1,16 @@
 import { formatDigest, buildDigest, toSessionJson } from '../../../lib/logs';
 import type { DnsCheckResult } from '../../../lib/dnsCheck';
+import type { RedactedRequestLog } from '../../../lib/redact';
 import type { TesterSession } from '../../../lib/session';
+import type { LogVerdict } from '../../../lib/classifier';
 import { Button } from '../../../components/ui/Button';
-import { Download, Play, Radio, Square } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Download, Play, Radio, Square, XCircle } from 'lucide-react';
 
 export function SessionCard(props: {
   tabId: number | null;
   session: TesterSession | null;
   endedSession: TesterSession | null;
+  verdict: LogVerdict | null;
   dnsResult: DnsCheckResult | null;
   geoStatus: { text: string; warning: boolean } | null;
   onStartTest: () => void;
@@ -129,11 +132,108 @@ export function SessionCard(props: {
         </p>
       )}
 
+      {displayed !== null && <VerdictSummary verdict={props.verdict} logs={displayed.logs} />}
+
       {displayed !== null && (
         <Button variant="surface" size="sm" onClick={props.onExport} icon={<Download size={13} />} fullWidth>
           Export Redacted Logs (.JSON)
         </Button>
       )}
+    </div>
+  );
+}
+
+const AMBER_BORDER = 'rgba(185, 168, 123, 0.4)';
+const AMBER_BG = 'rgba(185, 168, 123, 0.1)';
+
+function VerdictSummary(props: { verdict: LogVerdict | null; logs: RedactedRequestLog[] }) {
+  const mainFrameCount = props.logs.filter((log) => log.resourceType === 'main_frame').length;
+
+  if (mainFrameCount === 0) {
+    return <GuidanceChip text="No page load captured — refresh the page while recording" />;
+  }
+  if (props.verdict === null || props.verdict.coreSuggestion === undefined) {
+    return (
+      <div style={{ display: 'grid', gap: 8 }}>
+        <GuidanceChip text="No strong signal captured — verify the page manually" />
+        <WarningList warnings={props.verdict?.coreWarnings ?? []} />
+      </div>
+    );
+  }
+
+  const { coreSuggestion, coreEvidence } = props.verdict;
+  const isWorking = coreSuggestion === 'working';
+
+  return (
+    <div style={{ display: 'grid', gap: 8 }}>
+      <div
+        style={{
+          border: `1px solid ${isWorking ? 'var(--us-working-border)' : 'var(--us-failing-border)'}`,
+          backgroundColor: isWorking ? 'var(--us-working-bg)' : 'var(--us-failing-bg)',
+          borderRadius: 'var(--us-radius-control)',
+          padding: '8px 12px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          fontSize: 12,
+          color: isWorking ? 'var(--us-working-text)' : 'var(--us-failing)',
+        }}
+      >
+        {isWorking ? (
+          <CheckCircle2 size={15} style={{ flexShrink: 0 }} />
+        ) : (
+          <XCircle size={15} style={{ flexShrink: 0 }} />
+        )}
+        <span style={{ lineHeight: 1.5 }}>
+          Suggested: <strong>{coreSuggestion}</strong> — {coreEvidence}
+        </span>
+      </div>
+      <WarningList warnings={props.verdict.coreWarnings} />
+    </div>
+  );
+}
+
+function GuidanceChip(props: { text: string }) {
+  return (
+    <div
+      style={{
+        border: `1px solid ${AMBER_BORDER}`,
+        backgroundColor: AMBER_BG,
+        borderRadius: 'var(--us-radius-control)',
+        padding: '8px 12px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        fontSize: 12,
+        color: 'var(--us-gold-light)',
+      }}
+    >
+      <AlertTriangle size={15} color="var(--us-gold)" style={{ flexShrink: 0 }} />
+      <span style={{ lineHeight: 1.5 }}>{props.text}</span>
+    </div>
+  );
+}
+
+function WarningList(props: { warnings: string[] }) {
+  if (props.warnings.length === 0) return null;
+  return (
+    <div style={{ display: 'grid', gap: 6 }}>
+      {props.warnings.map((warning) => (
+        <div
+          key={warning}
+          style={{
+            border: `1px solid ${AMBER_BORDER}`,
+            backgroundColor: AMBER_BG,
+            borderRadius: 'var(--us-radius-control)',
+            padding: '6px 10px',
+            fontSize: 11,
+            color: 'var(--us-gold-light)',
+            lineHeight: 1.5,
+          }}
+        >
+          {warning}
+        </div>
+      ))}
     </div>
   );
 }
