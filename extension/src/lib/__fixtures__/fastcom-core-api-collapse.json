@@ -1,0 +1,22 @@
+{
+  "name": "fast-com",
+  "description": "Real capture 2026-09-21T18:03Z, trimmed: landing page renders with HTTP 200 but every speed-test API call fails, so the core service is unusable.",
+  "expectedSuggestion": "failing",
+  "contentSignal": null,
+  "logs": [
+    { "url": "https://fast.com/", "method": "GET", "statusCode": 200, "error": null, "timestamp": 1790013785527, "resourceType": "main_frame" },
+    { "url": "https://fast.com/assets/favicons/favicon.ico", "method": "GET", "statusCode": 200, "error": null, "timestamp": 1790013785561, "resourceType": "image" },
+    { "url": "https://ichnaea-web.netflix.com/cl2", "method": "POST", "statusCode": null, "error": "net::ERR_FAILED", "timestamp": 1790013785822, "resourceType": "xmlhttprequest" },
+    { "url": "https://api.fast.com/netflix/speedtest/v2?https=true&urlCount=5", "method": "GET", "statusCode": null, "error": "net::ERR_FAILED", "timestamp": 1790013785823, "resourceType": "xmlhttprequest" },
+    { "url": "https://api.fast.com/netflix/speedtest/v2?https=true&urlCount=5", "method": "GET", "statusCode": null, "error": "net::ERR_FAILED", "timestamp": 1790013786044, "resourceType": "xmlhttprequest" },
+    { "url": "https://api.fast.com/netflix/speedtest/v2?https=true&urlCount=5", "method": "GET", "statusCode": null, "error": "net::ERR_FAILED", "timestamp": 1790013786175, "resourceType": "xmlhttprequest" },
+    { "url": "https://api.fast.com/netflix/speedtest/v2?https=true&urlCount=5", "method": "GET", "statusCode": null, "error": "net::ERR_FAILED", "timestamp": 1790013786325, "resourceType": "xmlhttprequest" },
+    { "url": "https://api.fast.com/netflix/speedtest/v2?https=true&urlCount=5", "method": "GET", "statusCode": null, "error": "net::ERR_FAILED", "timestamp": 1790013786532, "resourceType": "xmlhttprequest" },
+    { "url": "https://api.fast.com/netflix/speedtest/v2?https=true&urlCount=5", "method": "GET", "statusCode": null, "error": "net::ERR_FAILED", "timestamp": 1790013786705, "resourceType": "xmlhttprequest" },
+    { "url": "https://api.fast.com/netflix/speedtest/v2?https=true&urlCount=5", "method": "GET", "statusCode": null, "error": "net::ERR_FAILED", "timestamp": 1790013786958, "resourceType": "xmlhttprequest" },
+    { "url": "https://api.fast.com/netflix/speedtest/v2?https=true&urlCount=5", "method": "GET", "statusCode": null, "error": "net::ERR_FAILED", "timestamp": 1790013787306, "resourceType": "xmlhttprequest" },
+    { "url": "https://api.fast.com/netflix/speedtest/v2?https=true&urlCount=5", "method": "GET", "statusCode": null, "error": "net::ERR_FAILED", "timestamp": 1790013787828, "resourceType": "xmlhttprequest" },
+    { "url": "https://api.fast.com/netflix/speedtest/v2?https=true&urlCount=5", "method": "GET", "statusCode": null, "error": "net::ERR_FAILED", "timestamp": 1790013788194, "resourceType": "xmlhttprequest" },
+    { "url": "https://ichnaea-web.netflix.com/cl2", "method": "POST", "statusCode": null, "error": "net::ERR_FAILED", "timestamp": 1790013788333, "resourceType": "xmlhttprequest" }
+  ]
+}

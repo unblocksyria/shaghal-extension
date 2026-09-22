@@ -1,0 +1,19 @@
+{
+  "name": "zapier",
+  "description": "Real capture 2026-09-22T08:17Z, trimmed: the sanctions block page was served with HTTP 200, so the network layer alone says 'working'; the content signal carries the truth.",
+  "expectedSuggestion": "failing",
+  "contentSignal": {
+    "matchedPhrase": "unavailable in your location",
+    "tier": "strong",
+    "pageTitle": "US Sanctions",
+    "pageUrl": "https://zapier.com/l/us-sanctions",
+    "at": 1790065029000
+  },
+  "logs": [
+    { "url": "https://zapier.com/l/us-sanctions", "method": "GET", "statusCode": 200, "error": null, "timestamp": 1790065028069, "resourceType": "main_frame" },
+    { "url": "https://zapier.com/l/us-sanctions", "method": "GET", "statusCode": 200, "error": null, "timestamp": 1790065028841, "resourceType": "xmlhttprequest" },
+    { "url": "https://bzrcdn.openai.com/sdk/oaiq.min.js", "method": "GET", "statusCode": null, "error": "net::ERR_BLOCKED_BY_ORB", "timestamp": 1790065028681, "resourceType": "script" },
+    { "url": "https://cdn.cookielaw.org/consent/c2bc6bc2.json", "method": "GET", "statusCode": 200, "error": null, "timestamp": 1790065028101, "resourceType": "xmlhttprequest" },
+    { "url": "https://zapier.com/l/us-sanctions", "method": "GET", "statusCode": 200, "error": null, "timestamp": 1790065029190, "resourceType": "xmlhttprequest" }
+  ]
+}

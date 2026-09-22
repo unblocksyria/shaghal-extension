@@ -1,0 +1,13 @@
+{
+  "name": "reddit",
+  "description": "Real capture 2026-09-21T19:25Z, trimmed: page and APIs all succeeded.",
+  "expectedSuggestion": "working",
+  "contentSignal": null,
+  "logs": [
+    { "url": "https://www.reddit.com/svc/shreddit/events", "method": "POST", "statusCode": 200, "error": null, "timestamp": 1790018737900, "resourceType": "xmlhttprequest" },
+    { "url": "https://www.reddit.com/?js_challenge=1", "method": "GET", "statusCode": 200, "error": null, "timestamp": 1790018738180, "resourceType": "main_frame" },
+    { "url": "https://www.redditstatic.com/shreddit/styles.css", "method": "GET", "statusCode": 200, "error": null, "timestamp": 1790018738072, "resourceType": "stylesheet" },
+    { "url": "https://w3-reporting.reddit.com/reports", "method": "POST", "statusCode": null, "error": "net::ERR_ABORTED", "timestamp": 1790018738657, "resourceType": "ping" },
+    { "url": "https://www.reddit.com/svc/shreddit/graphql", "method": "POST", "statusCode": 200, "error": null, "timestamp": 1790018741429, "resourceType": "xmlhttprequest" }
+  ]
+}
