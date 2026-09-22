@@ -409,7 +409,15 @@ export function FunctionalityReportForm(props: {
                       rows={2}
                     />
 
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: 8,
+                      }}
+                    >
                       <Button
                         variant="surface"
                         size="sm"
