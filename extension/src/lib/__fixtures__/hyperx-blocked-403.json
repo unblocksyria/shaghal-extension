@@ -1,0 +1,10 @@
+{
+  "name": "hyperx",
+  "description": "Real capture 2026-09-22T08:20Z: main frame denied with 403.",
+  "expectedSuggestion": "failing",
+  "contentSignal": null,
+  "logs": [
+    { "url": "https://hyperx.com/", "method": "GET", "statusCode": 403, "error": null, "timestamp": 1790065254104, "resourceType": "main_frame" },
+    { "url": "https://hyperx.com/favicon.ico", "method": "GET", "statusCode": 403, "error": null, "timestamp": 1790065254211, "resourceType": "image" }
+  ]
+}

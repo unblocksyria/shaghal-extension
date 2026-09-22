@@ -1,0 +1,13 @@
+{
+  "name": "chatgpt-without-vpn",
+  "description": "Real capture 2026-09-21T18:01Z, trimmed: main frame denied with 403 while no VPN was active.",
+  "expectedSuggestion": "failing",
+  "contentSignal": null,
+  "logs": [
+    { "url": "https://chatgpt.com/cdn/assets/5a03ffd8.js", "method": "GET", "statusCode": 200, "error": null, "timestamp": 1790013691581, "resourceType": "script" },
+    { "url": "https://chatgpt.com/cdn/assets/63173ebb.js", "method": "GET", "statusCode": 403, "error": null, "timestamp": 1790013691909, "resourceType": "script" },
+    { "url": "https://chatgpt.com/images/", "method": "GET", "statusCode": 403, "error": null, "timestamp": 1790013692828, "resourceType": "main_frame" },
+    { "url": "https://chatgpt.com/ces/statsc/flush", "method": "POST", "statusCode": null, "error": "net::ERR_FAILED", "timestamp": 1790013692935, "resourceType": "xmlhttprequest" },
+    { "url": "https://chatgpt.com/favicon.ico", "method": "GET", "statusCode": 403, "error": null, "timestamp": 1790013693002, "resourceType": "image" }
+  ]
+}

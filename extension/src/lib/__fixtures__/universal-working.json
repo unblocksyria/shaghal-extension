@@ -1,0 +1,13 @@
+{
+  "name": "universal-studios",
+  "description": "Real capture 2026-09-22T08:24Z, trimmed: page and its content APIs succeeded; the only failure is one third-party analytics consent call, below the API-collapse threshold.",
+  "expectedSuggestion": "working",
+  "contentSignal": null,
+  "logs": [
+    { "url": "https://www.universalstudioshollywood.com/web/en/us", "method": "GET", "statusCode": 200, "error": null, "timestamp": 1790065455380, "resourceType": "main_frame" },
+    { "url": "https://www.universalstudioshollywood.com/contentdata/ush/en/us/api/pageinfo.html", "method": "GET", "statusCode": 200, "error": null, "timestamp": 1790065455808, "resourceType": "xmlhttprequest" },
+    { "url": "https://edge.adobedc.net/ee/v1/privacy/set-consent?configId=1072885", "method": "POST", "statusCode": 403, "error": null, "timestamp": 1790065456220, "resourceType": "xmlhttprequest" },
+    { "url": "https://www.universalstudioshollywood.com/contentdata/ush/en/us/index.html", "method": "GET", "statusCode": 200, "error": null, "timestamp": 1790065456527, "resourceType": "xmlhttprequest" },
+    { "url": "https://www.universalstudioshollywood.com/contentdata/ush/en/us/api/getcontent/?contentIds=GDS-Main-Nav-Utility-USH", "method": "GET", "statusCode": 200, "error": null, "timestamp": 1790065456932, "resourceType": "xmlhttprequest" }
+  ]
+}
