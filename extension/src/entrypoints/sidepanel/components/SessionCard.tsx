@@ -153,7 +153,13 @@ function VerdictSummary(props: { verdict: LogVerdict | null; logs: RedactedReque
   if (mainFrameCount === 0) {
     return <GuidanceChip text="No page load captured — refresh the page while recording" />;
   }
-  if (props.verdict === null || props.verdict.coreSuggestion === undefined) {
+  const partSuggestions = props.verdict
+    ? (['landing_page', 'core_use'] as const)
+        .map((slug) => ({ slug, part: props.verdict?.parts[slug] }))
+        .filter((entry) => entry.part?.level !== undefined)
+    : [];
+
+  if (partSuggestions.length === 0) {
     return (
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 8 }}>
         <GuidanceChip text="No strong signal captured — verify the page manually" />
@@ -162,34 +168,42 @@ function VerdictSummary(props: { verdict: LogVerdict | null; logs: RedactedReque
     );
   }
 
-  const { coreSuggestion, coreEvidence } = props.verdict;
-  const isWorking = coreSuggestion === 'working';
-
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 8 }}>
-      <div
-        style={{
-          border: `1px solid ${isWorking ? 'var(--us-working-border)' : 'var(--us-failing-border)'}`,
-          backgroundColor: isWorking ? 'var(--us-working-bg)' : 'var(--us-failing-bg)',
-          borderRadius: 'var(--us-radius-control)',
-          padding: '8px 12px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          fontSize: 12,
-          color: isWorking ? 'var(--us-working-text)' : 'var(--us-failing)',
-        }}
-      >
-        {isWorking ? (
-          <CheckCircle2 size={15} style={{ flexShrink: 0 }} />
-        ) : (
-          <XCircle size={15} style={{ flexShrink: 0 }} />
-        )}
-        <span style={{ lineHeight: 1.5 }}>
-          Suggested: <strong>{coreSuggestion}</strong> — {coreEvidence}
-        </span>
-      </div>
-      <WarningList warnings={props.verdict.coreWarnings} />
+      {partSuggestions.map(({ slug, part }) => (
+        <PartChip
+          key={slug}
+          slug={slug}
+          level={part?.level as 'working' | 'failing'}
+          evidence={part?.evidence ?? ''}
+        />
+      ))}
+      <WarningList warnings={props.verdict?.coreWarnings ?? []} />
+    </div>
+  );
+}
+
+function PartChip(props: { slug: string; level: 'working' | 'failing'; evidence: string }) {
+  const isWorking = props.level === 'working';
+
+  return (
+    <div
+      style={{
+        border: `1px solid ${isWorking ? 'var(--us-working-border)' : 'var(--us-failing-border)'}`,
+        backgroundColor: isWorking ? 'var(--us-working-bg)' : 'var(--us-failing-bg)',
+        borderRadius: 'var(--us-radius-control)',
+        padding: '8px 12px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        fontSize: 12,
+        color: isWorking ? 'var(--us-working-text)' : 'var(--us-failing)',
+      }}
+    >
+      {isWorking ? <CheckCircle2 size={15} style={{ flexShrink: 0 }} /> : <XCircle size={15} style={{ flexShrink: 0 }} />}
+      <span style={{ lineHeight: 1.5, minWidth: 0 }}>
+        Suggested {props.slug}: <strong>{props.level}</strong> — {props.evidence}
+      </span>
     </div>
   );
 }
