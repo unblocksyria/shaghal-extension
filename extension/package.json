@@ -10,6 +10,7 @@
     "build:firefox": "wxt build -b firefox",
     "zip": "wxt build && wxt zip",
     "zip:firefox": "wxt build -b firefox && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/repack-firefox.ps1",
+    "verify-classifier": "tsx scripts/verify-classifier.ts",
     "postinstall": "wxt prepare"
   },
   "dependencies": {
@@ -20,8 +21,10 @@
   },
   "devDependencies": {
     "@types/chrome": "^0.3.0",
+    "@types/node": "^26.6.2",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
+    "tsx": "^4.19.0",
     "typescript": "^5.8.0",
     "wxt": "^0.21.4"
   }
