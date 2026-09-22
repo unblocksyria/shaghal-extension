@@ -7,7 +7,7 @@ import {
 } from '../../lib/endpoints';
 import { captureScreenshot } from '../../lib/evidence';
 import { sendSessionMessage } from '../../lib/messaging';
-import { normalizeServiceUrl } from '../../lib/url';
+import { normalizeServiceUrl, hostOf } from '../../lib/url';
 import { classifyLogs, type LogVerdict } from '../../lib/classifier';
 import { checkDnsConsistency, type DnsCheckResult } from '../../lib/dnsCheck';
 import { checkGeoLocation, geoWarning } from '../../lib/geo';
@@ -45,14 +45,24 @@ export function SidePanelApp() {
   const [dnsResult, setDnsResult] = useState<DnsCheckResult | null>(null);
   const [geoStatus, setGeoStatus] = useState<{ text: string; warning: boolean } | null>(null);
   const displayedSessionForVerdict = session ?? endedSession;
+  const recordedServiceHost = hostOf(displayedSessionForVerdict?.metadata?.serviceUrl ?? '');
   const verdict: LogVerdict | null =
     displayedSessionForVerdict !== null
-      ? classifyLogs(displayedSessionForVerdict.logs, displayedSessionForVerdict.contentSignal)
+      ? classifyLogs(
+          displayedSessionForVerdict.logs,
+          displayedSessionForVerdict.contentSignal,
+          recordedServiceHost.length > 0 ? recordedServiceHost : undefined,
+        )
       : null;
-  const suggestion =
-    verdict?.coreSuggestion !== undefined
-      ? { level: verdict.coreSuggestion, evidence: verdict.coreEvidence }
-      : undefined;
+  const partSuggestions: Partial<Record<string, { level: 'working' | 'failing'; evidence: string }>> = {};
+  if (verdict !== null) {
+    for (const slug of ['landing_page', 'core_use'] as const) {
+      const part = verdict.parts[slug];
+      if (part.level !== undefined) {
+        partSuggestions[slug] = { level: part.level, evidence: part.evidence };
+      }
+    }
+  }
 
   const runDuplicateCheck = useCallback(async () => {
     if (serviceUrl === null) {
@@ -219,7 +229,7 @@ export function SidePanelApp() {
           <FunctionalityReportForm
             service={service}
             evidence={evidence}
-            suggestion={suggestion}
+            suggestions={partSuggestions}
             onBack={resetToCheck}
             onError={setError}
             onTakeScreenshot={takeScreenshot}

@@ -23,10 +23,15 @@ interface PartEntry {
 
 export const SUGGESTABLE_PARTS = new Set(['core_use', 'landing_page']);
 
+export interface PartSuggestion {
+  level: 'working' | 'failing';
+  evidence: string;
+}
+
 export function FunctionalityReportForm(props: {
   service: ServiceRecord;
   evidence: EvidenceItem[];
-  suggestion?: { level: 'working' | 'failing'; evidence: string };
+  suggestions?: Partial<Record<string, PartSuggestion>>;
   onBack: () => void;
   onError: (message: string | null) => void;
   onTakeScreenshot: () => Promise<void>;
@@ -298,10 +303,10 @@ export function FunctionalityReportForm(props: {
             const isNotChecked = part.level === undefined;
             const isEdited = editedSlugs.has(part.slug);
             const partSuggestion =
-              props.suggestion !== undefined &&
+              props.suggestions?.[part.slug] !== undefined &&
               SUGGESTABLE_PARTS.has(part.slug) &&
-              part.level !== props.suggestion.level
-                ? props.suggestion
+              part.level !== props.suggestions[part.slug]?.level
+                ? props.suggestions[part.slug]
                 : undefined;
             const showTextBox =
               (isEdited && part.level !== undefined) || part.description.length > 0 || part.evidence.length > 0;

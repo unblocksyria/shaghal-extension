@@ -1,10 +1,13 @@
 import type { RedactedRequestLog } from './redact';
 import { classifyLogs, type LogVerdict } from './classifier';
 import { checkDnsConsistency } from './dnsCheck';
+import { hostOf } from './url';
 import { getSession, type TesterSession } from './session';
 
 function describeVerdict(verdict: LogVerdict): string[] {
-  const lines = [`Suggested core level: ${verdict.coreSuggestion ?? 'unknown'} — ${verdict.coreEvidence}`];
+  const lines = (['core_use', 'landing_page'] as const).map(
+    (slug) => `Suggested ${slug}: ${verdict.parts[slug].level ?? 'unknown'} — ${verdict.parts[slug].evidence}`,
+  );
   if (verdict.blockedMessage !== undefined) {
     lines.push(`Page content: block message detected — "${verdict.blockedMessage}"`);
   }
@@ -14,7 +17,7 @@ function describeVerdict(verdict: LogVerdict): string[] {
   for (const host of verdict.failedApiHosts.slice(0, 3)) {
     lines.push(`API failures: ${host.host} ×${host.failures} (${host.error})`);
   }
-  return lines;
+  return [...lines];
 }
 
 async function describeDns(session: TesterSession): Promise<string[]> {
@@ -93,7 +96,10 @@ export async function composeNoteWithDigest(note: string | undefined): Promise<s
   const session = await getSession();
   if (session === undefined) return note;
   const digest = formatDigest(buildDigest(session.logs));
-  const verdictLines = describeVerdict(classifyLogs(session.logs, session.contentSignal));
+  const serviceHost = hostOf(session.metadata?.serviceUrl ?? '');
+  const verdictLines = describeVerdict(
+    classifyLogs(session.logs, session.contentSignal, serviceHost.length > 0 ? serviceHost : undefined),
+  );
   const dnsLines = await describeDns(session);
   return [note, digest, ...verdictLines, ...dnsLines].filter(Boolean).join('\n\n');
 }
