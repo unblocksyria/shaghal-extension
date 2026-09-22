@@ -270,7 +270,7 @@ export function CorrectionForm(props: {
         onChange={(event) => setEmail(event.target.value)}
       />
 
-      <div style={{ display: 'grid', gap: 6 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 6 }}>
         <label style={{ fontSize: 14, fontWeight: 500, color: 'var(--us-text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
           Evidence Screenshots
           <span

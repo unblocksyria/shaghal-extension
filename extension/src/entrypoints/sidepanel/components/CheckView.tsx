@@ -16,11 +16,12 @@ export function CheckView(props: {
         borderRadius: 'var(--us-radius-card)',
         padding: '24px 20px',
         display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr)',
         gap: 16,
         boxShadow: 'var(--shadow-syrian-card)',
       }}
     >
-      <div style={{ display: 'grid', gap: 6 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 6 }}>
         <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: '#FFFFFF', letterSpacing: '-0.02em' }}>
           Catalog Check
         </h1>

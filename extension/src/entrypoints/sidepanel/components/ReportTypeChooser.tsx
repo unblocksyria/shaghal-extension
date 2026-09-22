@@ -14,11 +14,12 @@ export function ReportTypeChooser(props: {
         borderRadius: 'var(--us-radius-card)',
         padding: '24px 20px',
         display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr)',
         gap: 14,
         boxShadow: 'var(--shadow-syrian-card)',
       }}
     >
-      <div style={{ display: 'grid', gap: 4 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 4 }}>
         <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: '#FFFFFF', letterSpacing: '-0.02em' }}>
           Report on: {props.service.name}
         </h1>
@@ -51,7 +52,7 @@ export function ReportTypeChooser(props: {
         }}
       >
         <CheckCircle2 size={20} color="var(--us-working)" style={{ flexShrink: 0, marginTop: 2 }} />
-        <div style={{ display: 'grid', gap: 3 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 3 }}>
           <span style={{ fontSize: 14, fontWeight: 600, color: '#FFFFFF' }}>What works from Syria</span>
           <span style={{ fontSize: 12, color: 'var(--us-text-muted)', lineHeight: 1.5 }}>
             Which parts work and which fail: core use, sign-up, payment, and the rest.
@@ -83,7 +84,7 @@ export function ReportTypeChooser(props: {
         }}
       >
         <ClipboardList size={20} color="var(--us-gold)" style={{ flexShrink: 0, marginTop: 2 }} />
-        <div style={{ display: 'grid', gap: 3 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 3 }}>
           <span style={{ fontSize: 14, fontWeight: 600, color: '#FFFFFF' }}>Service details</span>
           <span style={{ fontSize: 12, color: 'var(--us-text-muted)' }}>
             The website URL, description, categories or support contacts.

@@ -32,7 +32,7 @@ export function DevTokenSettings(props: { onBack: () => void }) {
   };
 
   return (
-    <section className="us-animate-fade" style={{ display: 'grid', gap: 14 }}>
+    <section className="us-animate-fade" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <button
           onClick={props.onBack}
@@ -64,7 +64,7 @@ export function DevTokenSettings(props: { onBack: () => void }) {
       {/* Dev Mode Skip Toggle Card with Radix Switch */}
       <Card variant="nested" padding="md">
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-          <div style={{ display: 'grid', gap: 4 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 4 }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--us-text-primary)' }}>
               Skip Turnstile (Dev Mode)
             </span>
@@ -106,7 +106,7 @@ export function DevTokenSettings(props: { onBack: () => void }) {
       </Card>
 
       {/* Tester email (used across all reports) */}
-      <Card variant="default" padding="md" style={{ display: 'grid', gap: 10 }}>
+      <Card variant="default" padding="md" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <AtSign size={15} color="var(--us-text-muted)" />
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--us-text-primary)' }}>Your Email</span>
@@ -123,7 +123,7 @@ export function DevTokenSettings(props: { onBack: () => void }) {
       </Card>
 
       {/* Manual Token Fallback */}
-      <Card variant="default" padding="md" style={{ display: 'grid', gap: 10 }}>
+      <Card variant="default" padding="md" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <ShieldAlert size={15} color="var(--us-text-muted)" />
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--us-text-primary)' }}>
