@@ -20,6 +20,6 @@ export interface SessionResponse {
 }
 
 export async function sendSessionMessage(message: ExtensionMessage): Promise<SessionResponse> {
-  const result = await chrome.runtime.sendMessage(message).catch(() => null);
+  const result = (await chrome.runtime.sendMessage(message).catch(() => null)) as unknown;
   return (result as SessionResponse | null) ?? { ok: false, error: 'NO_RESPONSE' };
 }

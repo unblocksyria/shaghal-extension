@@ -1,6 +1,6 @@
 import { normalizeServiceUrl } from '../lib/url';
 import { appendLog, clearSession, getSession, recordContentSignal, saveLastEndedSession, setSession, updateSession } from '../lib/session';
-import { sendSessionMessage, type ExtensionMessage, type SessionResponse } from '../lib/messaging';
+import { type ExtensionMessage, type SessionResponse } from '../lib/messaging';
 import { redactUrl, type RedactedRequestLog } from '../lib/redact';
 
 export default defineBackground(() => {

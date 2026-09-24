@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { captureScreenshot, uploadPendingEvidence, type PendingEvidence } from '../../../lib/evidence';
 import { composeNoteWithDigest } from '../../../lib/logs';
-import { resolveTurnstileToken } from '../../../lib/turnstile';
 import { getSavedEmail } from '../../../lib/settings';
 import { getFunctionalities, type FunctionalityItem, type ServiceRecord } from '../../../lib/endpoints';
 import { Button } from '../../../components/ui/Button';

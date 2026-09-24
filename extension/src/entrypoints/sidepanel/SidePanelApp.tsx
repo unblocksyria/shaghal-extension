@@ -100,11 +100,13 @@ export function SidePanelApp() {
     if (autoCheckedRef.current) return;
     if (view !== 'check' || serviceUrl === null) return;
     autoCheckedRef.current = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-time auto-check: the sync loading flag (setChecking) is intentional
     void runDuplicateCheck();
   }, [serviceUrl, view, runDuplicateCheck]);
 
+  const isRecording = session !== null;
   useEffect(() => {
-    const recording = session !== null;
+    const recording = isRecording;
     let cancelled = false;
     const run = () => {
       void checkGeoLocation().then((result) => {
@@ -124,7 +126,7 @@ export function SidePanelApp() {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [session !== null]);
+  }, [isRecording]);
 
   const resetToCheck = () => {
     setDuplicate(null);

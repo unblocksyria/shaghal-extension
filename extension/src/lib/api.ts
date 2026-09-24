@@ -27,11 +27,12 @@ function extractRetryAfter(response: Response): number | undefined {
 
 async function parseErrorBody(response: Response): Promise<{ error: string; message: string; requestId?: string }> {
   try {
-    const body = await response.json();
+    const body = (await response.json()) as unknown;
+    const fields = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {};
     return {
-      error: typeof body.error === 'string' ? body.error : 'UNKNOWN_ERROR',
-      message: typeof body.message === 'string' ? body.message : response.statusText,
-      requestId: typeof body.requestId === 'string' ? body.requestId : undefined,
+      error: typeof fields.error === 'string' ? fields.error : 'UNKNOWN_ERROR',
+      message: typeof fields.message === 'string' ? fields.message : response.statusText,
+      requestId: typeof fields.requestId === 'string' ? fields.requestId : undefined,
     };
   } catch {
     return { error: 'UNKNOWN_ERROR', message: response.statusText };
@@ -73,8 +74,8 @@ async function requestOnce<T>(path: string, options: RequestOptions): Promise<Ap
     return { ok: false, error: buildError(response, await parseErrorBody(response)) };
   }
 
-  const payload = await response.json();
-  const unwrapped = (options.unwrap ?? 'data') === 'raw' ? payload : payload.data;
+  const payload = (await response.json()) as unknown;
+  const unwrapped = (options.unwrap ?? 'data') === 'raw' ? payload : (payload as { data?: unknown }).data;
   return { ok: true, data: unwrapped as T };
 }
 
