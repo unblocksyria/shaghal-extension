@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { composeNoteWithDigest } from '../../../lib/logs';
-import { submitCorrection, type CorrectionType } from '../../../lib/submit';
+import { type CorrectionType } from '../../../lib/submit';
 import { getSavedEmail } from '../../../lib/settings';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';

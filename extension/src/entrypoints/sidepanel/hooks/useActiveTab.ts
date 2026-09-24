@@ -18,13 +18,13 @@ function queryActiveTab(setTab: (tab: ActiveTabInfo) => void): void {
 }
 
 export function useActiveTab(): ActiveTabInfo {
-  const [tab, setTab] = useState<ActiveTabInfo>({ tabId: null, url: null });
+  const chromeTabsAvailable = typeof chrome !== 'undefined' && chrome?.tabs?.onActivated !== undefined;
+  const [tab, setTab] = useState<ActiveTabInfo>(() =>
+    chromeTabsAvailable ? { tabId: null, url: null } : DEV_FALLBACK,
+  );
 
   useEffect(() => {
-    if (typeof chrome === 'undefined' || chrome?.tabs?.onActivated === undefined) {
-      setTab(DEV_FALLBACK);
-      return;
-    }
+    if (!chromeTabsAvailable) return;
     const refresh = () => queryActiveTab(setTab);
     refresh();
     chrome.tabs.onActivated.addListener(refresh);
@@ -35,7 +35,7 @@ export function useActiveTab(): ActiveTabInfo {
       chrome.tabs.onUpdated.removeListener(refresh);
       chrome.windows.onFocusChanged.removeListener(refresh);
     };
-  }, []);
+  }, [chromeTabsAvailable]);
 
   return tab;
 }

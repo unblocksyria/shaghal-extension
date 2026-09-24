@@ -44,11 +44,12 @@ For Firefox: `npm run dev:firefox`, then load `.output/firefox-mv2` via `about:d
 | `npm run build` / `npm run zip` | Chrome build / distributable zip |
 | `npm run build:firefox` / `npm run zip:firefox` | Firefox build / zip |
 | `npx tsc --noEmit` | Typecheck |
+| `npm run lint` / `npm run lint:fix` | ESLint (type-checked + React hooks) |
 | `npm run verify-classifier` | Run the verdict-logic fixtures (14 assertions) |
 
 ## Team workflow
 
-- `main` must always build (typecheck + builds pass)
+- `main` must always build (lint + typecheck + build + fixtures pass; enforced by CI on every PR)
 - Short-lived branches: `feat/<area>-<slug>`, `fix/<area>-<slug>`, `chore/<what>`, `docs/<topic>`
 - Conventional Commits with module scope: `feat(corrections): …`, `fix(api): …`
 - One logical change per commit; verify before merging to `main`
