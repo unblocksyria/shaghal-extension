@@ -4,7 +4,6 @@ node_modules/
 # Build outputs
 .output/
 .wxt/
-dist/
 
 # Private local context (not for the shared repo)
 AI_CONTEXT/

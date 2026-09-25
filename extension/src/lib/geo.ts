@@ -1,51 +1,27 @@
-export interface GeoCheckResult {
-  checked: boolean;
-  countryCode?: string;
-  country?: string;
-  proxyOrVpn?: boolean;
+import { GEO_TRACE_URL } from './config';
+
+/** The country code in a Cloudflare trace, or null when it has none or does not know. */
+export function parseTraceCountry(trace: string): string | null {
+  const loc = /^loc=([A-Z0-9]{2})$/m.exec(trace)?.[1];
+  return loc === undefined || loc === 'XX' ? null : loc;
 }
 
-interface IpWhoResponse {
-  success?: boolean;
-  country?: string;
-  country_code?: string;
-  security?: {
-    anonymous?: boolean;
-    proxy?: boolean;
-    vpn?: boolean;
-    tor?: boolean;
-  };
-}
-
-export async function checkGeoLocation(): Promise<GeoCheckResult> {
-  let payload: IpWhoResponse;
+/** Where the tester's connection comes out, as a country code, or null when it cannot be told. */
+export async function browsingCountry(): Promise<string | null> {
   try {
-    const response = await fetch('https://ipwho.is/');
-    if (!response.ok) return { checked: false };
-    payload = (await response.json()) as IpWhoResponse;
+    const response = await fetch(GEO_TRACE_URL, { cache: 'no-store', signal: AbortSignal.timeout(10_000) });
+    return response.ok ? parseTraceCountry(await response.text()) : null;
   } catch {
-    return { checked: false };
+    return null;
   }
-  if (payload.success !== true || payload.country_code === undefined) return { checked: false };
-
-  const security = payload.security ?? {};
-  return {
-    checked: true,
-    countryCode: payload.country_code,
-    country: payload.country,
-    proxyOrVpn: Boolean(security.proxy || security.vpn || security.anonymous || security.tor),
-  };
 }
 
-export function geoWarning(result: GeoCheckResult): string | null {
-  if (!result.checked || result.countryCode === undefined) return null;
-  const parts: string[] = [];
-  if (result.countryCode !== 'SY') {
-    parts.push(`You appear to be browsing from ${result.country ?? result.countryCode}, not Syria.`);
+/** A country code as a name to show; Cloudflare reports Tor exits as T1. */
+export function countryName(code: string): string {
+  if (code === 'T1') return 'the Tor network';
+  try {
+    return new Intl.DisplayNames(['en'], { type: 'region' }).of(code) ?? code;
+  } catch {
+    return code;
   }
-  if (result.proxyOrVpn) {
-    parts.push('A VPN or proxy was detected.');
-  }
-  if (parts.length === 0) return null;
-  return `${parts.join(' ')} Disable it before testing so your report reflects access from Syria.`;
 }

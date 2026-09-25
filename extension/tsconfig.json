@@ -3,7 +3,7 @@
   "compilerOptions": {
     "strict": true,
     "jsx": "react-jsx",
-    "types": ["chrome", "node"],
+    "types": ["chrome"],
     "noUncheckedIndexedAccess": true
   }
 }

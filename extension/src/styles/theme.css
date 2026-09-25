@@ -1,53 +1,68 @@
+/*
+  Every colour is written once with light-dark(), which follows the used
+  `color-scheme`. The panel follows the system by default; the Appearance
+  setting pins one by setting data-theme on <html> (see lib/theme.ts). The
+  system preference applies from the first paint, so dark users never see a
+  light flash while the script loads.
+*/
 :root {
-  --us-bg: #0F0F10;
-  --us-card: #141416;
-  --us-card-hover: #18181b;
-  --us-card-nested: #0F0F10;
-  --us-border: rgba(255, 255, 255, 0.10);
-  --us-border-hover: rgba(185, 168, 123, 0.50);
-  --us-border-focus: #B9A87B;
-  
-  --us-gold: #B9A87B;
+  color-scheme: light dark;
+
+  /* Surfaces */
+  --us-bg: light-dark(#f3f3f3, #0e0e10);
+  --us-card: light-dark(#ffffff, #18181b);
+  --us-card-nested: light-dark(#f9f8f5, #232326);
+  --us-input-bg: light-dark(#ffffff, #0e0e10);
+  --us-border: light-dark(#e3e1dd, #2c2c30);
+  --us-border-hover: rgba(185, 168, 123, 0.5);
+  --us-hover-tint: rgba(185, 168, 123, 0.1);
+  --us-muted: light-dark(#f6f5f3, #232326);
+  /* Foreground at 3% and 5%, for chip hover and ticked. */
+  --us-faint-tint: light-dark(rgba(9, 39, 36, 0.03), rgba(245, 243, 239, 0.03));
+  --us-faint-tint-strong: light-dark(rgba(9, 39, 36, 0.05), rgba(245, 243, 239, 0.05));
+
+  /* Text */
+  --us-text-primary: light-dark(#092724, #f5f3ef);
+  --us-text-muted: light-dark(#6a6457, #b3aa98);
+  --us-text-dim: light-dark(#7a7466, #8f8878);
+  /* Accent text: links, hints that ask for something. Gold is too light to
+     read on white, so light mode uses gold-dark. */
+  --us-accent-text: light-dark(#6d6340, #b9a87b);
+  --us-link: light-dark(#092724, #b9a87b);
+  --us-danger: light-dark(#6b1f2a, #e2667a);
+
+  /* Brand */
+  --us-gold: #b9a87b;
   --us-gold-dark: #6d6340;
-  --us-gold-light: #d4c9a8;
   --us-gold-subtle: rgba(185, 168, 123, 0.12);
-  --us-gold-glow: rgba(185, 168, 123, 0.25);
-  
-  /* Official Syrian Green primary button colors from website */
-  --us-syrian-dark-green: #092724;
-  --us-syrian-green-light: #1a4a45;
-  --us-syrian-green-hover: #133c37;
-  --us-syrian-green-accessible: #7ebdb7;
+  --us-primary: #092724;
+  --us-primary-hover: #1a4a45;
+  --us-primary-border: light-dark(#092724, #1a4a45);
+  --us-on-color: #ffffff;
 
-  --us-text-primary: #FFFFFF;
-  --us-text-muted: #828284;
-  --us-text-dim: #71717A;
+  /* Status fills, for availability badges and part levels */
+  --us-status-available: #177b30;
+  --us-status-blocked: #6b1f2a;
+  --us-status-unknown: #4a4a4a;
 
-  --us-working: #22c55e;
-  --us-working-solid: #177B30;
-  --us-working-bg: #10281b;
-  --us-working-border: #16a34a;
-  --us-working-text: #86efac;
-  --us-working-text-soft: #80a982;
-  --us-working-light: #56eda2;
-
-  --us-failing: #EF4444;
-  --us-failing-solid: #6B1F2A;
-  --us-failing-bg: rgba(239, 68, 68, 0.12);
-  --us-failing-border: rgba(239, 68, 68, 0.35);
-
-  --us-unknown: #9CA3AF;
-  --us-unknown-solid: #0E0E10;
-  --us-unknown-bg: rgba(156, 163, 175, 0.12);
-  --us-unknown-border: rgba(156, 163, 175, 0.28);
-
-  --us-radius-card: 12px;
+  /* Shape */
+  --us-radius-card: 10px;
   --us-radius-control: 8px;
+  --us-radius-badge: 8px;
   --us-radius-pill: 9999px;
+  --us-shadow-color: light-dark(rgba(9, 39, 36, 0.07), rgba(0, 0, 0, 0.3));
+  --shadow-syrian-card: 0 1px 2px var(--us-shadow-color), 0 4px 12px var(--us-shadow-color);
 
-  --shadow-syrian-card: 0 4px 20px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.25);
+  --us-font:
+    'Basis Grotesque Pro', 'Basis Grotesque', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+    sans-serif;
+}
 
-  --us-font: "Basis Grotesque", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
   color-scheme: dark;
 }
 
@@ -55,7 +70,8 @@
   box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   margin: 0;
   padding: 0;
   min-height: 100vh;
@@ -69,156 +85,31 @@ html, body {
   overflow-wrap: anywhere;
 }
 
-h1, h2 {
+h1,
+h2 {
   overflow-wrap: anywhere;
 }
 
-/* 
-  Full page ambient lattice background pattern and lighting.
-  - The ambient radial gradient stays 100% steady and serene during idle.
-  - Smooth 0.8s cross-fade transition ONLY when status changes (idle <-> active <-> error).
-  - The Damascus lattice keys gently twinkle and flicker organically via @keyframes lattice-blink.
-*/
+a {
+  color: var(--us-link);
+}
+
+:focus-visible {
+  outline: 2px solid var(--us-gold);
+  outline-offset: 2px;
+}
+
 .us-app-container {
   min-height: 100vh;
   position: relative;
   background-color: var(--us-bg);
-  transition: background-color 0.4s ease;
 }
 
-/* Multi-layer Ambient Lighting System: Steady during idle, smoothly cross-fades only during transitions */
-.us-ambient-container {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  overflow: hidden;
-}
-
-.us-ambient-layer {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: opacity;
-}
-
-/* 1. Default (Idle): Warm Syrian Gold ambient glow - Calm, steady, NO idle animation */
-.us-ambient-idle {
-  background: 
-    radial-gradient(circle at 50% 0%, rgba(185, 168, 123, 0.18) 0%, rgba(185, 168, 123, 0.04) 50%, transparent 80%),
-    radial-gradient(circle at 50% 100%, rgba(185, 168, 123, 0.08) 0%, transparent 60%);
-}
-
-/* 2. Active Session: Emerald Green glow - steady, cross-fades when session starts */
-.us-ambient-active {
-  background: 
-    radial-gradient(circle at 50% 0%, rgba(34, 197, 94, 0.26) 0%, rgba(16, 40, 27, 0.12) 50%, transparent 80%),
-    radial-gradient(circle at 50% 100%, rgba(34, 197, 94, 0.12) 0%, transparent 60%);
-}
-
-/* 3. Error / Block: Rose Red glow - steady, cross-fades when error occurs */
-.us-ambient-error {
-  background: 
-    radial-gradient(circle at 50% 0%, rgba(239, 68, 68, 0.26) 0%, rgba(239, 68, 68, 0.10) 50%, transparent 80%),
-    radial-gradient(circle at 50% 100%, rgba(239, 68, 68, 0.12) 0%, transparent 60%);
-}
-
-/* Cross-fade triggers: Smooth transition only when state changes */
-.status-idle .us-ambient-idle {
-  opacity: 1;
-}
-.status-active .us-ambient-active {
-  opacity: 1;
-}
-.status-error .us-ambient-error {
-  opacity: 1;
-}
-
-/* Damascus Lattice Background & Flickering Keys matching unblocksyria.com */
-.us-lattice-container {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 1;
-  overflow: hidden;
-}
-
-.us-lattice-svg {
-  width: 100%;
-  height: 100%;
-  color: var(--us-gold);
-}
-
-.us-lattice-base {
-  opacity: 0.055;
-}
-
-.us-lattice-flicker-group {
-  opacity: 0.22;
-}
-
-/* Slower, ultra-smooth breathing twinkle with sinusoidal fade in & out */
-@keyframes lattice-blink {
-  0%, 100% {
-    opacity: 0;
-  }
-  50% {
-    opacity: 0.36;
-  }
-}
-
-.lattice-blink {
-  opacity: 0;
-  animation-name: lattice-blink;
-  animation-timing-function: ease-in-out;
-  animation-iteration-count: infinite;
-  will-change: opacity;
-}
-
-.lattice-blink-still {
-  opacity: 0.4;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .lattice-blink {
-    animation: none !important;
-    opacity: 0.15;
-  }
-}
-
-/* Fallback ::before for containers without explicit layers */
-.us-app-container:not(:has(.us-ambient-container))::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.status-idle.us-app-container:not(:has(.us-ambient-container))::before {
-  background: 
-    radial-gradient(circle at 50% 0%, rgba(185, 168, 123, 0.18) 0%, rgba(185, 168, 123, 0.04) 45%, transparent 75%),
-    radial-gradient(circle at 50% 100%, rgba(185, 168, 123, 0.08) 0%, transparent 60%);
-}
-.status-active.us-app-container:not(:has(.us-ambient-container))::before {
-  background: 
-    radial-gradient(circle at 50% 0%, rgba(34, 197, 94, 0.26) 0%, rgba(16, 40, 27, 0.12) 45%, transparent 75%),
-    radial-gradient(circle at 50% 100%, rgba(34, 197, 94, 0.14) 0%, transparent 60%);
-}
-.status-error.us-app-container:not(:has(.us-ambient-container))::before {
-  background: 
-    radial-gradient(circle at 50% 0%, rgba(239, 68, 68, 0.26) 0%, rgba(239, 68, 68, 0.10) 45%, transparent 75%),
-    radial-gradient(circle at 50% 100%, rgba(239, 68, 68, 0.14) 0%, transparent 60%);
-}
-
-/* Content wrapper ensuring it sits above the ambient glow */
 .us-app-content {
   position: relative;
   z-index: 1;
 }
 
-/* Custom sleek dark scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -227,208 +118,307 @@ h1, h2 {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: light-dark(rgba(9, 39, 36, 0.18), rgba(255, 255, 255, 0.15));
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--us-gold);
 }
 
-/* Animations */
 @keyframes usFadeIn {
-  from { opacity: 0; transform: translateY(5px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-@keyframes usPulseGreen {
-  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
-  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+/* Loading icons (`animation: spin 1s linear infinite`). */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .us-animate-fade {
   animation: usFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-.us-pulse-recording {
-  animation: usPulseGreen 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
-}
-
-/* 
-  Functionality Rows matching Image 1:
-  Clean flat rows with label on left and segmented pill control on right.
-*/
-.us-func-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  padding: 14px 2px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  gap: 8px 12px;
-  transition: background-color 0.15s ease;
-}
-
-.us-func-row:last-child {
-  border-bottom: none;
-}
-
-.us-func-row > .us-func-label {
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
-.us-func-row > div:last-child {
-  flex-shrink: 0;
-}
-
-.us-func-label {
-  font-size: 14.5px;
-  font-weight: 600;
-  color: #FFFFFF;
-  letter-spacing: -0.01em;
-  user-select: none;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.us-func-label > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+@media (prefers-reduced-motion: reduce) {
+  .us-animate-fade {
+    animation: none;
+  }
 }
 
 .us-seg-container {
   display: inline-flex;
   align-items: center;
-  background-color: #17171a;
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 8px;
+  background-color: var(--us-card-nested);
+  border: 1px solid var(--us-border);
+  border-radius: var(--us-radius-control);
   padding: 3px;
   gap: 2px;
 }
 
 .us-seg-btn {
-  border: 1px solid transparent;
+  border: none;
   background: transparent;
-  color: #9CA3AF;
+  color: var(--us-text-muted);
   font-family: inherit;
   font-size: 12.5px;
   font-weight: 500;
-  padding: 5px 13px;
+  padding: 5px 12px;
   border-radius: 6px;
   cursor: pointer;
-  transition: background-color 40ms linear, color 40ms linear, border-color 40ms linear;
+  transition:
+    background-color 80ms linear,
+    color 80ms linear;
   user-select: none;
   white-space: nowrap;
 }
 
-.us-seg-btn:active {
-  transform: scale(0.96);
+.us-seg-btn:hover:not(.active) {
+  color: var(--us-text-primary);
+  background: var(--us-hover-tint);
 }
 
-/* Narrow side panels (Brave, Arc, resized Chrome): compact the segmented control */
-@media (max-width: 400px) {
-  .us-seg-btn {
-    padding: 5px 9px;
-    font-size: 12px;
-  }
-}
-
-/* Very narrow panels: stack the field name above its Works/Fails/Not-checked control */
-@media (max-width: 360px) {
-  .us-func-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .us-func-row > .us-func-label {
-    flex: none;
-  }
-  .us-func-row > div:last-child {
-    width: 100%;
-  }
-  .us-func-row > div:last-child > .us-seg-container {
-    flex: 1;
-    display: flex;
-  }
-  .us-func-row > div:last-child > .us-seg-container > .us-seg-btn {
-    flex: 1;
-  }
-}
-
-.us-seg-btn:hover:not(.active-works):not(.active-fails):not(.active-notchecked) {
-  color: #FFFFFF;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-/* Works active state: sampled #177B30 from Image 1 */
-.us-seg-btn.active-works {
-  background-color: #177B30;
-  color: #FFFFFF;
-  font-weight: 600;
-  border-color: transparent;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-}
-
-/* Fails active state: sampled #6B1F2A from Image 1 */
-.us-seg-btn.active-fails {
-  background-color: #6B1F2A;
-  color: #FFFFFF;
-  font-weight: 600;
-  border-color: transparent;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-}
-
-/* Not checked active state: sampled #0E0E10 from Image 1 */
-.us-seg-btn.active-notchecked {
-  background-color: #0E0E10;
-  color: #FFFFFF;
-  font-weight: 600;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-}
-
-/* Toast Notification matching Image 3 */
-.us-toast-green {
-  background-color: var(--us-working-bg);
-  border: 1px solid var(--us-working-border);
-  border-radius: 12px;
-  padding: 14px 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 14px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
-}
-
+/* The check mark on a thank-you screen. */
 .us-toast-badge {
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background-color: var(--us-working-text);
-  color: var(--us-working-bg);
+  background-color: var(--us-status-available);
+  color: var(--us-on-color);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
 
-.us-toast-btn-action {
-  background-color: #FFFFFF;
-  color: #000000;
+/* Form fields: 44px tall, gold on hover and focus, faded when disabled. */
+.us-field {
+  width: 100%;
+  background-color: var(--us-input-bg);
+  color: var(--us-text-primary);
+  border: 1px solid var(--us-border);
+  border-radius: var(--us-radius-control);
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+input.us-field,
+select.us-field {
+  height: 44px;
+  padding: 0 12px;
+}
+
+textarea.us-field {
+  min-height: 88px;
+  padding: 10px 12px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.us-field::placeholder {
+  color: var(--us-text-dim);
+}
+
+.us-field:hover:not(:disabled) {
+  border-color: var(--us-border-hover);
+}
+
+.us-field:focus-visible {
+  outline: none;
+  border-color: var(--us-gold);
+  box-shadow: 0 0 0 2px rgba(185, 168, 123, 0.35);
+}
+
+.us-field:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.us-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--us-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.us-help {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--us-text-muted);
+}
+
+/* A plain choice inside a segmented control, such as Appearance. */
+.us-seg-btn.active {
+  background-color: var(--us-card);
+  color: var(--us-text-primary);
+  box-shadow: 0 1px 2px var(--us-shadow-color);
+}
+
+/* The level picker in "Report what works": three equal choices on a
+   muted track, 40px tall. Works and Fails take their status fill; Not
+   checked is the neutral raised chip. */
+.us-level-picker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--us-radius-control);
+  background-color: var(--us-muted);
+}
+
+.us-level-picker > button {
+  min-height: 40px;
+  padding: 0 2px;
+  white-space: nowrap;
   border: none;
-  border-radius: 8px;
-  padding: 6px 14px;
-  font-size: 13px;
-  font-weight: 600;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--us-text-muted);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+/* A narrow panel: "Not checked" stays on one line. */
+@media (max-width: 380px) {
+  .us-level-picker > button {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 340px) {
+  .us-level-picker > button {
+    padding: 0;
+    font-size: 12px;
+  }
+}
+
+.us-level-picker > button:hover {
+  color: var(--us-text-primary);
+}
+
+.us-level-picker > button[aria-checked='true'][data-level='working'] {
+  background-color: var(--us-status-available);
+  color: var(--us-on-color);
+}
+
+.us-level-picker > button[aria-checked='true'][data-level='failing'] {
+  background-color: var(--us-status-blocked);
+  color: var(--us-on-color);
+}
+
+.us-level-picker > button[aria-checked='true'][data-level='unknown'] {
+  background-color: var(--us-card);
+  color: var(--us-text-primary);
+  box-shadow: 0 1px 2px var(--us-shadow-color);
+}
+
+/* A toggle in a checklist, as the correction form's "What needs to be
+   corrected?": gold border and a faint tint when ticked. */
+.us-chip {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--us-border);
+  border-radius: var(--us-radius-control);
+  background: transparent;
+  color: var(--us-text-primary);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.us-chip:hover {
+  background-color: var(--us-faint-tint);
+}
+
+.us-chip[aria-checked='true'] {
+  border-color: var(--us-gold);
+  background-color: var(--us-faint-tint-strong);
+  font-weight: 500;
+}
+
+/* A small muted pill beside a name, such as "Not recorded yet". */
+.us-tag {
+  border-radius: var(--us-radius-pill);
+  padding: 2px 8px;
+  font-size: 12px;
+  background-color: var(--us-muted);
+  color: var(--us-text-muted);
   white-space: nowrap;
 }
 
-.us-toast-btn-action:hover {
-  opacity: 0.9;
+/* What the site records today, above a correction's field. */
+.us-current {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  padding: 8px 12px;
+  border-radius: var(--us-radius-control);
+  background-color: var(--us-muted);
+  font-size: 13px;
 }
 
+/* A bordered aside with a gold icon, such as the testing-guide pointer. */
+.us-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--us-border);
+  border-radius: var(--us-radius-control);
+  background-color: var(--us-card-nested);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.us-callout > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--us-accent-text);
+}
+
+.us-callout-warning {
+  border-color: var(--us-danger);
+  background-color: color-mix(in srgb, var(--us-danger) 8%, var(--us-card));
+}
+
+.us-callout-warning > svg {
+  color: var(--us-danger);
+}
+
+.us-text-link {
+  color: var(--us-accent-text);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.us-text-link:hover {
+  text-decoration: none;
+}

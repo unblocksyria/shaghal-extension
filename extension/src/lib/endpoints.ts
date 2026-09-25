@@ -1,37 +1,15 @@
 import { apiRequest, type ApiResult } from './api';
 
-export type DuplicateType = 'published' | 'pending' | 'none';
-
-export interface DuplicateCheck {
-  hasDuplicate: boolean;
-  duplicateType: DuplicateType;
-  existingService?: { slug: string; name: string };
-  message?: string;
-}
-
-export interface ServiceFunctionality {
-  slug: string;
-  name: string;
-  isCore: boolean;
-  level: 'working' | 'failing' | 'unknown';
-  description: string | null;
-}
-
+/** A service's full record, as the report and correction forms need it. */
 export interface ServiceRecord {
   id: string;
   name: string;
-  slug: string;
   url: string | null;
-  availability: string;
   description?: string | null;
   supportEmail?: string | null;
   supportUrl?: string | null;
-  categories?: { id: string; name: string; slug: string }[];
-  functionalities?: ServiceFunctionality[];
-}
-
-export async function checkDuplicate(url: string): Promise<ApiResult<DuplicateCheck>> {
-  return apiRequest<DuplicateCheck>(`/check-duplicate?url=${encodeURIComponent(url)}`, { unwrap: 'raw' });
+  categories?: { id: string; name: string }[];
+  functionalities?: { slug: string; name: string; level: 'working' | 'failing' | 'unknown' }[];
 }
 
 export async function getServiceBySlug(slug: string): Promise<ApiResult<ServiceRecord>> {
@@ -41,13 +19,11 @@ export async function getServiceBySlug(slug: string): Promise<ApiResult<ServiceR
 export interface FunctionalityItem {
   slug: string;
   name: string;
-  isCore: boolean;
 }
 
 export interface CategoryItem {
   id: string;
   name: string;
-  slug: string;
 }
 
 export async function getCategories(): Promise<ApiResult<CategoryItem[]>> {
@@ -58,45 +34,18 @@ export async function getFunctionalities(): Promise<ApiResult<FunctionalityItem[
   return apiRequest<FunctionalityItem[]>('/functionalities');
 }
 
-export interface FunctionalityReportItem {
-  slug?: string;
-  proposedName?: string;
-  level: 'working' | 'failing' | 'unknown';
-  description?: string;
-  evidenceUrls?: string[];
-}
-
-export interface ClientMetadata {
-  timezone: string;
-  screenResolution: string;
-  devicePixelRatio: number;
-}
-
-export function collectClientMetadata(): ClientMetadata {
-  return {
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    screenResolution: `${window.screen.width}x${window.screen.height}`,
-    devicePixelRatio: window.devicePixelRatio,
-  };
-}
-
 interface EvidenceFilePayload {
-  success: boolean;
-  file: { url: string; filename: string };
+  file: { url: string };
 }
 
-export interface EvidenceUploadResult {
-  url: string;
-  filename: string;
-}
-
+/** Uploads are rate limited and validated, not Turnstile-gated; the submission that cites them is. */
 export async function uploadEvidence(
   file: Blob,
+  filename: string,
   type: 'submission' | 'correction' | 'functionality_report',
-  turnstileToken: string,
-): Promise<ApiResult<EvidenceUploadResult>> {
+): Promise<ApiResult<string>> {
   const form = new FormData();
-  form.append('file', file);
+  form.append('file', file, filename);
   form.append('type', type);
 
   const result = await apiRequest<EvidenceFilePayload>('/uploads/evidence', {
@@ -104,8 +53,59 @@ export async function uploadEvidence(
     contentType: 'multipart',
     body: form,
     unwrap: 'raw',
-    headers: turnstileToken.length > 0 ? { 'X-Turnstile-Token': turnstileToken } : {},
   });
   if (!result.ok) return result;
-  return { ok: true, data: { url: result.data.file.url, filename: result.data.file.filename } };
+  return { ok: true, data: result.data.file.url };
+}
+
+export type Availability = 'available' | 'usable' | 'blocked' | 'unknown';
+
+/** A service as the match route returns it. */
+export interface CatalogService {
+  id: string;
+  name: string;
+  slug: string;
+  logoUrl: string | null;
+  availability: Availability;
+  voteCount: number;
+  /** ISO time of the newest part check, or null when nothing was checked. */
+  statusCheckedAt: string | null;
+  company: { name: string } | null;
+}
+
+export interface ServiceMatch {
+  service: CatalogService | null;
+  /** `parent_domain` when the service covers a parent of the page's host. */
+  matchType: 'host' | 'parent_domain' | null;
+  /** When there is no single match: the services on this site, most voted first. */
+  alternatives: CatalogService[];
+}
+
+/**
+ * Which catalogue service a page belongs to. The address goes in the body so
+ * it never appears in request logs; send the page URL as the browser has it.
+ */
+export async function matchService(url: string): Promise<ApiResult<ServiceMatch>> {
+  return apiRequest<ServiceMatch>('/services/match', { method: 'POST', body: { url } });
+}
+
+interface VotePayload {
+  voteCount: number;
+}
+
+/** One vote per network address per service. */
+export async function voteForService(slug: string): Promise<ApiResult<VotePayload>> {
+  return apiRequest<VotePayload>(`/services/${encodeURIComponent(slug)}/vote`, {
+    method: 'POST',
+    unwrap: 'raw',
+    verify: 'vote',
+  });
+}
+
+export async function removeVoteForService(slug: string): Promise<ApiResult<VotePayload>> {
+  return apiRequest<VotePayload>(`/services/${encodeURIComponent(slug)}/vote`, {
+    method: 'DELETE',
+    unwrap: 'raw',
+    verify: 'vote',
+  });
 }

@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "Shaghal",
+    "description": "The extension's name. Arabic for \"working\"."
+  },
+  "extDescription": {
+    "message": "See whether a website works from Syria, vote for the services you need, and report what works. By Unblock Syria.",
+    "description": "The extension's description in the browser and the Chrome Web Store."
+  },
+  "actionTitle": {
+    "message": "Open Shaghal",
+    "description": "Tooltip on the toolbar button."
+  }
+}

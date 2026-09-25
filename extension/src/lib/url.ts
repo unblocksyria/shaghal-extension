@@ -1,6 +1,18 @@
+import { SITE_BASE } from './config';
+
 export function hostOf(rawUrl: string): string {
   try {
     return new URL(rawUrl).host;
+  } catch {
+    return '';
+  }
+}
+
+/** A page's site for comparing two pages: its hostname, lowercased, without `www.`; '' when it has none. */
+export function siteOf(rawUrl: string | null | undefined): string {
+  if (rawUrl === null || rawUrl === undefined) return '';
+  try {
+    return new URL(rawUrl).hostname.toLowerCase().replace(/^www\./, '');
   } catch {
     return '';
   }
@@ -16,4 +28,26 @@ export function normalizeServiceUrl(rawUrl: string): string | null {
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
   const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
   return `${parsed.protocol}//${host}`;
+}
+
+/** Hosts that are Unblock Syria itself: the site, its subdomains and the ubsyr.com short domain. */
+const OWN_DOMAINS = ['unblocksyria.com', 'ubsyr.com'];
+
+/**
+ * Whether the page is Unblock Syria's own site, or the site this build talks
+ * to (localhost in development). There is no service to show for it, so the
+ * panel explains itself instead.
+ */
+export function isOwnSite(rawUrl: string | null): boolean {
+  if (rawUrl === null) return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+  const host = parsed.hostname.toLowerCase();
+  if (OWN_DOMAINS.some((domain) => host === domain || host.endsWith(`.${domain}`))) return true;
+  return parsed.origin === new URL(SITE_BASE).origin;
 }

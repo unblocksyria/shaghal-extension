@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { CategoryItem } from '../../../lib/endpoints';
 import { ChevronDown, Search } from 'lucide-react';
 
@@ -9,7 +9,6 @@ export function CategoryPicker(props: {
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const containerRef = useRef<HTMLDivElement>(null);
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -17,23 +16,20 @@ export function CategoryPicker(props: {
     return props.options.filter((option) => option.name.toLowerCase().includes(normalized));
   }, [props.options, query]);
 
-  const toggle = (name: string) => {
+  const toggle = (id: string) => {
     const next = new Set(props.selected);
-    if (next.has(name)) next.delete(name);
-    else next.add(name);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
     props.onChange(next);
   };
 
-  const selectedNames = useMemo(() => {
-    const order = new Map(props.options.map((option) => [option.name, option.id]));
-    return [...props.selected].sort((a, b) => (order.get(a) ?? a).localeCompare(order.get(b) ?? b));
-  }, [props.selected, props.options]);
+  const selectedNames = useMemo(
+    () => props.options.filter((option) => props.selected.has(option.id)).map((option) => option.name),
+    [props.selected, props.options],
+  );
 
   return (
-    <div
-      ref={containerRef}
-      style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 6, minWidth: 0 }}
-    >
+    <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 6, minWidth: 0 }}>
       {open && (
         <div
           style={{
@@ -42,10 +38,10 @@ export function CategoryPicker(props: {
             left: 0,
             right: 0,
             marginBottom: 6,
-            backgroundColor: '#1B1B1D',
+            backgroundColor: 'var(--us-card)',
             border: '1px solid var(--us-border)',
             borderRadius: 'var(--us-radius-control)',
-            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
+            boxShadow: '0 8px 24px var(--us-shadow-color)',
             zIndex: 20,
             display: 'grid',
             gridTemplateRows: 'auto 1fr',
@@ -64,7 +60,7 @@ export function CategoryPicker(props: {
               style={{
                 width: '100%',
                 height: 38,
-                backgroundColor: '#0F0F10',
+                backgroundColor: 'var(--us-input-bg)',
                 border: '1px solid var(--us-border)',
                 borderRadius: 'var(--us-radius-control)',
                 padding: '0 12px 0 32px',
@@ -90,10 +86,10 @@ export function CategoryPicker(props: {
                   fontSize: 13,
                   color: 'var(--us-text-primary)',
                   cursor: 'pointer',
-                  backgroundColor: props.selected.has(option.name) ? 'rgba(185, 168, 123, 0.06)' : 'transparent',
+                  backgroundColor: props.selected.has(option.id) ? 'var(--us-gold-subtle)' : 'transparent',
                 }}
               >
-                <input type="checkbox" checked={props.selected.has(option.name)} onChange={() => toggle(option.name)} />
+                <input type="checkbox" checked={props.selected.has(option.id)} onChange={() => toggle(option.id)} />
                 <span>{option.name}</span>
               </label>
             ))}
@@ -107,8 +103,8 @@ export function CategoryPicker(props: {
         style={{
           width: '100%',
           minHeight: 44,
-          backgroundColor: '#0F0F10',
-          border: '1px solid rgba(185, 168, 123, 0.4)',
+          backgroundColor: 'var(--us-input-bg)',
+          border: '1px solid var(--us-border)',
           borderRadius: 'var(--us-radius-control)',
           padding: '0 12px',
           color: 'var(--us-text-primary)',
