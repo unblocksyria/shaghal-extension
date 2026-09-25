@@ -1,7 +1,7 @@
-import type { EvidenceItem } from '../types';
+import type { PendingEvidence } from '../../../lib/evidence';
 import { ExternalLink, X } from 'lucide-react';
 
-export function EvidenceThumbs(props: { evidence: EvidenceItem[]; onRemove?: (id: string) => void }) {
+export function EvidenceThumbs(props: { evidence: PendingEvidence[]; onRemove?: (id: string) => void }) {
   if (props.evidence.length === 0) return null;
 
   return (
@@ -14,7 +14,7 @@ export function EvidenceThumbs(props: { evidence: EvidenceItem[]; onRemove?: (id
             height: 72,
             borderRadius: 'var(--us-radius-control)',
             border: '1px solid var(--us-border)',
-            backgroundColor: '#0F0F10',
+            backgroundColor: 'var(--us-card-nested)',
             overflow: 'hidden',
             position: 'relative',
           }}
@@ -28,6 +28,7 @@ export function EvidenceThumbs(props: { evidence: EvidenceItem[]; onRemove?: (id
             <button
               type="button"
               title="Remove from report"
+              aria-label={`Remove evidence #${index + 1}`}
               onClick={() => props.onRemove?.(item.id)}
               style={{
                 position: 'absolute',
@@ -63,7 +64,8 @@ export function EvidenceThumbs(props: { evidence: EvidenceItem[]; onRemove?: (id
           >
             {item.uploadedUrl !== undefined && (
               <a
-                href={item.uploadedUrl}
+                // The #claim= fragment is the upload's one-time key, not part of its address.
+                href={item.uploadedUrl.split('#')[0]}
                 target="_blank"
                 rel="noreferrer"
                 title="View uploaded screenshot"
@@ -77,6 +79,7 @@ export function EvidenceThumbs(props: { evidence: EvidenceItem[]; onRemove?: (id
                   backgroundColor: 'rgba(0, 0, 0, 0.55)',
                   borderRadius: 4,
                   padding: '2px 5px',
+                  pointerEvents: 'auto',
                 }}
               >
                 <ExternalLink size={10} />

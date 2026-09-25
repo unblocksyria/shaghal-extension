@@ -1,4 +1,5 @@
-const API_BASE = 'https://api.unblocksyria.com';
+import { API_BASE } from './config';
+import { turnstileToken, type TurnstileAction } from './turnstile';
 
 export interface ApiError {
   error: string;
@@ -16,6 +17,8 @@ interface RequestOptions {
   headers?: Record<string, string>;
   unwrap?: 'data' | 'raw';
   contentType?: 'json' | 'multipart';
+  /** Attach a Turnstile token solved for this action (see lib/turnstile.ts). */
+  verify?: TurnstileAction;
 }
 
 function extractRetryAfter(response: Response): number | undefined {
@@ -47,26 +50,47 @@ function buildError(response: Response, parsed: { error: string; message: string
   };
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+/** Long enough for a screenshot upload on a slow connection. */
+const TIMEOUT_MS = 60_000;
 
-async function requestOnce<T>(path: string, options: RequestOptions): Promise<ApiResult<T>> {
+/** Never throws and never retries: a 429 comes back with `retryAfterSeconds`. */
+export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<ApiResult<T>> {
+  const headers: Record<string, string> = { ...options.headers };
+  if (options.verify !== undefined) {
+    const verification = await turnstileToken(options.verify);
+    if (!verification.ok) {
+      return { ok: false, error: { error: 'VERIFICATION_FAILED', message: verification.message, status: 0 } };
+    }
+    if (verification.token.length > 0) headers['X-Turnstile-Token'] = verification.token;
+  }
+
   const isMultipart = options.contentType === 'multipart';
+  if (options.body !== undefined && !isMultipart) headers['Content-Type'] = 'application/json';
+
   let response: Response;
   try {
     response = await fetch(`${API_BASE}${path}`, {
       method: options.method ?? 'GET',
-      headers: {
-        ...(options.body !== undefined && !isMultipart ? { 'Content-Type': 'application/json' } : {}),
-        ...options.headers,
-      },
-      body: options.body === undefined ? undefined : isMultipart ? (options.body as FormData) : JSON.stringify(options.body),
+      headers,
+      body:
+        options.body === undefined
+          ? undefined
+          : isMultipart
+            ? (options.body as FormData)
+            : JSON.stringify(options.body),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch (networkError) {
+    const timedOut = networkError instanceof DOMException && networkError.name === 'TimeoutError';
     return {
       ok: false,
-      error: { error: 'NETWORK_ERROR', message: String(networkError), status: 0 },
+      error: {
+        error: timedOut ? 'TIMEOUT' : 'NETWORK_ERROR',
+        message: timedOut
+          ? 'Unblock Syria took too long to answer. Try again.'
+          : 'Could not reach Unblock Syria. Check your connection.',
+        status: 0,
+      },
     };
   }
 
@@ -74,16 +98,19 @@ async function requestOnce<T>(path: string, options: RequestOptions): Promise<Ap
     return { ok: false, error: buildError(response, await parseErrorBody(response)) };
   }
 
-  const payload = (await response.json()) as unknown;
-  const unwrapped = (options.unwrap ?? 'data') === 'raw' ? payload : (payload as { data?: unknown }).data;
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    return {
+      ok: false,
+      error: {
+        error: 'BAD_RESPONSE',
+        message: 'Unblock Syria sent an answer the panel could not read.',
+        status: response.status,
+      },
+    };
+  }
+  const unwrapped = (options.unwrap ?? 'data') === 'raw' ? payload : (payload as { data?: unknown } | null)?.data;
   return { ok: true, data: unwrapped as T };
-}
-
-export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<ApiResult<T>> {
-  const first = await requestOnce<T>(path, options);
-  if (first.ok || first.error.status !== 429) return first;
-
-  const waitMs = (first.error.retryAfterSeconds ?? 60) * 1000;
-  await sleep(waitMs);
-  return requestOnce<T>(path, options);
 }

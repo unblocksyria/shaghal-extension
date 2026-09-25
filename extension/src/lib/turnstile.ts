@@ -1,31 +1,127 @@
-export const DEV_TOKEN_STORAGE_KEY = 'devTurnstileToken';
-export const SKIP_TURNSTILE_KEY = 'skipTurnstile';
+import { IS_LOCAL_API, VERIFY_BASE } from './config';
 
-export async function readDevToken(): Promise<string> {
-  const stored = await chrome.storage.local.get(DEV_TOKEN_STORAGE_KEY);
-  return (stored[DEV_TOKEN_STORAGE_KEY] as string | undefined) ?? '';
+/** The Turnstile action each API endpoint expects its token to carry. */
+export type TurnstileAction = 'vote' | 'submission' | 'report' | 'correction';
+
+const VERIFY_PATH = '/extension/turnstile';
+
+/** How long the page has to load and answer before a click is ever needed. */
+const LOAD_TIMEOUT_MS = 30_000;
+/** How long the tester has to finish a challenge once one is shown. */
+const INTERACTIVE_TIMEOUT_MS = 120_000;
+
+type BridgeMessage =
+  { status: 'interactive' } | { status: 'solved'; token: string } | { status: 'error'; code: string };
+
+/** A message from the page for this request, or null for anything else. */
+export function readMessage(data: unknown, nonce: string, action: TurnstileAction): BridgeMessage | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const fields = data as Record<string, unknown>;
+  if (fields.type !== 'unblocksyria-turnstile' || fields.nonce !== nonce || fields.action !== action) return null;
+  if (fields.status === 'interactive') return { status: 'interactive' };
+  if (fields.status === 'solved' && typeof fields.token === 'string') return { status: 'solved', token: fields.token };
+  if (fields.status === 'error') return { status: 'error', code: String(fields.code) };
+  return null;
 }
 
-export async function writeDevToken(token: string): Promise<void> {
-  await chrome.storage.local.set({ [DEV_TOKEN_STORAGE_KEY]: token });
+/**
+ * A Turnstile token for `action`, solved on the verification page.
+ *
+ * The API accepts only tokens solved on a hostname it trusts, and an extension
+ * cannot load Turnstile's script, so the panel frames a page on
+ * verify.unblocksyria.com that can. The contract:
+ *
+ * - URL: `${VERIFY_BASE}/extension/turnstile?action=<action>&nonce=<uuid>`.
+ * - It posts `{ type: 'unblocksyria-turnstile', nonce, action, status }` to
+ *   this extension's origin only: `interactive` when the tester must click,
+ *   `solved` with a `token`, or `error` with a `code`.
+ * - Its `frame-ancestors` admits only the store extension's origin.
+ *
+ * The frame stays invisible unless Turnstile asks for a click, which most
+ * testers never see. Rejects with a message fit to show when the tester
+ * cancels, the page fails or never answers.
+ */
+function requestTurnstileToken(action: TurnstileAction): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const nonce = crypto.randomUUID();
+
+    const overlay = document.createElement('div');
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-label', 'Confirm you are human');
+    // Invisible but rendered, so the challenge runs. Shown on `interactive`.
+    overlay.style.cssText =
+      'position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;align-items:center;' +
+      'justify-content:center;gap:12px;padding:16px;background:rgba(0,0,0,0.72);opacity:0;pointer-events:none;';
+
+    const label = document.createElement('p');
+    label.textContent = 'Confirm you are human to continue.';
+    label.style.cssText = 'margin:0;color:#ffffff;font-size:14px;text-align:center;';
+
+    const frame = document.createElement('iframe');
+    const url = new URL(VERIFY_PATH, VERIFY_BASE);
+    url.searchParams.set('action', action);
+    url.searchParams.set('nonce', nonce);
+    frame.src = url.toString();
+    frame.title = 'Verify you are human';
+    frame.style.cssText =
+      'width:100%;max-width:340px;height:140px;border:0;border-radius:10px;background:var(--us-card);';
+
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.textContent = 'Cancel';
+    cancel.style.cssText =
+      'background:var(--us-card);border:1px solid var(--us-border);color:var(--us-text-primary);' +
+      'border-radius:8px;padding:6px 14px;cursor:pointer;font-family:inherit;';
+
+    let timer = setTimeout(
+      () => finish(new Error('Verification did not load. Check your connection and try again.')),
+      LOAD_TIMEOUT_MS,
+    );
+
+    function finish(outcome: string | Error) {
+      window.removeEventListener('message', onMessage);
+      clearTimeout(timer);
+      overlay.remove();
+      if (typeof outcome === 'string') resolve(outcome);
+      else reject(outcome);
+    }
+
+    function onMessage(event: MessageEvent) {
+      if (event.origin !== new URL(VERIFY_BASE).origin || event.source !== frame.contentWindow) return;
+      const message = readMessage(event.data, nonce, action);
+      if (message === null) return;
+      if (message.status === 'solved') {
+        finish(message.token);
+      } else if (message.status === 'error') {
+        // Turnstile's own error code, so a tester's report can be traced.
+        finish(new Error(`Verification failed (error ${message.code}). Try again.`));
+      } else {
+        overlay.style.opacity = '1';
+        overlay.style.pointerEvents = 'auto';
+        clearTimeout(timer);
+        timer = setTimeout(() => finish(new Error('Verification timed out. Try again.')), INTERACTIVE_TIMEOUT_MS);
+      }
+    }
+
+    cancel.onclick = () => finish(new Error('Verification cancelled.'));
+    window.addEventListener('message', onMessage);
+    overlay.append(label, frame, cancel);
+    document.body.append(overlay);
+  });
 }
 
-export async function isTurnstileSkipped(): Promise<boolean> {
-  const stored = await chrome.storage.local.get(SKIP_TURNSTILE_KEY);
-  return stored[SKIP_TURNSTILE_KEY] === true;
-}
-
-export async function setTurnstileSkipped(skipped: boolean): Promise<void> {
-  await chrome.storage.local.set({ [SKIP_TURNSTILE_KEY]: skipped });
-}
-
-export async function resolveTurnstileToken(): Promise<string> {
-  if (await isTurnstileSkipped()) return '';
-  return readDevToken();
-}
-
-export async function turnstileHeader(): Promise<Record<string, string>> {
-  const token = await resolveTurnstileToken();
-  if (token.length === 0) return {};
-  return { 'X-Turnstile-Token': token };
+/**
+ * The token for a request, '' when none is needed, or why there is none.
+ *
+ * A local development API skips verification, so nothing is fetched for it.
+ */
+export async function turnstileToken(
+  action: TurnstileAction,
+): Promise<{ ok: true; token: string } | { ok: false; message: string }> {
+  if (IS_LOCAL_API) return { ok: true, token: '' };
+  try {
+    return { ok: true, token: await requestTurnstileToken(action) };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : String(error) };
+  }
 }

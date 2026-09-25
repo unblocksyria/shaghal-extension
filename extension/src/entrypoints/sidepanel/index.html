@@ -3,14 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark" />
-    <title>Unblock Syria Tester Panel</title>
+    <meta name="color-scheme" content="light dark" />
+    <title>Shaghal</title>
     <style>
-      html, body {
+      /* Before theme.css loads: the page colour of the system's mode, so neither
+         mode flashes. The scheme is set on the root only: a pinned theme sets
+         data-theme there, and body must inherit it rather than restate it. */
+      :root {
+        color-scheme: light dark;
+      }
+      html,
+      body {
         margin: 0;
         padding: 0;
-        background-color: #0F0F10;
-        color: #FFFFFF;
+        background-color: light-dark(#f3f3f3, #0e0e10);
       }
     </style>
   </head>

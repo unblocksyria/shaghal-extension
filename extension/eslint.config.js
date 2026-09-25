@@ -5,12 +5,8 @@ import tseslint from 'typescript-eslint';
 export default tseslint.config(
   { ignores: ['.output/**', '.wxt/**', 'node_modules/**'] },
   {
-    files: ['src/**/*.{ts,tsx}', 'scripts/**/*.ts'],
-    extends: [
-      js.configs.recommended,
-      ...tseslint.configs.recommendedTypeChecked,
-      reactHooks.configs.flat.recommended,
-    ],
+    files: ['src/**/*.{ts,tsx}'],
+    extends: [js.configs.recommended, ...tseslint.configs.recommendedTypeChecked, reactHooks.configs.flat.recommended],
     languageOptions: {
       parserOptions: {
         projectService: true,
