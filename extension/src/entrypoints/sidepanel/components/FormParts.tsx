@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { captureScreenshot, uploadPendingEvidence, type PendingEvidence } from '../../../lib/evidence';
-import { getSavedEmail } from '../../../lib/settings';
+import { getSavedEmail, watchSavedEmail } from '../../../lib/settings';
 import { siteOf } from '../../../lib/url';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
@@ -197,6 +197,8 @@ export function useSavedEmail(): [string, (value: string) => void] {
   const [email, setEmail] = useState('');
   useEffect(() => {
     void getSavedEmail().then(setEmail);
+    // A form stays open under Settings, so an email saved there fills it in.
+    return watchSavedEmail(setEmail);
   }, []);
   return [email, setEmail];
 }

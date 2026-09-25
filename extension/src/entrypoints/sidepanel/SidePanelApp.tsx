@@ -15,12 +15,13 @@ import '../../styles/theme.css';
 
 type PanelView =
   | { name: 'home' }
-  | { name: 'settings' }
   | { name: 'report' | 'correction'; service: ServiceRecord; pageUrl: string | null }
   | { name: 'report-service'; url: string; pageTitle: string | null };
 
 export function SidePanelApp() {
   const [view, setView] = useState<PanelView>({ name: 'home' });
+  // Settings opens over the current view, which stays mounted so a form's draft survives.
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const activeTab = useActiveTab();
   const onOwnSite = isOwnSite(activeTab.url);
   const { state: matchState, reload } = useServiceMatch(onOwnSite ? null : activeTab.url);
@@ -50,8 +51,6 @@ export function SidePanelApp() {
 
   const page = () => {
     switch (view.name) {
-      case 'settings':
-        return <SettingsView onBack={home} />;
       case 'report':
         return <ReportForm key={view.service.id} service={view.service} pageUrl={view.pageUrl} onBack={home} />;
       case 'correction':
@@ -81,10 +80,19 @@ export function SidePanelApp() {
   return (
     <div className="us-app-container">
       <div className="us-app-content">
-        <BrandHeader onOpenSettings={() => setView({ name: 'settings' })} />
+        <BrandHeader onOpenSettings={() => setSettingsOpen(true)} />
         <main style={{ padding: '0 16px 24px 16px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 14 }}>
-          {openError !== null && <p style={{ ...hintStyle, color: 'var(--us-danger)' }}>{openError}</p>}
-          {opening ? <p style={hintStyle}>Opening…</p> : page()}
+          {settingsOpen && <SettingsView onBack={() => setSettingsOpen(false)} />}
+          <div
+            style={{
+              display: settingsOpen ? 'none' : 'grid',
+              gridTemplateColumns: 'minmax(0, 1fr)',
+              gap: 14,
+            }}
+          >
+            {openError !== null && <p style={{ ...hintStyle, color: 'var(--us-danger)' }}>{openError}</p>}
+            {opening ? <p style={hintStyle}>Opening…</p> : page()}
+          </div>
         </main>
       </div>
     </div>
