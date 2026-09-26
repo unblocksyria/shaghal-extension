@@ -5,6 +5,10 @@ node_modules/
 .output/
 .wxt/
 
+# Test artifacts (Playwright traces of a failed run)
+test-results/
+playwright-report/
+
 # Private local context (not for the shared repo)
 AI_CONTEXT/
 
