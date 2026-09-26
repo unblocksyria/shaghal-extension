@@ -1,0 +1,6 @@
+[
+  { "slug": "core_use", "name": "Core use" },
+  { "slug": "landing_page", "name": "Landing page" },
+  { "slug": "sign_up", "name": "Sign up" },
+  { "slug": "payments", "name": "Payments" }
+]

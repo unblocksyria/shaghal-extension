@@ -1,0 +1,26 @@
+{
+  "service": null,
+  "matchType": null,
+  "alternatives": [
+    {
+      "id": "svc-google",
+      "name": "Google",
+      "slug": "google",
+      "logoUrl": null,
+      "availability": "available",
+      "voteCount": 3,
+      "statusCheckedAt": null,
+      "company": null
+    },
+    {
+      "id": "svc-youtube",
+      "name": "YouTube",
+      "slug": "youtube",
+      "logoUrl": null,
+      "availability": "blocked",
+      "voteCount": 7,
+      "statusCheckedAt": "2026-09-10T08:00:00.000Z",
+      "company": null
+    }
+  ]
+}
