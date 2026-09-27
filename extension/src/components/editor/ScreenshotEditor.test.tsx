@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it, vi } from 'vitest';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { EditedScreenshot, ImageEdits } from '../../lib/imageEdits';
 import { ScreenshotEditor } from './ScreenshotEditor';
 
@@ -510,4 +510,22 @@ describe('the screenshot editor', () => {
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(saved).toHaveLength(1);
   });
+});
+
+it('supports creating, resizing and removing redactions and cropping with keyboard-accessible controls', async () => {
+  const { user, saved } = await openEditor();
+  await user.click(screen.getByText('Precise crop and redaction'));
+  fireEvent.change(screen.getByLabelText('Width (pixels)'), { target: { value: '800' } });
+  fireEvent.change(screen.getByLabelText('Left (pixels)'), { target: { value: '100' } });
+  await user.click(screen.getByRole('button', { name: 'Add black box' }));
+  fireEvent.change(screen.getByLabelText('Width (pixels)'), { target: { value: '200' } });
+  fireEvent.change(screen.getByLabelText('Left (pixels)'), { target: { value: '150' } });
+  expect(boxes()).toHaveLength(1);
+  await user.click(screen.getByRole('button', { name: 'Remove black box' }));
+  expect(boxes()).toHaveLength(0);
+  await user.click(screen.getByRole('button', { name: 'Undo' }));
+  await user.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(saved).toHaveLength(1));
+  expect(saved[0]?.edits.crop).toEqual({ x: 100, y: 0, width: 800, height: 600 });
+  expect(saved[0]?.edits.boxes[0]).toMatchObject({ x: 150, width: 200 });
 });

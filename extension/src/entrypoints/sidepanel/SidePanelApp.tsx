@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { applyStoredLanguage } from '../../lib/i18n';
 import { getServiceBySlug, type CatalogService, type ServiceRecord } from '../../lib/endpoints';
@@ -32,6 +32,10 @@ export function SidePanelApp() {
     return watchSavedLanguage(() => void applyStoredLanguage());
   }, []);
   const activeTab = useActiveTab();
+  const currentPage = useRef(activeTab.url);
+  useEffect(() => {
+    currentPage.current = activeTab.url;
+  }, [activeTab.url]);
   const onOwnSite = isOwnSite(activeTab.url);
   const { state: matchState, reload } = useServiceMatch(onOwnSite ? null : activeTab.url);
 
@@ -45,10 +49,12 @@ export function SidePanelApp() {
   const [openFailure, setOpenFailure] = useState<{ pageUrl: string | null; message: string } | null>(null);
   const openError = openFailure !== null && openFailure.pageUrl === activeTab.url ? openFailure.message : null;
   const open = async (service: CatalogService, name: 'report' | 'correction') => {
+    if (opening) return;
     setOpenFailure(null);
     setOpening(true);
     const result = await getServiceBySlug(service.slug);
     setOpening(false);
+    if (currentPage.current !== activeTab.url) return;
     if (!result.ok) {
       setOpenFailure({
         pageUrl: activeTab.url,

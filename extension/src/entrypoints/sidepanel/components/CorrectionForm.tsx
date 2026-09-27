@@ -1,3 +1,4 @@
+import { formErrorMessage } from '../../../lib/api';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getCategories, type CategoryItem, type ServiceRecord } from '../../../lib/endpoints';
@@ -8,6 +9,7 @@ import { Textarea } from '../../../components/ui/Textarea';
 import { CategoryPicker } from './CategoryPicker';
 import {
   EmailField,
+  emailError,
   FormFooter,
   FormShell,
   ScreenshotField,
@@ -121,6 +123,13 @@ export function CorrectionForm(props: { service: ServiceRecord; onBack: () => vo
               : null;
 
   const submit = async () => {
+    if (busy) return;
+    const invalidEmail = emailError(email);
+    if (invalidEmail !== null) {
+      setError(invalidEmail);
+      return;
+    }
+    if (blocker !== null) return;
     setBusy(true);
     setError(null);
     const uploaded = await uploadScreenshots(screenshots, 'correction');
@@ -137,7 +146,7 @@ export function CorrectionForm(props: { service: ServiceRecord; onBack: () => vo
     });
     setBusy(false);
     if (!result.ok) {
-      setError(result.error.status === 429 ? t('correction.rateLimited') : result.error.message);
+      setError(formErrorMessage(result.error));
       return;
     }
     setSent(true);
@@ -156,6 +165,7 @@ export function CorrectionForm(props: { service: ServiceRecord; onBack: () => vo
 
   return (
     <FormShell
+      busy={busy}
       backLabel={t('common.backTo', { name: serviceName(props.service) })}
       onBack={props.onBack}
       title={t('correction.title')}
@@ -208,6 +218,7 @@ export function CorrectionForm(props: { service: ServiceRecord; onBack: () => vo
               <CategoryPicker options={categoryOptions} selected={categories} onChange={setCategories} />
             ) : type === 'description' || type === 'other' ? (
               <Textarea
+                maxLength={10000}
                 aria-label={labels[type]}
                 placeholder={placeholders[type]}
                 value={values[type] ?? ''}
@@ -216,6 +227,7 @@ export function CorrectionForm(props: { service: ServiceRecord; onBack: () => vo
               />
             ) : (
               <Input
+                maxLength={10000}
                 aria-label={labels[type]}
                 type={type === 'support_email' ? 'email' : 'text'}
                 placeholder={placeholders[type]}

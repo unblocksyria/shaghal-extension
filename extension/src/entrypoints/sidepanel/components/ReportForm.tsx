@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { formErrorMessage } from '../../../lib/api';
+import { RadioGroup } from '../../../components/ui/RadioGroup';
 import { getFunctionalities, type FunctionalityItem, type ServiceRecord } from '../../../lib/endpoints';
 import { submitFunctionalityReport } from '../../../lib/submit';
 import { SITE_BASE } from '../../../lib/config';
@@ -8,6 +10,7 @@ import { serviceName } from '../../../lib/serviceName';
 import { Textarea } from '../../../components/ui/Textarea';
 import {
   EmailField,
+  emailError,
   FormFooter,
   FormShell,
   ScreenshotField,
@@ -53,20 +56,21 @@ function LevelPicker(props: { name: string; value: Level; onChange: (level: Leve
     unknown: t('report.levelUnknown'),
   };
   return (
-    <div className="us-level-picker" role="radiogroup" aria-label={props.name}>
+    <RadioGroup className="us-level-picker" aria-label={props.name}>
       {LEVELS.map((level) => (
         <button
           key={level}
           type="button"
           role="radio"
           aria-checked={props.value === level}
+          tabIndex={props.value === level ? 0 : -1}
           data-level={level}
           onClick={() => props.onChange(level)}
         >
           {labels[level]}
         </button>
       ))}
-    </div>
+    </RadioGroup>
   );
 }
 
@@ -167,9 +171,23 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
   };
 
   const submit = async () => {
+    if (busy) return;
+    const invalidEmail = emailError(email);
+    if (invalidEmail !== null) {
+      setError(invalidEmail);
+      return;
+    }
     if (missingDetail.length > 0) {
       setShowMissing(true);
       setError(t('report.addDetailError'));
+      return;
+    }
+    if (answered.length === 0) return;
+    if (
+      answered.length > 30 ||
+      answered.reduce((total, part) => total + screenshots.list(part.slug).items.length, 0) > 100
+    ) {
+      setError('A report can include at most 30 parts and 100 screenshots. Remove some before sending.');
       return;
     }
     setBusy(true);
@@ -197,7 +215,7 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
     });
     setBusy(false);
     if (!result.ok) {
-      setError(result.error.status === 429 ? t('report.rateLimited') : result.error.message);
+      setError(formErrorMessage(result.error));
       return;
     }
     setSent(true);
@@ -216,6 +234,7 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
 
   return (
     <FormShell
+      busy={busy}
       backLabel={t('common.backTo', { name: serviceName(props.service) })}
       onBack={props.onBack}
       title={t('report.title')}
@@ -285,6 +304,7 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
               {touched[part.slug] === true && level !== 'unknown' && (
                 <div className="us-animate-fade" style={{ display: 'grid', gap: 10 }}>
                   <Textarea
+                    aria-label={t('report.notesFor', { name: part.name })}
                     placeholder={t('report.notePlaceholder')}
                     value={notes[part.slug] ?? ''}
                     maxLength={2000}

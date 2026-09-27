@@ -1,7 +1,8 @@
 /** @vitest-environment jsdom */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
-import { screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import { FormShell } from './FormParts';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { fakeApi, type FakeApi } from '../../../testing/fakeApi';
 import { openPanel, stubScreenshot } from '../../../testing/panel';
@@ -9,12 +10,31 @@ import { closeEditorWindows } from '../../../testing/editorWindows';
 import matchNone from '../../../testing/fixtures/match-none.json';
 import upload from '../../../testing/fixtures/upload.json';
 
+it('still protects unsent form drafts on Back and unload', async () => {
+  const user = userEvent.setup();
+  const onBack = vi.fn();
+  render(
+    <FormShell backLabel="Back" onBack={onBack} title="Report" intro="Describe the issue.">
+      <input aria-label="Description" />
+    </FormShell>,
+  );
+  await user.type(screen.getByRole('textbox', { name: 'Description' }), 'Unsent report');
+  const unload = new Event('beforeunload', { cancelable: true });
+  window.dispatchEvent(unload);
+  expect(unload.defaultPrevented).toBe(true);
+  await user.click(screen.getByRole('button', { name: 'Back' }));
+  expect(onBack).not.toHaveBeenCalled();
+  expect(screen.getByRole('dialog', { name: 'Discard this draft?' })).toBeDefined();
+  await user.click(screen.getByRole('button', { name: 'Discard draft' }));
+  expect(onBack).toHaveBeenCalledOnce();
+});
+
 /** The form that carries a page address, so the screenshot list can guard the site. */
 async function openReportService(user: UserEvent, pageUrl: string): Promise<FakeApi> {
   const api = fakeApi()
     .on('POST', '/services/match', { data: matchNone })
     .on('POST', '/uploads/evidence', { json: upload })
-    .on('POST', '/submissions', { status: 201, json: { success: true } })
+    .on('POST', '/submissions', { status: 201, json: { id: 'receipt' } })
     .install();
   await openPanel(pageUrl);
   await user.click(await screen.findByRole('button', { name: 'Report a Service' }, { timeout: 3000 }));
@@ -49,7 +69,7 @@ describe('the screenshot list', () => {
         sends += 1;
         return sends === 1
           ? { status: 422, json: { error: 'INVALID', message: 'Needs a description' } }
-          : { status: 201, json: { success: true } };
+          : { status: 201, json: { id: 'receipt' } };
       })
       .install();
     await openPanel('https://retry.example/download');
@@ -85,7 +105,7 @@ describe('the screenshot list', () => {
         uploads += 1;
         return uploads === 1 ? { json: null } : { json: upload };
       })
-      .on('POST', '/submissions', { status: 201, json: { success: true } })
+      .on('POST', '/submissions', { status: 201, json: { id: 'receipt' } })
       .install();
     await openPanel('https://empty-upload.example/download');
     await user.click(await screen.findByRole('button', { name: 'Report a Service' }, { timeout: 3000 }));

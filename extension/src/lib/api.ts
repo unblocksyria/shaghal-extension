@@ -10,10 +10,20 @@ export interface ApiError {
   retryAfterSeconds?: number;
 }
 
+/** Keep the draft open and make a shared-network cooldown actionable. */
+export function formErrorMessage(error: ApiError): string {
+  if (error.status !== 429) return error.message;
+  const seconds = Math.max(1, Math.ceil(error.retryAfterSeconds ?? 60));
+  const amount = seconds < 60 ? seconds : Math.ceil(seconds / 60);
+  const unit = i18next.t(seconds < 60 ? 'api.cooldownSecond' : 'api.cooldownMinute', { count: amount });
+  return i18next.t('api.cooldown', { wait: `${amount} ${unit}` });
+}
+
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: ApiError };
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'DELETE';
+  signal?: AbortSignal;
   body?: unknown;
   headers?: Record<string, string>;
   unwrap?: 'data' | 'raw';
@@ -36,7 +46,9 @@ function extractRetryAfter(response: Response): number | undefined {
   const raw = response.headers.get('Retry-After');
   if (raw === null) return undefined;
   const seconds = Number(raw);
-  return Number.isFinite(seconds) ? seconds : undefined;
+  if (raw.trim() !== '' && Number.isFinite(seconds)) return Math.max(0, Math.ceil(seconds));
+  const date = Date.parse(raw);
+  return Number.isFinite(date) ? Math.max(0, Math.ceil((date - Date.now()) / 1000)) : undefined;
 }
 
 async function parseErrorBody(response: Response): Promise<{ error: string; message: string; requestId?: string }> {
@@ -89,7 +101,14 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
           : isMultipart
             ? (options.body as FormData)
             : JSON.stringify(options.body),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      // Never forward uploads or verification tokens through an unexpected redirect.
+      redirect: 'error',
+      credentials: 'omit',
+      referrerPolicy: 'no-referrer',
+      signal:
+        options.signal === undefined
+          ? AbortSignal.timeout(TIMEOUT_MS)
+          : AbortSignal.any([options.signal, AbortSignal.timeout(TIMEOUT_MS)]),
     });
   } catch (networkError) {
     const timedOut = networkError instanceof DOMException && networkError.name === 'TimeoutError';
@@ -97,7 +116,11 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       ok: false,
       error: {
         error: timedOut ? 'TIMEOUT' : 'NETWORK_ERROR',
-        message: timedOut ? i18next.t('api.timeout') : i18next.t('api.network'),
+        message: timedOut
+          ? i18next.t('api.timeout')
+          : options.method === 'POST' || options.method === 'DELETE'
+            ? i18next.t('api.unconfirmed')
+            : i18next.t('api.network'),
         status: 0,
       },
     };
@@ -114,7 +137,11 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     return badResponse(response.status, i18next.t('api.unreadable'));
   }
   const unwrapped = (options.unwrap ?? 'data') === 'raw' ? payload : (payload as { data?: unknown } | null)?.data;
-  if (options.expect !== undefined && !options.expect.check(unwrapped))
-    return badResponse(response.status, options.expect.message);
+  try {
+    if (unwrapped === undefined || (options.expect !== undefined && !options.expect.check(unwrapped)))
+      return badResponse(response.status, options.expect?.message ?? i18next.t('api.incomplete'));
+  } catch {
+    return badResponse(response.status, i18next.t('api.invalid'));
+  }
   return { ok: true, data: unwrapped as T };
 }

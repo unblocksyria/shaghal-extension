@@ -5,7 +5,7 @@ import { SITE_BASE } from '../../../lib/config';
 import { activeLanguage, i18next, intlLocale, sitePathSegment } from '../../../lib/i18n';
 import { serviceName } from '../../../lib/serviceName';
 import { hostOf } from '../../../lib/url';
-import { hasVoted, setVote } from '../../../lib/votes';
+import { hasVoted, setVote, watchVote } from '../../../lib/votes';
 import type { MatchState } from '../hooks/useServiceMatch';
 import { Button } from '../../../components/ui/Button';
 import { cardStyle, hintStyle, titleStyle } from './FormParts';
@@ -35,7 +35,7 @@ const STATUS: Record<Availability, { fill: string; icon: typeof Ban }> = {
 
 /** The API may add a status this build does not know yet; it reads as unknown. */
 function statusOf(availability: Availability) {
-  return STATUS[availability] ?? STATUS.unknown;
+  return Object.hasOwn(STATUS, availability) ? STATUS[availability] : STATUS.unknown;
 }
 
 function formatCount(count: number): string {
@@ -44,7 +44,7 @@ function formatCount(count: number): string {
 
 /** "Checked 1 Sep 2026", in the active locale (spec 0002, AC-8). */
 function checkedText(iso: string | null): string | null {
-  if (iso === null) return null;
+  if (iso === null || !Number.isFinite(Date.parse(iso))) return null;
   const date = new Date(iso).toLocaleDateString(intlLocale(activeLanguage()), {
     day: 'numeric',
     month: 'short',
@@ -108,6 +108,7 @@ function ServiceLogo(props: { service: CatalogService; size: number }) {
       <img
         src={props.service.logoUrl}
         alt=""
+        referrerPolicy="no-referrer"
         onError={() => setFailed(true)}
         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
       />
@@ -142,11 +143,17 @@ function VoteButton(props: { service: CatalogService }) {
 
   useEffect(() => {
     let cancelled = false;
+    let changed = false;
+    const unwatch = watchVote(props.service.slug, (value) => {
+      changed = true;
+      setVoted(value);
+    });
     void hasVoted(props.service.slug).then((value) => {
-      if (!cancelled) setVoted(value);
+      if (!cancelled && !changed) setVoted(value);
     });
     return () => {
       cancelled = true;
+      unwatch();
       clearTimeout(confirmTimer.current);
     };
   }, [props.service.slug]);
@@ -323,7 +330,7 @@ function ServiceView(props: {
           {t('card.suggestCorrection')}
         </button>
         <a
-          href={`${SITE_BASE}${siteLanguage}/services/${service.slug}`}
+          href={`${SITE_BASE}${siteLanguage}/services/${encodeURIComponent(service.slug)}`}
           target="_blank"
           rel="noreferrer"
           style={linkStyle}

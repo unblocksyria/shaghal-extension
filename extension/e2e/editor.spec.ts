@@ -237,3 +237,18 @@ test('closes an editor with unsaved edits when the panel lets it go, and forgets
   ]);
   await expect(next.getByRole('dialog', { name: 'Edit evidence #1' })).toBeVisible();
 });
+
+test('creates a real pixel redaction using keyboard controls', async ({ context, page, panel }) => {
+  const editor = await captureIntoEditor(context, page, panel);
+  const details = editor.getByText('Precise crop and redaction');
+  await details.focus();
+  await editor.keyboard.press('Enter');
+  await editor.getByRole('button', { name: 'Add black box' }).focus();
+  await editor.keyboard.press('Enter');
+  await expect(editor.getByRole('img', { name: 'Hidden area 1' })).toBeVisible();
+  // Keyboard activation uses the same baked image path as pointer drawing.
+  await editor.getByRole('button', { name: 'Save', exact: true }).focus();
+  await Promise.all([editor.waitForEvent('close'), editor.keyboard.press('Enter')]);
+  await expect(panel.getByText(IDLE_HINT)).toBeVisible();
+  expect((await readThumbnail(panel, [[0.5, 0.5]])).colours).toEqual([BLACK]);
+});

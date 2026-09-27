@@ -36,8 +36,10 @@ export const en = {
     languageSystem: 'System',
     languageEnglish: 'English',
     languageArabic: 'Arabic',
-    emailHelp: 'Optional. Filled into every form you send, so volunteers get credit. Never shown.',
+    emailHelp:
+      'Optional. Prefills forms and credits your volunteer profile. Never shown publicly. Clear and save to forget it.',
     saveEmail: 'Save email',
+    saveFailed: 'Could not save your email. Try again.',
     saved: 'Saved',
     connectedTo: 'Connected to',
     localApi: 'A local development API. Reports and votes stay on this machine and need no human verification.',
@@ -96,7 +98,6 @@ export const en = {
     levelUnknown: 'Not checked',
     partCoreUse: 'Core use',
     partLandingPage: 'Landing page',
-    rateLimited: 'Too many reports from this network. Try again later.',
     sentTitle: 'Report sent',
     sentMessage: 'Thank you. A volunteer reviews every report before it changes the record.',
     title: 'Report what works',
@@ -107,6 +108,7 @@ export const en = {
     notRecorded: 'Not recorded yet',
     remove: 'Remove {{name}}',
     notePlaceholder: 'What happened?',
+    notesFor: 'Notes for {{name}}',
     sameAsRecorded: 'Same as recorded. Add a note or a screenshot to confirm it again.',
     required: 'Required: a note or a screenshot showing this.',
     addDetailError: 'Add a note or a screenshot to every part you marked.',
@@ -132,7 +134,6 @@ export const en = {
     fieldOther: 'Other Information',
     fieldOtherPlaceholder: 'Describe what needs to be corrected...',
     categoriesFailed: 'Could not load categories: {{message}}',
-    rateLimited: 'Too many corrections from this network. Try again later.',
     sentTitle: 'Correction Submitted',
     sentMessage:
       "Thank you for helping improve our data. We'll review your correction and update the service information if approved.",
@@ -150,14 +151,13 @@ export const en = {
     evidenceHint: 'Optional. A screenshot from the official source helps us verify it faster.',
     submit: 'Submit Correction',
     submitting: 'Submitting…',
-    note: 'We review all corrections before applying them. Usually within 24 hours.',
+    note: 'We review all corrections before applying them. A volunteer reviews each suggestion.',
   },
 
   reportService: {
-    rateLimited: 'Too many reports from this network. Try again later.',
     sentTitle: 'Report received',
     sentMessage:
-      "Thank you for helping map Syria's digital access. We'll review your submission and add it to our database.",
+      "Thank you for helping map Syria's digital access. A volunteer will review your submission before it can be published.",
     done: 'Done',
     title: 'Report a Service',
     intro:
@@ -171,7 +171,7 @@ export const en = {
     submit: 'Submit Report',
     submitting: 'Submitting…',
     blocker: 'Enter the service name.',
-    note: 'We review all submissions before publishing. Usually within 24 hours.',
+    note: 'We review all submissions before publishing. Your report helps us keep the record accurate.',
   },
 
   form: {
@@ -186,7 +186,16 @@ export const en = {
     cropHint: 'Click a screenshot to crop it or hide personal details.',
     addScreenshot: 'Add screenshot',
     addAnother: 'Add another screenshot',
-    emailHelp: 'Optional. Never shown. Credits your volunteer profile.',
+    capturing: 'Capturing.',
+    tabChanged: 'The tab changed during capture. Take the screenshot again.',
+    finishCapturing: 'Finish capturing or editing your screenshot first.',
+    emailInvalid: 'Enter a valid email address, or leave it blank.',
+    emailHelp: 'Optional. Never shown publicly. Remembered in this browser after you send.',
+    stayOpen: 'Keep this panel open until you finish. Unsent drafts stay here only.',
+    discardTitle: 'Discard this draft?',
+    discardText: 'Your unsent text and screenshots will be removed from this panel.',
+    keepEditing: 'Keep editing',
+    discardDraft: 'Discard draft',
   },
 
   howItWorks: {
@@ -227,18 +236,38 @@ export const en = {
     edit: 'Edit',
     removeTitle: 'Remove from report',
     removeAria: 'Remove evidence #{{n}}',
-    viewUploaded: 'View uploaded screenshot',
+    viewScreenshot: 'View screenshot',
+    sizeRange: 'Screenshots must be between 1 byte and 5 MB.',
   },
 
   api: {
-    timeout: 'Unblock Syria took too long to answer. Try again.',
+    timeout: 'Unblock Syria took too long to answer. Your request may have arrived; check before sending again.',
+    unconfirmed: 'The request could not be confirmed. It may have arrived; check before sending again.',
     network: 'Could not reach Unblock Syria. Check your connection.',
     unreadable: 'Unblock Syria sent an answer the panel could not read.',
+    incomplete: 'Unblock Syria sent an incomplete answer.',
+    invalid: 'Unblock Syria sent an invalid answer.',
     uploadNoFile: 'The upload answered without a file address.',
+    incompleteData: 'Unblock Syria sent incomplete or invalid data. Try again.',
+    cooldown: 'This shared network is busy. Try again in {{wait}}. Keep this panel open to preserve your draft.',
+    cooldownSecond_one: 'second',
+    cooldownSecond_other: 'seconds',
+    cooldownMinute_one: 'minute',
+    cooldownMinute_other: 'minutes',
   },
 
   votes: {
     rateLimited: 'Too many votes from this network. Try again later.',
+  },
+
+  receipts: {
+    uncertain:
+      'An earlier send has not been confirmed. Keep the original details and screenshots, then send again to check its receipt. Do not start a replacement report yet.',
+    received: 'Your earlier submission was received. Check it before sending another.',
+    refused: 'Your earlier attempt was refused. Review the current details, then try again.',
+    storageFailed:
+      'Could not save a delivery receipt in this browser. Nothing was sent. Reopen the panel and try again.',
+    unconfirmed: 'Delivery was not confirmed. Send again with the same details to check its receipt.',
   },
 
   editor: {

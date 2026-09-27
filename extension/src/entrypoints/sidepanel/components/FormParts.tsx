@@ -1,3 +1,4 @@
+import { formErrorMessage } from '../../../lib/api';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { captureScreenshot, uploadPendingEvidence, withEdits, type PendingEvidence } from '../../../lib/evidence';
@@ -52,14 +53,34 @@ export function FormShell(props: {
   title: string;
   intro: string;
   children: React.ReactNode;
+  busy?: boolean;
+  trackDraft?: boolean;
 }) {
+  const trackDraft = props.trackDraft !== false;
+  const [dirty, setDirty] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const discard = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    if (confirming) {
+      if (typeof discard.current?.showModal === 'function') discard.current.showModal();
+      else discard.current?.setAttribute('open', '');
+    }
+  }, [confirming]);
+  useEffect(() => {
+    if (!trackDraft || !dirty) return;
+    const guard = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', guard);
+    return () => window.removeEventListener('beforeunload', guard);
+  }, [dirty, trackDraft]);
   // The back arrow points the way the text runs (spec 0002, AC-3).
   const Back = directionOf(activeLanguage()) === 'rtl' ? ArrowRight : ArrowLeft;
+  const { t } = useTranslation();
   return (
     <section className="us-animate-fade" style={cardStyle}>
       <button
         type="button"
-        onClick={props.onBack}
+        onClick={() => (trackDraft && dirty ? setConfirming(true) : props.onBack())}
+        disabled={props.busy}
         style={{
           background: 'none',
           border: 'none',
@@ -80,10 +101,41 @@ export function FormShell(props: {
         <h1 style={titleStyle}>{props.title}</h1>
         <p style={{ ...hintStyle, fontSize: 13 }}>{props.intro}</p>
       </div>
-      {props.children}
+      <fieldset
+        onChangeCapture={() => trackDraft && setDirty(true)}
+        onClickCapture={(event) => {
+          if (trackDraft && (event.target as HTMLElement).closest('button')) setDirty(true);
+        }}
+        disabled={props.busy}
+        style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: 'grid', gap: 18 }}
+      >
+        {props.children}
+      </fieldset>
+      {trackDraft && <p style={hintStyle}>{t('form.stayOpen')}</p>}
+      {confirming && (
+        <dialog
+          ref={discard}
+          aria-labelledby="discard-draft-title"
+          onCancel={() => setConfirming(false)}
+          style={{ ...cardStyle, color: 'var(--us-text-primary)', maxWidth: 300 }}
+        >
+          <h2 id="discard-draft-title" style={titleStyle}>
+            {t('form.discardTitle')}
+          </h2>
+          <p style={hintStyle}>{t('form.discardText')}</p>
+          <Button onClick={() => setConfirming(false)} autoFocus>
+            {t('form.keepEditing')}
+          </Button>
+          <Button onClick={props.onBack}>{t('form.discardDraft')}</Button>
+        </dialog>
+      )}
     </section>
   );
 }
+
+// Covers capture and the inline fallback editor as well as the separate window.
+let pendingCaptures = 0;
+const inlineEditors = new Set<symbol>();
 
 export interface ScreenshotList {
   items: PendingEvidence[];
@@ -125,12 +177,21 @@ export function useScreenshotLists(pageUrl?: string | null): { list: (key: strin
     [],
   );
 
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const expected = siteOf(pageUrl);
 
   const list = (key: string): ScreenshotList => ({
     items: byKey[key] ?? [],
     error: failure?.key === key ? failure.message : null,
     take: async () => {
+      if (pendingCaptures > 0 || isEditorOpen() || inlineEditors.size > 0) return null;
+      pendingCaptures += 1;
       setFailure(null);
       try {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -148,11 +209,19 @@ export function useScreenshotLists(pageUrl?: string | null): { list: (key: strin
         }
         setHeldFor(null);
         const item = await captureScreenshot(tab?.windowId ?? chrome.windows.WINDOW_ID_CURRENT);
+        const [after] = await chrome.tabs.query({ active: true, windowId: tab?.windowId });
+        if (!mounted.current || after?.id !== tab?.id || after?.url !== tab?.url) {
+          URL.revokeObjectURL(item.previewUrl);
+          if (mounted.current) setFailure({ key, message: t('form.tabChanged') });
+          return null;
+        }
         setByKey((lists) => ({ ...lists, [key]: [...(lists[key] ?? []), item] }));
         return item;
       } catch (captureError) {
         setFailure({ key, message: t('form.captureFailed', { error: String(captureError) }) });
         return null;
+      } finally {
+        pendingCaptures -= 1;
       }
     },
     remove: (id: string) => {
@@ -170,7 +239,9 @@ export function useScreenshotLists(pageUrl?: string | null): { list: (key: strin
       setByKey((lists) => ({
         ...lists,
         [key]: (lists[key] ?? []).map((item) =>
-          item.id === next.id && item.blob === next.blob ? { ...item, uploadedUrl: next.uploadedUrl } : item,
+          item.id === next.id && item.blob === next.blob
+            ? { ...item, uploadedUrl: next.uploadedUrl, uploadedAt: next.uploadedAt }
+            : item,
         ),
       })),
     edit: (id: string, edited: EditedScreenshot | null) => {
@@ -201,6 +272,9 @@ export async function uploadScreenshots(
   screenshots: ScreenshotList,
   type: 'submission' | 'correction' | 'functionality_report',
 ): Promise<{ ok: true; urls: string[] } | { ok: false; message: string }> {
+  if (pendingCaptures > 0 || inlineEditors.size > 0) {
+    return { ok: false, message: i18next.t('form.finishCapturing') };
+  }
   if (isEditorOpen()) {
     focusEditorWindow();
     return { ok: false, message: i18next.t('form.editorOpen') };
@@ -208,8 +282,9 @@ export async function uploadScreenshots(
   const urls: string[] = [];
   for (const item of screenshots.items) {
     const result = await uploadPendingEvidence(item, type);
-    if (!result.ok) return { ok: false, message: i18next.t('form.uploadFailed', { message: result.error.message }) };
-    if (item.uploadedUrl === undefined) screenshots.replace(result.data);
+    if (!result.ok)
+      return { ok: false, message: i18next.t('form.uploadFailed', { message: formErrorMessage(result.error) }) };
+    if (result.data !== item) screenshots.replace(result.data);
     urls.push(result.data.uploadedUrl as string);
   }
   return { ok: true, urls };
@@ -240,6 +315,17 @@ export function ScreenshotField(props: {
   const [editing, setEditing] = useState<{ item: PendingEvidence; label: string; where: 'window' | 'panel' } | null>(
     null,
   );
+  const [capturing, setCapturing] = useState(false);
+  const alive = useRef(true);
+  const inlineId = useRef(Symbol());
+  useEffect(() => {
+    alive.current = true;
+    const id = inlineId.current;
+    return () => {
+      alive.current = false;
+      inlineEditors.delete(id);
+    };
+  }, []);
   const inWindow = editing?.where === 'window';
 
   // The form going away takes its editor window with it.
@@ -269,7 +355,8 @@ export function ScreenshotField(props: {
       if (openError instanceof EditorBusyError) {
         focusEditorWindow();
         setEditing(null);
-      } else {
+      } else if (alive.current) {
+        inlineEditors.add(inlineId.current);
         setEditing({ item, label, where: 'panel' });
       }
     }
@@ -277,13 +364,20 @@ export function ScreenshotField(props: {
 
   // Every new screenshot opens straight in the editor, so hiding what is private is the natural next step.
   const capture = async () => {
-    const item = await take();
-    if (item !== null) await openEditor(item, t('evidence.item', { n: items.length + 1 }));
+    if (capturing || locked || full) return;
+    setCapturing(true);
+    try {
+      const item = await take();
+      if (item !== null && alive.current) await openEditor(item, t('evidence.item', { n: items.length + 1 }));
+    } finally {
+      setCapturing(false);
+    }
   };
 
   const discard = (id: string) => {
     if (editing?.item.id === id) {
       if (editing.where === 'window') closeEditorWindow();
+      inlineEditors.delete(inlineId.current);
       setEditing(null);
     }
     remove(id);
@@ -317,8 +411,12 @@ export function ScreenshotField(props: {
           source={editing.item.original ?? editing.item.blob}
           edits={editing.item.edits}
           label={editing.label}
-          onCancel={() => setEditing(null)}
+          onCancel={() => {
+            inlineEditors.delete(inlineId.current);
+            setEditing(null);
+          }}
           onSave={(edited: EditedScreenshot | null) => {
+            inlineEditors.delete(inlineId.current);
             edit(editing.item.id, edited);
             setEditing(null);
           }}
@@ -328,11 +426,15 @@ export function ScreenshotField(props: {
         variant="surface"
         size="sm"
         onClick={() => void capture()}
-        disabled={full || locked || editorOpen}
+        disabled={full || locked || editorOpen || capturing || editing !== null}
         icon={<Camera size={13} />}
         style={{ justifySelf: 'start' }}
       >
-        {items.length === 0 ? t('form.addScreenshot') : t('form.addAnother')}
+        {capturing && editing === null
+          ? t('form.capturing')
+          : items.length === 0
+            ? t('form.addScreenshot')
+            : t('form.addAnother')}
       </Button>
       {props.hint !== undefined && <p style={hintStyle}>{props.hint}</p>}
       {error !== null && <p style={{ ...hintStyle, color: 'var(--us-danger)' }}>{error}</p>}
@@ -342,12 +444,26 @@ export function ScreenshotField(props: {
 
 export function useSavedEmail(): [string, (value: string) => void] {
   const [email, setEmail] = useState('');
+  const changed = useRef(false);
   useEffect(() => {
-    void getSavedEmail().then(setEmail);
+    let active = true;
+    void getSavedEmail().then((value) => {
+      if (active && !changed.current) setEmail(value);
+    });
     // A form stays open under Settings, so an email saved there fills it in.
-    return watchSavedEmail(setEmail);
+    const stop = watchSavedEmail(setEmail);
+    return () => {
+      active = false;
+      stop();
+    };
   }, []);
-  return [email, setEmail];
+  return [
+    email,
+    (value) => {
+      changed.current = true;
+      setEmail(value);
+    },
+  ];
 }
 
 export function EmailField(props: { value: string; onChange: (value: string) => void }) {
@@ -356,6 +472,7 @@ export function EmailField(props: { value: string; onChange: (value: string) => 
     <Input
       label={t('common.yourEmail')}
       type="email"
+      maxLength={254}
       placeholder={t('common.emailPlaceholder')}
       value={props.value}
       onChange={(event) => props.onChange(event.target.value)}
@@ -408,4 +525,12 @@ export function SentState(props: { title: string; message: string; actionLabel: 
       </Button>
     </section>
   );
+}
+
+/** Validate before uploading screenshots or spending a verification token. */
+export function emailError(email: string): string | null {
+  const value = email.trim();
+  return value === '' || (value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
+    ? null
+    : i18next.t('form.emailInvalid');
 }

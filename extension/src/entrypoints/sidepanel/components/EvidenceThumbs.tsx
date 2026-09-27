@@ -96,11 +96,11 @@ export function EvidenceThumbs(props: {
             >
               {item.uploadedUrl !== undefined && (
                 <a
-                  // The #claim= fragment is the upload's one-time key, not part of its address.
-                  href={item.uploadedUrl.split('#')[0]}
+                  // Preview locally: the API can hide unclaimed uploads.
+                  href={item.previewUrl}
                   target="_blank"
                   rel="noreferrer"
-                  title={t('evidence.viewUploaded')}
+                  title={t('evidence.viewScreenshot')}
                   style={{
                     color: 'var(--us-gold)',
                     display: 'inline-flex',

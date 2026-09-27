@@ -48,7 +48,7 @@ const answers = new Map<string, StubAnswer>([
   ['GET /categories', json({ data: fixture<CategoryItem[]>('categories') })],
   ['GET /functionalities', json({ data: fixture<FunctionalityItem[]>('functionalities') })],
   ['POST /services/netflix/vote', json(fixture<{ voteCount: number }>('vote'))],
-  ['POST /functionality-reports', json({ success: true })],
+  ['POST /functionality-reports', json({ id: 'receipt' })],
   ['GET /cdn-cgi/trace', { contentType: 'text/plain', body: 'fl=v8\nloc=SY\nts=1758000000\n' }],
   ['GET /extension/turnstile', { contentType: 'text/html', body: VERIFY_PAGE }],
 ]);

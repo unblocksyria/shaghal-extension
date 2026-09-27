@@ -1,3 +1,4 @@
+import { formErrorMessage } from '../../../lib/api';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { submitService } from '../../../lib/submit';
@@ -5,6 +6,7 @@ import { Input } from '../../../components/ui/Input';
 import { Textarea } from '../../../components/ui/Textarea';
 import {
   EmailField,
+  emailError,
   FormFooter,
   FormShell,
   ScreenshotField,
@@ -33,6 +35,13 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
   const [sent, setSent] = useState(false);
 
   const submit = async () => {
+    if (busy) return;
+    const invalidEmail = emailError(email);
+    if (invalidEmail !== null) {
+      setError(invalidEmail);
+      return;
+    }
+    if (name.trim().length === 0) return;
     setBusy(true);
     setError(null);
     const uploaded = await uploadScreenshots(screenshots, 'submission');
@@ -50,7 +59,7 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
     });
     setBusy(false);
     if (!result.ok) {
-      setError(result.error.status === 429 ? t('reportService.rateLimited') : result.error.message);
+      setError(formErrorMessage(result.error));
       return;
     }
     setSent(true);
@@ -69,6 +78,7 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
 
   return (
     <FormShell
+      busy={busy}
       backLabel={t('common.back')}
       onBack={props.onBack}
       title={t('reportService.title')}
@@ -77,6 +87,7 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
       <VpnWarning />
       <Input
         label={t('reportService.name')}
+        maxLength={200}
         requiredMark
         value={name}
         onChange={(event) => setName(event.target.value)}
@@ -84,6 +95,7 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
       <Input label={t('reportService.url')} value={props.url} disabled />
       <Textarea
         label={t('reportService.description')}
+        maxLength={2000}
         placeholder={t('reportService.descriptionPlaceholder')}
         value={description}
         onChange={(event) => setDescription(event.target.value)}

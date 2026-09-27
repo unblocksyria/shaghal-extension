@@ -2,7 +2,7 @@ import { IS_LOCAL_API, VERIFY_BASE } from './config';
 import { i18next } from './i18n';
 
 /** The Turnstile action each API endpoint expects its token to carry. */
-export type TurnstileAction = 'vote' | 'submission' | 'report' | 'correction';
+export type TurnstileAction = 'vote' | 'submission' | 'report' | 'correction' | 'upload';
 
 const VERIFY_PATH = '/extension/turnstile';
 
@@ -20,7 +20,13 @@ export function readMessage(data: unknown, nonce: string, action: TurnstileActio
   const fields = data as Record<string, unknown>;
   if (fields.type !== 'unblocksyria-turnstile' || fields.nonce !== nonce || fields.action !== action) return null;
   if (fields.status === 'interactive') return { status: 'interactive' };
-  if (fields.status === 'solved' && typeof fields.token === 'string') return { status: 'solved', token: fields.token };
+  if (
+    fields.status === 'solved' &&
+    typeof fields.token === 'string' &&
+    fields.token.trim().length > 0 &&
+    fields.token.length <= 2048
+  )
+    return { status: 'solved', token: fields.token };
   if (fields.status === 'error') return { status: 'error', code: String(fields.code) };
   return null;
 }
@@ -46,12 +52,14 @@ function requestTurnstileToken(action: TurnstileAction): Promise<string> {
   return new Promise((resolve, reject) => {
     const nonce = crypto.randomUUID();
 
-    const overlay = document.createElement('div');
-    overlay.setAttribute('role', 'dialog');
+    const overlay = document.createElement('dialog');
+    const previousFocus = document.activeElement;
+    overlay.setAttribute('aria-hidden', 'true');
+    overlay.inert = true;
     overlay.setAttribute('aria-label', i18next.t('turnstile.dialogLabel'));
     // Invisible but rendered, so the challenge runs. Shown on `interactive`.
     overlay.style.cssText =
-      'position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;align-items:center;' +
+      'position:fixed;inset:0;margin:0;width:100%;height:100%;max-width:none;max-height:none;box-sizing:border-box;border:0;z-index:1000;display:flex;flex-direction:column;align-items:center;' +
       'justify-content:center;gap:12px;padding:16px;background:rgba(0,0,0,0.72);opacity:0;pointer-events:none;';
 
     const label = document.createElement('p');
@@ -74,12 +82,18 @@ function requestTurnstileToken(action: TurnstileAction): Promise<string> {
       'background:var(--us-card);border:1px solid var(--us-border);color:var(--us-text-primary);' +
       'border-radius:8px;padding:6px 14px;cursor:pointer;font-family:inherit;';
 
+    let finished = false;
+    let interactive = false;
     let timer = setTimeout(() => finish(new Error(i18next.t('turnstile.loadFailed'))), LOAD_TIMEOUT_MS);
 
     function finish(outcome: string | Error) {
+      if (finished) return;
+      finished = true;
       window.removeEventListener('message', onMessage);
       clearTimeout(timer);
+      if (overlay.open) overlay.close();
       overlay.remove();
+      if (interactive && previousFocus instanceof HTMLElement) previousFocus.focus();
       if (typeof outcome === 'string') resolve(outcome);
       else reject(outcome);
     }
@@ -93,7 +107,12 @@ function requestTurnstileToken(action: TurnstileAction): Promise<string> {
       } else if (message.status === 'error') {
         // Turnstile's own error code, so a tester's report can be traced.
         finish(new Error(i18next.t('turnstile.failed', { code: message.code })));
-      } else {
+      } else if (!interactive) {
+        interactive = true;
+        overlay.inert = false;
+        overlay.removeAttribute('aria-hidden');
+        if (typeof overlay.showModal === 'function') overlay.showModal();
+        cancel.focus();
         overlay.style.opacity = '1';
         overlay.style.pointerEvents = 'auto';
         clearTimeout(timer);
@@ -101,6 +120,10 @@ function requestTurnstileToken(action: TurnstileAction): Promise<string> {
       }
     }
 
+    overlay.oncancel = (event) => {
+      event.preventDefault();
+      finish(new Error(i18next.t('turnstile.cancelled')));
+    };
     cancel.onclick = () => finish(new Error(i18next.t('turnstile.cancelled')));
     window.addEventListener('message', onMessage);
     overlay.append(label, frame, cancel);
