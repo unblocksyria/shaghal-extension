@@ -52,7 +52,9 @@ export function FormShell(props: {
   intro: string;
   children: React.ReactNode;
   busy?: boolean;
+  trackDraft?: boolean;
 }) {
+  const trackDraft = props.trackDraft !== false;
   const [dirty, setDirty] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const discard = useRef<HTMLDialogElement>(null);
@@ -63,16 +65,16 @@ export function FormShell(props: {
     }
   }, [confirming]);
   useEffect(() => {
-    if (!dirty) return;
+    if (!trackDraft || !dirty) return;
     const guard = (event: BeforeUnloadEvent) => event.preventDefault();
     window.addEventListener('beforeunload', guard);
     return () => window.removeEventListener('beforeunload', guard);
-  }, [dirty]);
+  }, [dirty, trackDraft]);
   return (
     <section className="us-animate-fade" style={cardStyle}>
       <button
         type="button"
-        onClick={() => (dirty ? setConfirming(true) : props.onBack())}
+        onClick={() => (trackDraft && dirty ? setConfirming(true) : props.onBack())}
         disabled={props.busy}
         style={{
           background: 'none',
@@ -95,16 +97,16 @@ export function FormShell(props: {
         <p style={{ ...hintStyle, fontSize: 13 }}>{props.intro}</p>
       </div>
       <fieldset
-        onChangeCapture={() => setDirty(true)}
+        onChangeCapture={() => trackDraft && setDirty(true)}
         onClickCapture={(event) => {
-          if ((event.target as HTMLElement).closest('button')) setDirty(true);
+          if (trackDraft && (event.target as HTMLElement).closest('button')) setDirty(true);
         }}
         disabled={props.busy}
         style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: 'grid', gap: 18 }}
       >
         {props.children}
       </fieldset>
-      <p style={hintStyle}>Keep this panel open until you finish. Unsent drafts stay here only.</p>
+      {trackDraft && <p style={hintStyle}>Keep this panel open until you finish. Unsent drafts stay here only.</p>}
       {confirming && (
         <dialog
           ref={discard}

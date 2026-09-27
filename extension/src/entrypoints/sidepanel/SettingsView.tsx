@@ -43,7 +43,13 @@ export function SettingsView(props: { onBack: () => void }) {
   };
 
   return (
-    <FormShell backLabel="Back" onBack={props.onBack} title="Settings" intro="Stored only in this browser.">
+    <FormShell
+      backLabel="Back"
+      onBack={props.onBack}
+      title="Settings"
+      intro="Stored only in this browser."
+      trackDraft={false}
+    >
       <div style={{ display: 'grid', gap: 8 }}>
         <span className="us-label">Appearance</span>
         <RadioGroup className="us-seg-container" aria-label="Appearance" style={{ justifySelf: 'start' }}>
