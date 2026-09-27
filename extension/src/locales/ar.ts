@@ -108,7 +108,7 @@ export const ar: Arabic<Catalog> = {
 
   report: {
     levelWorking: 'يعمل',
-    levelFailing: 'يفشل',
+    levelFailing: 'لا يعمل',
     levelUnknown: 'لم يُفحص',
     partCoreUse: 'الاستخدام الأساسي',
     partLandingPage: 'الصفحة الرئيسية',
@@ -131,7 +131,7 @@ export const ar: Arabic<Catalog> = {
     choosePart: 'اختر جزءًا',
     send: 'أرسل التقرير',
     sending: 'جارٍ الإرسال…',
-    blocker: 'حدد جزءًا واحدًا على الأقل بأنه يعمل أو يفشل.',
+    blocker: 'حدد جزءًا واحدًا على الأقل بأنه يعمل أو لا يعمل.',
     note: 'كل ما تحدده يُراجع قبل أن يغيّر السجل.',
   },
 
