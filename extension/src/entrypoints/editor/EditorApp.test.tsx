@@ -1,9 +1,12 @@
 /** @vitest-environment jsdom */
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fakeBrowser } from 'wxt/testing/fake-browser';
 import type { EditRequest } from '../../lib/editorWindow';
 import type { EditedScreenshot } from '../../lib/imageEdits';
+import { applyLanguage } from '../../lib/i18n';
+import { ar } from '../../locales/ar';
 import { EditorApp } from './EditorApp';
 
 // The panel's side of the handover, played by the test.
@@ -38,6 +41,11 @@ function openAt(search: string) {
   window.history.replaceState(null, '', `/editor.html${search}`);
   return render(<EditorApp />);
 }
+
+// A test that switches the language leaves the shared i18next instance behind it, so the next one starts in English.
+afterEach(() => {
+  applyLanguage('en');
+});
 
 describe('the editor window page', () => {
   it('asks the panel for its screenshot and edits it', async () => {
@@ -123,5 +131,23 @@ describe('the editor window page', () => {
     expect(closing()).toBe(false);
     expect(close).toHaveBeenCalledOnce();
     expect(panel.saved).toEqual([]);
+  });
+
+  it('takes a language switch made while it is open, the way the panel does', async () => {
+    await Promise.resolve(fakeBrowser.reset());
+    vi.stubGlobal('chrome', fakeBrowser);
+    openAt('?session=abc');
+    act(() => void panel.open?.({ source: new Blob(['capture']), label: 'evidence #1' }));
+    await screen.findByRole('button', { name: 'Cancel' });
+    expect(document.documentElement.dir).toBe('ltr');
+
+    // The tester picks Arabic in Settings, in the panel that stays open behind this window.
+    await fakeBrowser.storage.local.set({ language: 'ar' });
+
+    const cancel = ar.editor?.cancel;
+    if (cancel === undefined) throw new Error('The Arabic catalog has no editor.cancel');
+    await screen.findByRole('button', { name: cancel });
+    expect(document.documentElement.dir).toBe('rtl');
+    expect(document.documentElement.lang).toBe('ar');
   });
 });

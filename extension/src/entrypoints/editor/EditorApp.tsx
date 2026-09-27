@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScreenshotEditor } from '../../components/editor/ScreenshotEditor';
 import { connectToPanel, type EditRequest } from '../../lib/editorWindow';
+import { applyStoredLanguage } from '../../lib/i18n';
+import { watchSavedLanguage } from '../../lib/settings';
 
 /** How long to wait for the panel to hand over the screenshot. */
 const HANDOVER_TIMEOUT_MS = 3000;
@@ -15,6 +17,14 @@ export function EditorApp() {
   // The panel let this screenshot go, as when it was removed from the form.
   const [dismissed, setDismissed] = useState(false);
   const panel = useRef<ReturnType<typeof connectToPanel> | null>(null);
+
+  // The panel stays open behind this window, so a language picked there reaches an
+  // editor that is already open instead of waiting for the window to be reopened.
+  useEffect(() => {
+    if (typeof chrome === 'undefined' || chrome.storage === undefined) return;
+    void applyStoredLanguage();
+    return watchSavedLanguage(() => void applyStoredLanguage());
+  }, []);
 
   useEffect(() => {
     if (session === null) return;
