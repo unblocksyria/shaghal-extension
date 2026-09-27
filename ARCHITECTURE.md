@@ -23,6 +23,8 @@ flowchart LR
 | [entrypoints/background.ts](extension/src/entrypoints/background.ts) | Makes the toolbar button open the panel. Nothing else runs in the background. |
 | [entrypoints/sidepanel/](extension/src/entrypoints/sidepanel/) | The panel. [SidePanelApp.tsx](extension/src/entrypoints/sidepanel/SidePanelApp.tsx) switches between the page card, the three forms and Settings. There is no router and no global store. |
 | [lib/](extension/src/lib/) | Everything that isn't UI: config, the API client and calls, verification, evidence, votes, the country check, settings and theme. |
+| [entrypoints/editor/](extension/src/entrypoints/editor/) | The screenshot editor's window. It gets its screenshot from the panel and sends the edited one back. |
+| [components/editor/](extension/src/components/editor/) | The screenshot editor itself: one surface with no modes, where the crop frame is always on the image and a drag draws a black box. Undo, redo, and a question before edits are thrown away. |
 | [components/ui/](extension/src/components/ui/), [theme.css](extension/src/styles/theme.css) | Shared controls, and the website's design tokens as `light-dark()` pairs. |
 
 ## Knowing the page
@@ -122,10 +124,24 @@ Screenshots ([evidence.ts](extension/src/lib/evidence.ts),
    it's over the API's 5 MB cap.
 2. **Site check:** if the tab has moved to another site since the report was opened,
    capturing it takes a second press.
-3. **Upload:** on send, each screenshot goes to `POST /uploads/evidence`, which
+3. **Edit:** each capture opens the editor straight away, and clicking a thumbnail
+   opens it again. It is a popup window laid over the browser window
+   ([editorWindow.ts](extension/src/lib/editorWindow.ts)), because the panel is too
+   narrow to cover small text precisely. The panel and the window pass the image
+   over a `BroadcastChannel`, so it is never stored, and the panel closes the window
+   once it has the answer. When no window can open, the editor opens inside the panel.
+   Saving draws a new JPEG from the kept pixels with the boxes painted black
+   ([imageBake.ts](extension/src/lib/imageBake.ts)), so nothing hidden is in the file.
+   Black, not blur, because a blur can sometimes be reversed on text. The capture and
+   its edits ([imageEdits.ts](extension/src/lib/imageEdits.ts)) stay in the panel, so
+   reopening lets the edits be changed; only the edited copy is uploaded.
+4. **Upload:** on send, each screenshot goes to `POST /uploads/evidence`, which
    returns a URL with a one-time `#claim=` key.
-4. **Cite:** the form cites that URL. The API attaches each upload to one submission,
-   within an hour. A retried send reuses the uploads.
+5. **Cite:** the form cites that URL. The API attaches each upload to one submission,
+   within an hour. A retried send reuses the uploads, except for a screenshot edited
+   since, which goes up again. Nothing can be sent while a screenshot is open in the
+   editor, and a form's screenshots are locked while it sends, so what is sent is
+   always what is shown.
 
 Nothing the panel sends changes the public record directly; reports, corrections and
 submissions all go to review queues.
