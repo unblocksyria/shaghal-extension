@@ -93,6 +93,8 @@ describe('the screenshot list', () => {
     await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Blocked Service');
     await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
     await screen.findByAltText('Evidence #1');
+    // The capture opened the editor; the tester closes it without changes.
+    await closeEditorWindows();
 
     await user.click(screen.getByRole('button', { name: 'Submit Report' }));
     expect((await screen.findByRole('alert')).textContent).toBe(
