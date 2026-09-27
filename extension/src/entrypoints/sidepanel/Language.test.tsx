@@ -129,6 +129,27 @@ describe('language', () => {
     expect(document.documentElement.dir).toBe('rtl');
   });
 
+  it('steps the arrow keys in the direction they point when the panel runs right to left (AC-3)', async () => {
+    const user = userEvent.setup();
+    fakeApi().on('POST', '/services/match', { data: match }).install();
+
+    await openPanel('https://rtlkeys.example/', { language: 'ar' });
+    await screen.findByRole('button', { name: LANGUAGE_LABELS.ar.settings }, { timeout: 3000 });
+    expect(document.documentElement.dir).toBe('rtl');
+
+    await user.click(screen.getByRole('button', { name: LANGUAGE_LABELS.ar.settings }));
+    const languages = await screen.findByRole('radiogroup', { name: LANGUAGE_LABELS.ar.language });
+    // System, English, Arabic in DOM order. Mirrored, System sits at the right edge,
+    // so the arrow that points left has to step on to English, not back round to Arabic.
+    const [system, english] = within(languages).getAllByRole('radio');
+    if (system === undefined || english === undefined) throw new Error('The language row lost an option');
+    system.focus();
+
+    await user.keyboard('{ArrowLeft}');
+    expect(english.getAttribute('aria-checked')).toBe('true');
+    expect(system.getAttribute('aria-checked')).toBe('false');
+  });
+
   it('renders English text for a key the Arabic catalog leaves out, never a raw key (AC-5)', async () => {
     const arabic = (i18next.store.data as Record<string, { translation: Record<string, unknown> }>).ar;
     const header = arabic?.translation.header as Record<string, string>;
