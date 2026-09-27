@@ -1,10 +1,11 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it } from 'vitest';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
-import { screen } from '@testing-library/react';
+import { act, screen } from '@testing-library/react';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { fakeApi, type FakeApi } from '../../../testing/fakeApi';
 import { openPanel, stubScreenshot } from '../../../testing/panel';
+import { closeEditorWindow } from '../../../lib/editorWindow';
 import matchNone from '../../../testing/fixtures/match-none.json';
 import upload from '../../../testing/fixtures/upload.json';
 
@@ -58,6 +59,8 @@ describe('the screenshot list', () => {
     await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Blocked Service');
     await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
     await screen.findByAltText('Evidence #1');
+    // The capture opened the editor; the tester closes it without changes.
+    act(() => closeEditorWindow());
 
     await user.click(screen.getByRole('button', { name: 'Submit Report' }));
     await screen.findByText('Needs a description');

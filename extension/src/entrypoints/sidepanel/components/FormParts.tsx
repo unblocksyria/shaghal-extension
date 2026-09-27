@@ -1,9 +1,19 @@
-import { useEffect, useRef, useState } from 'react';
-import { captureScreenshot, uploadPendingEvidence, type PendingEvidence } from '../../../lib/evidence';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { captureScreenshot, uploadPendingEvidence, withEdits, type PendingEvidence } from '../../../lib/evidence';
 import { getSavedEmail, watchSavedEmail } from '../../../lib/settings';
 import { siteOf } from '../../../lib/url';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
+import {
+  EditorBusyError,
+  closeEditorWindow,
+  editInWindow,
+  focusEditorWindow,
+  isEditorOpen,
+  watchEditor,
+} from '../../../lib/editorWindow';
+import type { EditedScreenshot } from '../../../lib/imageEdits';
+import { ScreenshotEditor } from '../../../components/editor/ScreenshotEditor';
 import { EvidenceThumbs } from './EvidenceThumbs';
 import { ArrowLeft, Camera, Check } from 'lucide-react';
 
@@ -74,10 +84,13 @@ export function FormShell(props: {
 export interface ScreenshotList {
   items: PendingEvidence[];
   error: string | null;
-  take: () => Promise<void>;
+  /** Capture the tab; resolves to the new screenshot, or null when none was added. */
+  take: () => Promise<PendingEvidence | null>;
   remove: (id: string) => void;
-  /** Swap in the uploaded copy of a screenshot, so a retry does not upload it again. */
+  /** Note where a screenshot was uploaded, so a retry does not upload it again. */
   replace: (item: PendingEvidence) => void;
+  /** Put a screenshot's new edits in place, or take them all off with null. */
+  edit: (id: string, edited: EditedScreenshot | null) => void;
   clear: () => void;
 }
 
@@ -123,13 +136,15 @@ export function useScreenshotLists(pageUrl?: string | null): { list: (key: strin
             key,
             message: `This tab shows ${site || 'another page'}, not ${expected}. Switch back to it, or press again to capture this tab anyway.`,
           });
-          return;
+          return null;
         }
         setHeldFor(null);
         const item = await captureScreenshot(tab?.windowId ?? chrome.windows.WINDOW_ID_CURRENT);
         setByKey((lists) => ({ ...lists, [key]: [...(lists[key] ?? []), item] }));
+        return item;
       } catch (captureError) {
         setFailure({ key, message: `Could not take a screenshot: ${String(captureError)}` });
+        return null;
       }
     },
     remove: (id: string) => {
@@ -141,11 +156,26 @@ export function useScreenshotLists(pageUrl?: string | null): { list: (key: strin
       for (const item of byKey[key] ?? []) URL.revokeObjectURL(item.previewUrl);
       setByKey((lists) => ({ ...lists, [key]: [] }));
     },
+    // Only the upload's address is taken, and only while the screenshot is still
+    // the one uploaded: an edit made meanwhile is kept and uploaded afresh.
     replace: (next: PendingEvidence) =>
       setByKey((lists) => ({
         ...lists,
-        [key]: (lists[key] ?? []).map((item) => (item.id === next.id ? next : item)),
+        [key]: (lists[key] ?? []).map((item) =>
+          item.id === next.id && item.blob === next.blob ? { ...item, uploadedUrl: next.uploadedUrl } : item,
+        ),
       })),
+    edit: (id: string, edited: EditedScreenshot | null) => {
+      // The latest list: an edit comes back from its window long after the click.
+      const item = (current.current[key] ?? []).find((candidate) => candidate.id === id);
+      if (item === undefined) return;
+      const next = withEdits(item, edited);
+      URL.revokeObjectURL(item.previewUrl);
+      setByKey((lists) => ({
+        ...lists,
+        [key]: (lists[key] ?? []).map((candidate) => (candidate.id === id ? next : candidate)),
+      }));
+    },
   });
 
   return { list };
@@ -155,11 +185,18 @@ export function useScreenshots(pageUrl?: string | null): ScreenshotList {
   return useScreenshotLists(pageUrl).list('form');
 }
 
-/** Uploaded screenshots stay in the list, so sending again after a refusal reuses them. */
+/**
+ * Uploaded screenshots stay in the list, so sending again after a refusal reuses them.
+ * Nothing is sent while a screenshot is open in the editor: it would go unedited.
+ */
 export async function uploadScreenshots(
   screenshots: ScreenshotList,
   type: 'submission' | 'correction' | 'functionality_report',
 ): Promise<{ ok: true; urls: string[] } | { ok: false; message: string }> {
+  if (isEditorOpen()) {
+    focusEditorWindow();
+    return { ok: false, message: 'Save or cancel the screenshot open in the editor first.' };
+  }
   const urls: string[] = [];
   for (const item of screenshots.items) {
     const result = await uploadPendingEvidence(item, type);
@@ -170,18 +207,119 @@ export async function uploadScreenshots(
   return { ok: true, urls };
 }
 
-export function ScreenshotField(props: { screenshots: ScreenshotList; label?: string; hint?: string; max?: number }) {
-  const { items, error, take, remove } = props.screenshots;
+/** Whether any screenshot editor window is open, following it as it opens and closes. */
+function useEditorOpen(): boolean {
+  return useSyncExternalStore(watchEditor, isEditorOpen);
+}
+
+/**
+ * A form's screenshots. Each new one opens in the editor. `locked` holds the
+ * list still while the form is sending, so what is sent is what is shown.
+ */
+export function ScreenshotField(props: {
+  screenshots: ScreenshotList;
+  label?: string;
+  hint?: string;
+  max?: number;
+  locked?: boolean;
+}) {
+  const { items, error, take, remove, edit } = props.screenshots;
+  const locked = props.locked ?? false;
   const full = items.length >= (props.max ?? 10);
+  const editorOpen = useEditorOpen();
+  // Where a screenshot is being edited: its own window, or the panel when no window can open.
+  const [editing, setEditing] = useState<{ item: PendingEvidence; label: string; where: 'window' | 'panel' } | null>(
+    null,
+  );
+  const inWindow = editing?.where === 'window';
+
+  // The form going away takes its editor window with it.
+  const ownsWindow = useRef(false);
+  useEffect(() => {
+    ownsWindow.current = inWindow;
+  }, [inWindow]);
+  useEffect(
+    () => () => {
+      if (ownsWindow.current) closeEditorWindow();
+    },
+    [],
+  );
+
+  const openEditor = async (item: PendingEvidence, label: string) => {
+    // One editor at a time: with one open, it comes to the front instead.
+    if (isEditorOpen()) {
+      focusEditorWindow();
+      return;
+    }
+    setEditing({ item, label, where: 'window' });
+    try {
+      const outcome = await editInWindow({ source: item.original ?? item.blob, edits: item.edits, label });
+      if (outcome !== undefined) edit(item.id, outcome);
+      setEditing((open) => (open?.item.id === item.id && open.where === 'window' ? null : open));
+    } catch (openError) {
+      if (openError instanceof EditorBusyError) {
+        focusEditorWindow();
+        setEditing(null);
+      } else {
+        setEditing({ item, label, where: 'panel' });
+      }
+    }
+  };
+
+  // Every new screenshot opens straight in the editor, so hiding what is private is the natural next step.
+  const capture = async () => {
+    const item = await take();
+    if (item !== null) await openEditor(item, `evidence #${items.length + 1}`);
+  };
+
+  const discard = (id: string) => {
+    if (editing?.item.id === id) {
+      if (editing.where === 'window') closeEditorWindow();
+      setEditing(null);
+    }
+    remove(id);
+  };
+
+  const status = inWindow
+    ? `Editing ${editing.label} in its own window.`
+    : editorOpen
+      ? 'Finish the screenshot open in the editor first.'
+      : items.length > 0
+        ? 'Click a screenshot to crop it or hide personal details.'
+        : null;
+
   return (
     <div style={{ display: 'grid', gap: 8 }}>
       {props.label !== undefined && <span className="us-label">{props.label}</span>}
-      <EvidenceThumbs evidence={items} onRemove={remove} />
+      <EvidenceThumbs
+        evidence={items}
+        editingId={inWindow ? editing.item.id : null}
+        onRemove={locked ? undefined : discard}
+        onEdit={locked ? undefined : (item, label) => void openEditor(item, label)}
+      />
+      {status !== null && (
+        <p style={hintStyle} aria-live="polite">
+          {status}
+        </p>
+      )}
+      {editing?.where === 'panel' && (
+        <ScreenshotEditor
+          key={editing.item.id}
+          source={editing.item.original ?? editing.item.blob}
+          edits={editing.item.edits}
+          label={editing.label}
+          onCancel={() => setEditing(null)}
+          onSave={(edited: EditedScreenshot | null) => {
+            edit(editing.item.id, edited);
+            setEditing(null);
+          }}
+        />
+      )}
       <Button
         variant="surface"
         size="sm"
-        onClick={() => void take()}
-        disabled={full}
+        onClick={() => void capture()}
+        disabled={full || locked || editorOpen}
         icon={<Camera size={13} />}
         style={{ justifySelf: 'start' }}
       >

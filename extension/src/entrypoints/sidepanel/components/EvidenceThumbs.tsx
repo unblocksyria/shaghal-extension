@@ -1,7 +1,13 @@
 import type { PendingEvidence } from '../../../lib/evidence';
-import { ExternalLink, X } from 'lucide-react';
+import { ExternalLink, SquarePen, X } from 'lucide-react';
 
-export function EvidenceThumbs(props: { evidence: PendingEvidence[]; onRemove?: (id: string) => void }) {
+export function EvidenceThumbs(props: {
+  evidence: PendingEvidence[];
+  onRemove?: (id: string) => void;
+  onEdit?: (item: PendingEvidence, label: string) => void;
+  /** The screenshot open in the editor window, marked so it can be found again. */
+  editingId?: string | null;
+}) {
   if (props.evidence.length === 0) return null;
 
   return (
@@ -9,6 +15,8 @@ export function EvidenceThumbs(props: { evidence: PendingEvidence[]; onRemove?: 
       {props.evidence.map((item, index) => (
         <div
           key={item.id}
+          className="us-thumb"
+          data-editing={item.id === props.editingId}
           style={{
             width: 96,
             height: 72,
@@ -19,11 +27,31 @@ export function EvidenceThumbs(props: { evidence: PendingEvidence[]; onRemove?: 
             position: 'relative',
           }}
         >
-          <img
-            src={item.previewUrl}
-            alt={`Evidence #${index + 1}`}
-            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-          />
+          {props.onEdit !== undefined ? (
+            <button
+              type="button"
+              className="us-thumb-edit"
+              title="Crop or hide personal details"
+              aria-label={`Edit evidence #${index + 1}`}
+              onClick={() => props.onEdit?.(item, `evidence #${index + 1}`)}
+            >
+              {/* Keyed by the preview, so an edited screenshot fades in rather than jumping. */}
+              <img key={item.previewUrl} src={item.previewUrl} alt={`Evidence #${index + 1}`} />
+              {item.id === props.editingId ? (
+                <span className="us-thumb-editing">Editing…</span>
+              ) : (
+                <span className="us-thumb-edit-badge">
+                  <SquarePen size={10} /> Edit
+                </span>
+              )}
+            </button>
+          ) : (
+            <img
+              src={item.previewUrl}
+              alt={`Evidence #${index + 1}`}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+          )}
           {props.onRemove !== undefined && (
             <button
               type="button"
