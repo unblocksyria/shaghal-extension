@@ -1,0 +1,5 @@
+[
+  { "id": "cat-streaming", "name": "Streaming" },
+  { "id": "cat-entertainment", "name": "Entertainment" },
+  { "id": "cat-social", "name": "Social" }
+]

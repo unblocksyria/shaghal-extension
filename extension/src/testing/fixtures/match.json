@@ -1,0 +1,14 @@
+{
+  "service": {
+    "id": "svc-netflix",
+    "name": "Netflix",
+    "slug": "netflix",
+    "logoUrl": null,
+    "availability": "usable",
+    "voteCount": 12,
+    "statusCheckedAt": "2026-09-01T10:00:00.000Z",
+    "company": { "name": "Netflix, Inc." }
+  },
+  "matchType": "host",
+  "alternatives": []
+}

@@ -1,0 +1,16 @@
+{
+  "id": "svc-netflix",
+  "name": "Netflix",
+  "url": "https://www.netflix.com",
+  "description": "Streaming video service.",
+  "supportEmail": null,
+  "supportUrl": null,
+  "categories": [
+    { "id": "cat-streaming", "name": "Streaming" },
+    { "id": "cat-entertainment", "name": "Entertainment" }
+  ],
+  "functionalities": [
+    { "slug": "core_use", "name": "Core use", "level": "failing" },
+    { "slug": "landing_page", "name": "Landing page", "level": "working" }
+  ]
+}

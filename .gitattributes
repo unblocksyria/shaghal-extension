@@ -1,0 +1,5 @@
+# Text files are stored and checked out with LF, so what a local check sees
+# is what CI and Prettier see. Scripts keep CRLF for the Windows shell.
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.bat text eol=crlf
