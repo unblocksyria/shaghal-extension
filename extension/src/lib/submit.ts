@@ -1,3 +1,4 @@
+import { activeLanguage } from './i18n';
 import { submitWithReceipt } from './receipts';
 import { saveEmail } from './settings';
 import type { TurnstileAction } from './turnstile';
@@ -29,7 +30,7 @@ export async function submitService(input: SubmitServiceInput) {
       description: input.description ?? null,
       submitterEmail: input.submitterEmail ?? null,
       evidenceUrls: input.evidenceUrls,
-      locale: 'en',
+      locale: activeLanguage(),
     },
     'submission',
   );
@@ -54,7 +55,7 @@ export async function submitFunctionalityReport(input: SubmitFunctionalityReport
       serviceId: input.serviceId,
       items: input.items,
       submitterEmail: input.submitterEmail ?? null,
-      locale: 'en',
+      locale: activeLanguage(),
     },
     'report',
   );
@@ -77,7 +78,7 @@ export async function submitCorrection(input: SubmitCorrectionInput) {
       changes: input.changes,
       submitterEmail: input.submitterEmail ?? null,
       evidenceUrls: input.evidenceUrls,
-      locale: 'en',
+      locale: activeLanguage(),
     },
     'correction',
   );

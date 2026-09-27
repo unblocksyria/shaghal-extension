@@ -270,4 +270,20 @@ describe('language', () => {
     // The recorded line reads those names too, not the ones the form opened with.
     expect(screen.getByText('بث, ترفيه')).toBeDefined();
   });
+
+  it('tags a submission with the language it was written in (AC-7)', async () => {
+    const user = userEvent.setup();
+    const api = fakeApi()
+      .on('POST', '/services/match', { data: matchNone })
+      .on('POST', '/submissions', { status: 201, json: { id: 'receipt' } })
+      .install();
+
+    await openPanel('https://writes.example/', { language: 'ar' });
+    await user.click(await screen.findByRole('button', { name: 'أبلغ عن خدمة' }, { timeout: 3000 }));
+    await user.type(screen.getByRole('textbox', { name: 'اسم الخدمة' }), 'خدمة غير متتبعة');
+    await user.click(screen.getByRole('button', { name: 'أرسل التقرير' }));
+
+    await screen.findByRole('heading', { name: 'استلمنا التقرير' });
+    expect(api.callsTo('POST', '/submissions').at(0)?.json).toMatchObject({ locale: 'ar' });
+  });
 });
