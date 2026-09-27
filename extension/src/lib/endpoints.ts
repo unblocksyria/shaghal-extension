@@ -38,6 +38,12 @@ interface EvidenceFilePayload {
   file: { url: string };
 }
 
+function isEvidenceFile(data: unknown): data is EvidenceFilePayload {
+  const file = (data as { file?: unknown } | null)?.file;
+  const url = (file as { url?: unknown } | null | undefined)?.url;
+  return typeof url === 'string' && url.length > 0;
+}
+
 /** Uploads are rate limited and validated, not Turnstile-gated; the submission that cites them is. */
 export async function uploadEvidence(
   file: Blob,
@@ -53,6 +59,7 @@ export async function uploadEvidence(
     contentType: 'multipart',
     body: form,
     unwrap: 'raw',
+    expect: { check: isEvidenceFile, message: 'The upload answered without a file address.' },
   });
   if (!result.ok) return result;
   return { ok: true, data: result.data.file.url };

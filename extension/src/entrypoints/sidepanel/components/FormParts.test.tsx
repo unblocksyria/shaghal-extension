@@ -75,6 +75,42 @@ describe('the screenshot list', () => {
     });
   });
 
+  it('shows an upload that answers without a file address, and can be sent again', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    let uploads = 0;
+    const api = fakeApi()
+      .on('POST', '/services/match', { data: matchNone })
+      .on('POST', '/uploads/evidence', () => {
+        uploads += 1;
+        return uploads === 1 ? { json: null } : { json: upload };
+      })
+      .on('POST', '/submissions', { status: 201, json: { success: true } })
+      .install();
+    await openPanel('https://empty-upload.example/download');
+    await user.click(await screen.findByRole('button', { name: 'Report a Service' }, { timeout: 3000 }));
+    await screen.findByRole('heading', { name: 'Report a Service' });
+    await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Blocked Service');
+    await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
+    await screen.findByAltText('Evidence #1');
+    // The capture opened the editor; the tester closes it without changes.
+    await closeEditorWindows();
+
+    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'A screenshot could not be uploaded: The upload answered without a file address.',
+    );
+    // Not stuck sending: the form can be sent again, and nothing was submitted.
+    const send = screen.getByRole<HTMLButtonElement>('button', { name: 'Submit Report' });
+    expect(send.disabled).toBe(false);
+    expect(api.callsTo('POST', '/submissions')).toHaveLength(0);
+
+    await user.click(send);
+    await screen.findByRole('heading', { name: 'Report received' });
+    expect(api.callsTo('POST', '/uploads/evidence')).toHaveLength(2);
+    expect(api.callsTo('POST', '/submissions').at(0)?.json).toMatchObject({ evidenceUrls: [upload.file.url] });
+  });
+
   it('holds back a screenshot taken on another site until it is pressed again (covers AC-4)', async () => {
     const user = userEvent.setup();
     stubScreenshot();

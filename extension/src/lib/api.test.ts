@@ -71,6 +71,16 @@ describe('apiRequest', () => {
     expect(result.ok === false && result.error.error).toBe('BAD_RESPONSE');
   });
 
+  it('refuses a success that is not the expected shape, with the status it came with', async () => {
+    const expect_ = { check: (data: unknown) => Array.isArray(data), message: 'Not a list.' };
+    stubFetch(Response.json({ data: [1] }), Response.json({ data: null }, { status: 201 }));
+    expect(await apiRequest('/x', { expect: expect_ })).toEqual({ ok: true, data: [1] });
+    expect(await apiRequest('/x', { expect: expect_ })).toEqual({
+      ok: false,
+      error: { error: 'BAD_RESPONSE', message: 'Not a list.', status: 201 },
+    });
+  });
+
   it('tells a network failure from a timeout', async () => {
     stubFetch(new TypeError('Failed to fetch'), new DOMException('timed out', 'TimeoutError'));
     const offline = await apiRequest('/x');
