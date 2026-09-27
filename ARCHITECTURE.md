@@ -1,202 +1,169 @@
 # Architecture
 
-Shaghal (شغّال) is a Manifest V3 side panel for Chromium browsers. It follows the
-active tab, shows whether that site works from Syria, and lets anyone vote, report
-what works, suggest a correction or report a missing service.
-
-It is a second client of the Unblock Syria API, alongside unblocksyria.com. It has no
-backend and no secrets, and every rule against abuse is enforced on the server.
-
-```mermaid
-flowchart LR
-    Tab[Active tab] -.address and screenshot.-> Panel[Side panel]
-    Panel -->|lookups, uploads, writes, country check| API[api.unblocksyria.com]
-    Panel -->|frames for a Turnstile token| Verify[verify.unblocksyria.com]
-    Verify -->|postMessage| Panel
-    Panel --> Storage[(chrome.storage.local)]
-```
+Shaghal is a Manifest V3 extension built with WXT, React and TypeScript. Its side
+panel follows the active tab, matches it to an Unblock Syria service, and offers
+votes and moderated submissions. The extension has no backend or private API key.
 
 ## Code map
 
-| Path | What it holds |
-|---|---|
-| [entrypoints/background.ts](extension/src/entrypoints/background.ts) | Makes the toolbar button open the panel. Nothing else runs in the background. |
-| [entrypoints/sidepanel/](extension/src/entrypoints/sidepanel/) | The panel. [SidePanelApp.tsx](extension/src/entrypoints/sidepanel/SidePanelApp.tsx) switches between the page card, the three forms and Settings. There is no router and no global store. |
-| [lib/](extension/src/lib/) | Everything that isn't UI: config, the API client and calls, verification, evidence, votes, the country check, settings and theme. |
-| [entrypoints/editor/](extension/src/entrypoints/editor/) | The screenshot editor's window. It gets its screenshot from the panel and sends the edited one back. |
-| [components/editor/](extension/src/components/editor/) | The screenshot editor itself: one surface with no modes, where the crop frame is always on the image and a drag draws a black box. Undo, redo, and a question before edits are thrown away. |
-| [components/ui/](extension/src/components/ui/), [theme.css](extension/src/styles/theme.css) | Shared controls, and the website's design tokens as `light-dark()` pairs. |
+| Location                                                                      | Responsibility                                                                                                 |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| [background.ts](extension/src/entrypoints/background.ts)                      | Makes the toolbar action open the panel.                                                                       |
+| [SidePanelApp.tsx](extension/src/entrypoints/sidepanel/SidePanelApp.tsx)      | Chooses the page card, report, correction, new-service form or Settings. Settings preserves the mounted draft. |
+| [hooks](extension/src/entrypoints/sidepanel/hooks)                            | Active-tab updates, debounced matching and country checks.                                                     |
+| [lib](extension/src/lib)                                                      | API contracts, verification, uploads, screenshot editing, settings and vote hints.                             |
+| [FormParts.tsx](extension/src/entrypoints/sidepanel/components/FormParts.tsx) | Shared form controls and screenshot lifecycle.                                                                 |
+| [editor](extension/src/entrypoints/editor)                                    | Separate screenshot editor window.                                                                             |
+| [ScreenshotEditor.tsx](extension/src/components/editor/ScreenshotEditor.tsx)  | Crop, black boxes, undo/redo and discard confirmation.                                                         |
+| [theme.css](extension/src/styles/theme.css)                                   | Shared styles and light/dark tokens.                                                                           |
+| [e2e](extension/e2e)                                                          | Browser tests of the production bundle, with external requests stubbed.                                        |
 
-## Knowing the page
+There are no content scripts, injected page scripts, external messaging handlers,
+or background polling. Page content cannot invoke votes, uploads or captures
+through an extension message API. React renders API text without raw HTML.
 
-[useActiveTab](extension/src/entrypoints/sidepanel/hooks/useActiveTab.ts) follows the
-shown tab's address and title. [useServiceMatch](extension/src/entrypoints/sidepanel/hooks/useServiceMatch.ts)
-then asks `POST /services/match` which service that page belongs to:
+## Following the page
 
-- The address goes in the request body, so it stays out of request logs.
-- Lookups wait 350 ms for redirects to settle.
-- Answers are cached while the panel is open, keyed by the address without its fragment.
+`useActiveTab` reads the active tab's URL and title. Out-of-order query results are
+ignored. `useServiceMatch` waits 350 ms for navigation to settle, then calls
+`POST /services/match`. Navigation cancels the previous lookup; cancellation does
+not guarantee that a request already received by the server stops executing.
 
-The answer is one service, a pick-list for a site hosting several, or nothing, which
-offers "Report a Service". Unblock Syria's own pages show
-[HowItWorks](extension/src/entrypoints/sidepanel/components/HowItWorks.tsx) instead.
+[matchUrl](extension/src/lib/url.ts) removes credentials and fragments, excludes
+unsupported/local addresses, and enforces the API's 2,048-character URL limit.
+Paths and query parameters are retained for detailed matching. POST keeps the
+visited address out of request **URL** logs; it does not prevent body logging or
+make sensitive query parameters safe to disclose.
 
-## Talking to the API
+The in-memory cache holds at most 100 answers. Entries older than five minutes
+are refreshed when revisited; the panel does not poll an unchanged page. Failures
+show a retry action. Unblock Syria's own pages show an explanation instead of
+triggering a lookup. Several candidate services produce a pick-list.
 
-Every request goes through [api.ts](extension/src/lib/api.ts):
-- Each request is sent once, with a 60-second timeout.
-- It resolves to `{ ok, data }` or `{ ok: false, error }` and never throws.
-- A 429 comes back with `retryAfterSeconds` for the form to show.
+## API boundary
 
-[config.ts](extension/src/lib/config.ts) picks the hosts:
+[api.ts](extension/src/lib/api.ts) sends each request once, with a 60-second network
+timeout. It omits cookies and referrers, rejects redirects, and returns a typed
+success/error result. Read and vote responses are validated before UI code uses
+them; form submissions require a receipt ID. Malformed responses become errors.
+A timeout or lost response can leave a write's outcome uncertain.
+[receipts.ts](extension/src/lib/receipts.ts) keeps a timestamped random receipt key
+and payload fingerprint in session storage. Matching retries reuse that key;
+changed details trigger receipt lookup before another send. The paired API keeps
+an atomic reservation and completed response for 24 hours. An interrupted server
+write stays unconfirmed and is never automatically repeated. Older API deployments
+ignore the key, so this guarantee requires the matching server changes.
 
-| Build | API | Site links | Verification page |
-|---|---|---|---|
-| `npm run dev` | `http://localhost:8787` | `http://localhost:3000` | `http://localhost:8790` |
-| `npm run build` | `https://api.unblocksyria.com` | `https://unblocksyria.com` | `https://verify.unblocksyria.com` |
+A 429 exposes `retryAfterSeconds` from either numeric or HTTP-date `Retry-After`.
+Forms display the wait in seconds or minutes, without a ticking countdown. Client
+validation avoids wasted requests; it is never an anti-abuse boundary.
+
+| Build       | API                            | Site links                 | Verification                      |
+| ----------- | ------------------------------ | -------------------------- | --------------------------------- |
+| Development | `http://localhost:8787`        | `http://localhost:3000`    | `http://localhost:8790`           |
+| Production  | `https://api.unblocksyria.com` | `https://unblocksyria.com` | `https://verify.unblocksyria.com` |
 
 `WXT_API_BASE`, `WXT_SITE_BASE` and `WXT_VERIFY_BASE` override these at build time.
-The API doesn't list the extension in CORS; `<all_urls>` lets the panel reach it anyway.
+Loopback APIs on `localhost` or `127.0.0.1` skip client verification. The server must
+also be configured for development without a Turnstile secret. The country check
+always uses `https://api.unblocksyria.com/cdn-cgi/trace`.
 
 ## Human verification
 
-Votes, reports, corrections and new services each need a single-use Turnstile token.
-Extension pages can't run Turnstile: MV3 forbids remote scripts, and Cloudflare can't
-allowlist a `chrome-extension://` origin. So [turnstile.ts](extension/src/lib/turnstile.ts)
-frames a page on our own domain that can:
+[turnstile.ts](extension/src/lib/turnstile.ts) frames
+`/extension/turnstile?action=<action>&nonce=<uuid>` on the verification host.
+The page returns an `unblocksyria-turnstile` message with the nonce, action and
+status (`interactive`, `solved` or `error`).
 
-```mermaid
-sequenceDiagram
-    participant P as Side panel
-    participant V as verify.unblocksyria.com
-    participant A as API
-    P->>V: invisible iframe ?action=vote&nonce=<uuid>
-    alt Turnstile needs a click
-        V-->>P: interactive (the panel shows the frame)
-    end
-    V-->>P: solved, with the token (to the extension origin only)
-    P->>A: request with X-Turnstile-Token
-    A->>A: siteverify, hostname, action, replay
-```
+The panel accepts only its own frame's messages from the exact verification
+origin, with the expected nonce and action. Empty or oversized tokens are refused.
+Loading has a 30-second deadline; an interactive challenge has two minutes.
+Repeated messages cannot extend that deadline. Interactive verification opens a
+modal with Cancel and Escape support; completion removes the frame and listener.
 
-- **What the panel accepts:** only messages from that origin and its own frame, whose
-  nonce and action match the request.
-- **Who the page admits:** only the store extension's origin,
-  `epmjhaoobmgfclbkelhkiakijjocjgfm`. The store key in
-  [wxt.config.ts](extension/wxt.config.ts) gives unpacked builds that ID too.
-- **Browsers:** Chromium browsers installing from the Chrome Web Store share the ID.
-  Firefox gives each install a random origin, so there's no Firefox build.
-- **Not a security boundary:** the key is public, so anyone can load a copy with that
-  ID, just as anyone can script the website's own widget. Either way, each token
-  costs a solve.
-- **Local API:** a local API runs without human verification, and the panel asks for
-  no token.
+The API must validate the token, expected action and hostname. Cloudflare tokens
+are single-use and expire after five minutes; client-side checks cannot replace
+[server validation](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/).
+The public manifest key and stable extension ID identify the client but are not
+credentials or proof that a request came from an unmodified build.
 
-## Writes and evidence
+## Forms and screenshots
 
-- **Votes** ([votes.ts](extension/src/lib/votes.ts)):
-  - The API counts one vote per network address per service.
-  - It can't be asked whether a vote exists, so the panel remembers its own votes as
-    a hint. `ALREADY_VOTED` and `NO_VOTE_FOUND` answers correct that hint.
-  - Voting closes once a service is available.
-- **Report what works**
-  ([ReportForm.tsx](extension/src/entrypoints/sidepanel/components/ReportForm.tsx)):
-  - Each part starts at the level the service records.
-  - A part is sent when it says something new, or when it confirms the record with a
-    note or screenshot.
-  - A part that contradicts the record needs a note or a screenshot.
-- **Suggest Correction**
-  ([CorrectionForm.tsx](extension/src/entrypoints/sidepanel/components/CorrectionForm.tsx)):
-  - One submission can change several fields.
-  - Categories are sent as a JSON array of category IDs, at most ten.
-- **Report a Service**
-  ([ReportServiceForm.tsx](extension/src/entrypoints/sidepanel/components/ReportServiceForm.tsx)):
-  the open site's address, with its name taken from the page title.
-- **VPN warning:** both report forms read the connection's country from
-  `api.unblocksyria.com/cdn-cgi/trace` ([geo.ts](extension/src/lib/geo.ts)). Outside
-  Syria, [VpnWarning](extension/src/entrypoints/sidepanel/components/VpnWarning.tsx)
-  asks the tester to turn their VPN off. It never blocks sending.
+Votes use `POST`/`DELETE /services/:slug/vote`. The browser stores a local hint;
+`ALREADY_VOTED` and `NO_VOTE_FOUND` reconcile it with the server. Storage failure
+does not turn an acknowledged vote into a failed operation. Voting is closed in
+the UI for available services.
 
-Screenshots ([evidence.ts](extension/src/lib/evidence.ts),
-[FormParts.tsx](extension/src/entrypoints/sidepanel/components/FormParts.tsx)):
+Each functionality report item needs a note or screenshot. A matching recorded
+level is sent only when it has evidence. Reports are limited to 30 items and 100
+screenshots in total, with five screenshots per item. Corrections send multiple
+changes in one submission; category changes are JSON arrays of at most ten IDs.
+New-service names are capped at 200 characters and descriptions at 2,000.
 
-1. **Capture:** `captureVisibleTab` takes the visible page as a JPEG, scaled down if
-   it's over the API's 5 MB cap.
-2. **Site check:** if the tab has moved to another site since the report was opened,
-   capturing it takes a second press.
-3. **Edit:** each capture opens the editor straight away, and clicking a thumbnail
-   opens it again. It is a popup window laid over the browser window
-   ([editorWindow.ts](extension/src/lib/editorWindow.ts)), because the panel is too
-   narrow to cover small text precisely. The panel and the window pass the image
-   over a `BroadcastChannel`, so it is never stored, and the panel closes the window
-   once it has the answer. When no window can open, the editor opens inside the panel.
-   Saving draws a new JPEG from the kept pixels with the boxes painted black
-   ([imageBake.ts](extension/src/lib/imageBake.ts)), so nothing hidden is in the file.
-   Black, not blur, because a blur can sometimes be reversed on text. The capture and
-   its edits ([imageEdits.ts](extension/src/lib/imageEdits.ts)) stay in the panel, so
-   reopening lets the edits be changed; only the edited copy is uploaded.
-4. **Upload:** on send, each screenshot goes to `POST /uploads/evidence`, which
-   returns a URL with a one-time `#claim=` key.
-5. **Cite:** the form cites that URL. The API attaches each upload to one submission,
-   within an hour. A retried send reuses the uploads, except for a screenshot edited
-   since, which goes up again. Nothing can be sent while a screenshot is open in the
-   editor, and a form's screenshots are locked while it sends, so what is sent is
-   always what is shown.
+The screenshot lifecycle is:
 
-Nothing the panel sends changes the public record directly; reports, corrections and
-submissions all go to review queues.
+1. Capture the visible tab as JPEG. A different site needs a second click; a tab
+   or URL change detected during capture discards the result. This is a best-effort
+   check, not an atomic guarantee against every possible navigation race.
+2. Resize large captures to fit the API's 5 MiB cap, or fail with an error.
+3. Open a popup editor using a random session ID and an extension-origin
+   `BroadcastChannel`. If a window cannot open, use a modal inside the panel.
+   Images and edit history stay in memory; no screenshot is written to storage.
+4. Saving draws the crop and solid black boxes into a new JPEG. The original stays
+   available for later edits; only the current rendered blob is uploaded.
+5. On Send, verify and upload each image sequentially to `POST /uploads/evidence`,
+   then separately verify and submit the form. Captures and both editor modes block submission; the form is
+   disabled while sending. Exiting a failed verification does not undo uploads.
+6. Reuse upload claims on a later attempt for up to 55 minutes, allowing time
+   before the server's one-hour expiry. Editing an image invalidates its claim.
 
-## Where abuse is stopped
+Claims authorize attachment to a submission. The API hides unclaimed uploads
+when `PUBLIC_UPLOAD_PROTECTION` is `enforced`; the `staged` compatibility phase
+keeps their URLs readable. Abandoned uploads are swept on the server schedule.
+Attached evidence remains public to holders of its address. Local previews use
+blob URLs. The extension cannot revoke a server upload.
 
-Checks in the panel are for the tester's benefit. Anyone can call the API directly,
-so enforcement lives on the server, and the website gets the same rules:
+The editor supports pointer editing and labeled numeric crop/redaction controls.
+Forms ask before Back discards changes; Settings preserves the mounted draft.
+A best-effort unload guard does not guarantee persistence when the browser closes
+the native panel. Draft text and screenshots are intentionally held in memory.
 
-| Control | What it bounds |
-|---|---|
-| Turnstile on votes, reports, corrections and submissions | Scripted writes: each one costs a solve on our page, for that endpoint. Uploads aren't checked. |
-| Per-address rate limits | Votes: 30/min and 100/hr. Reports, corrections and submissions share 10/hr and 30/day. Uploads: 10/min and 30/hr. |
-| One vote per address per service | Repeat votes |
-| Review queues | Every data change; nothing is applied automatically |
-| Upload claims | Citing someone else's upload, or a stale one |
-| Pending-report cap per service | Flooding one service with reports awaiting review |
-| Address denylist | Known bad networks |
+## Permissions and storage
 
-These limits were accepted in September 2026. The bar is parity with the website:
+- `tabs` reads the active tab's URL and title.
+- `sidePanel` enables the panel, and `storage` holds email and vote hints.
+- `<all_urls>` permits cross-site capture while the panel follows navigation and
+  permits API requests. It is broad access. Replacing it with `activeTab` would
+  require a fresh toolbar invocation when the grant expires on navigation; see
+  [Chrome's permission model](https://developer.chrome.com/docs/extensions/develop/concepts/activeTab).
+- `chrome.storage.local` holds `testerEmail` and independent `voteHint:<slug>`
+  booleans; legacy `votedServiceSlugs` remains readable. Storage events update
+  other panels without sharing a read/modify/write array. Successful submissions
+  remember a nonempty email; failed or anonymous submissions preserve the saved
+  address. Saving a blank email in Settings clears it. Hints cannot establish
+  a vote after the user's network changes.
+- `chrome.storage.session` holds uncertain receipt keys and payload fingerprints;
+  these survive panel closure but not a browser restart. `localStorage` holds the
+  theme. No browsing history or screenshot is persisted by this code.
+- Chrome 123+ is required for the theme's `light-dark()` CSS support. Other Chromium
+  browsers also need compatible side panel APIs; they are not all tested here.
 
-- **Identity is the exact IP address.** An IPv6 user can rotate addresses within a
-  /64 to get more votes, while Syrians behind one carrier-grade NAT address share a
-  single vote and a single budget.
-- **The optional email isn't verified,** but it decides volunteer credit and
-  receives confirmation mail.
-- **Uploads are public before they're claimed,** and GIF metadata isn't stripped.
-- **The pending-report cap is per service, not per network,** so one network can
-  fill it.
+## Abuse boundaries
 
-## Permissions, storage and privacy
+A modified extension or a script can call the public API directly. CORS, the
+extension ID, disabled buttons and local vote hints cannot prevent that. The
+server must enforce verification, quotas, vote uniqueness, upload validation and
+claims, and moderation on every client. The extension carries no privileged
+credential that would bypass those checks.
 
-- **Permissions:**
-  - `tabs` reads the shown tab's address and title.
-  - `<all_urls>` allows screenshots on any site and reaches the API.
-  - `sidePanel` and `storage` are needed for the panel and settings.
-  - Chrome 123 or later is required, for `light-dark()`.
-- **Storage:**
-  - `chrome.storage.local` holds the optional email (`testerEmail`) and the vote hint
-    (`votedServiceSlugs`).
-  - `localStorage` holds the theme, so it applies before first paint.
-- **Privacy:**
-  - Only the shown page's address is sent, and only while the panel is open.
-  - Screenshots leave the machine only when their form is sent.
-  - The country check goes to our own API host.
+## Validation
 
-## Testing
+`npm run check` runs lint, Prettier, TypeScript, Vitest and a production build.
+`npm run test:e2e` separately runs the built extension in Chromium. Unit/component
+tests refuse unstubbed fetches. Browser fixtures intercept HTTP(S) requests and
+fail on unknown requests. No live write is needed for either suite.
 
-`npm test` runs Vitest with WXT's in-memory browser APIs. It covers:
-- the address helpers;
-- the API client;
-- the verification message contract;
-- the country check;
-- vote bookkeeping.
-
-`npm run check` runs what CI runs: lint, the format check, typecheck, tests and a
-production build. For end-to-end writes, run the API locally (see the
-[README](README.md)); nothing then reaches the live review queues.
+The browser harness opens the panel as an extension tab, so it does not establish
+native side-panel behavior across all supported browsers. Real Turnstile solves,
+production quotas, deployment configuration and manual assistive-technology checks
+remain outside these tests.

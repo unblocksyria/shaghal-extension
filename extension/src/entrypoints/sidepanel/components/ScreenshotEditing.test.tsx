@@ -86,7 +86,7 @@ async function openForm(user: UserEvent, pageUrl = 'https://edits.example/accoun
   const api = fakeApi()
     .on('POST', '/services/match', { data: matchNone })
     .on('POST', '/uploads/evidence', { json: upload })
-    .on('POST', '/submissions', { status: 201, json: { success: true } })
+    .on('POST', '/submissions', { status: 201, json: { id: 'receipt' } })
     .install();
   await openPanel(pageUrl);
   await user.click(await screen.findByRole('button', { name: 'Report a Service' }, { timeout: 3000 }));
@@ -283,6 +283,11 @@ describe('editing a screenshot from a form', () => {
     await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
     await screen.findByText('Editing evidence #1 in its own window.');
     await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(windows.closed).toBe(0);
+    await user.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(windows.closed).toBe(0);
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    await user.click(screen.getByRole('button', { name: 'Discard draft' }));
     expect(windows.closed).toBe(1);
   });
 });
@@ -317,5 +322,40 @@ describe('a screenshot list', () => {
     act(() => list().replace({ ...current, uploadedUrl: 'https://files.example.invalid/edited.jpg' }));
     expect(list().items[0]?.uploadedUrl).toBe('https://files.example.invalid/edited.jpg');
     expect(list().items[0]?.edits).toEqual(edits);
+  });
+});
+
+describe('capture and submission races', () => {
+  it('blocks sending during capture and discards a capture if the tab changed', async () => {
+    const user = userEvent.setup();
+    const api = await openForm(user, 'https://capture-race.example/');
+    let release!: (data: string) => void;
+    fakeBrowser.tabs.captureVisibleTab = () =>
+      new Promise<string>((resolve) => {
+        release = resolve;
+      });
+    await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
+    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('Finish capturing');
+    expect(api.callsTo('POST', '/submissions')).toHaveLength(0);
+    const [tab] = await fakeBrowser.tabs.query({ active: true, currentWindow: true });
+    await fakeBrowser.tabs.update(tab!.id, { url: 'https://private.example/' });
+    act(() => release('data:image/jpeg;base64,aGVsbG8='));
+    await screen.findByText('The tab changed during capture. Take the screenshot again.');
+    expect(screen.queryByAltText('Evidence #1')).toBeNull();
+    expect(windows.requests).toHaveLength(0);
+  });
+
+  it('blocks programmatic submission while the inline editor is open', async () => {
+    const user = userEvent.setup();
+    const api = await openForm(user, 'https://inline-race.example/');
+    windows.unavailable = true;
+    await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
+    await screen.findByRole('dialog', { name: 'Edit evidence #1' });
+    // jsdom does not enforce showModal's inert background. This exercises the guard itself.
+    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('Finish capturing or editing');
+    expect(api.callsTo('POST', '/uploads/evidence')).toHaveLength(0);
+    expect(api.callsTo('POST', '/submissions')).toHaveLength(0);
   });
 });

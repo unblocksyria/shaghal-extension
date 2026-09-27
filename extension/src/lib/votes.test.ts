@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
-import { hasVoted, setVote } from './votes';
+import { hasVoted, setVote, watchVote } from './votes';
 
 function answer(body: unknown, status = 200) {
   vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json(body, { status })));
@@ -45,4 +45,26 @@ describe('setVote', () => {
     });
     expect(await hasVoted('netflix')).toBe(false);
   });
+});
+
+describe('unavailable vote storage', () => {
+  it('does not turn a completed vote into a failed or stuck operation', async () => {
+    vi.spyOn(chrome.storage.local, 'set').mockRejectedValueOnce(new Error('quota'));
+    answer({ voteCount: 8 });
+    expect(await setVote('storage-failure', true)).toEqual({ ok: true, voted: true, voteCount: 8 });
+  });
+});
+
+it('preserves concurrent votes for different services and updates other windows', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn<typeof fetch>().mockImplementation(() => Promise.resolve(Response.json({ voteCount: 5 }))),
+  );
+  const changed = vi.fn();
+  const stop = watchVote('one', changed);
+  await Promise.all([setVote('one', true), setVote('two', true)]);
+  expect(await hasVoted('one')).toBe(true);
+  expect(await hasVoted('two')).toBe(true);
+  expect(changed).toHaveBeenCalledWith(true);
+  stop();
 });

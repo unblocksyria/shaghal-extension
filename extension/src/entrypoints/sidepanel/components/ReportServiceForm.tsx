@@ -1,9 +1,11 @@
+import { formErrorMessage } from '../../../lib/api';
 import { useState } from 'react';
 import { submitService } from '../../../lib/submit';
 import { Input } from '../../../components/ui/Input';
 import { Textarea } from '../../../components/ui/Textarea';
 import {
   EmailField,
+  emailError,
   FormFooter,
   FormShell,
   ScreenshotField,
@@ -31,6 +33,13 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
   const [sent, setSent] = useState(false);
 
   const submit = async () => {
+    if (busy) return;
+    const invalidEmail = emailError(email);
+    if (invalidEmail !== null) {
+      setError(invalidEmail);
+      return;
+    }
+    if (name.trim().length === 0) return;
     setBusy(true);
     setError(null);
     const uploaded = await uploadScreenshots(screenshots, 'submission');
@@ -48,9 +57,7 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
     });
     setBusy(false);
     if (!result.ok) {
-      setError(
-        result.error.status === 429 ? 'Too many reports from this network. Try again later.' : result.error.message,
-      );
+      setError(formErrorMessage(result.error));
       return;
     }
     setSent(true);
@@ -60,7 +67,7 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
     return (
       <SentState
         title="Report received"
-        message="Thank you for helping map Syria's digital access. We'll review your submission and add it to our database."
+        message="Thank you for helping map Syria's digital access. A volunteer will review your submission before it can be published."
         actionLabel="Done"
         onAction={props.onBack}
       />
@@ -69,16 +76,24 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
 
   return (
     <FormShell
+      busy={busy}
       backLabel="Back"
       onBack={props.onBack}
       title="Report a Service"
       intro="Tell us about a service that blocks Syria. We verify it, then track it. Browse from Syria without a VPN so we can check it."
     >
       <VpnWarning />
-      <Input label="Service name" requiredMark value={name} onChange={(event) => setName(event.target.value)} />
+      <Input
+        label="Service name"
+        maxLength={200}
+        requiredMark
+        value={name}
+        onChange={(event) => setName(event.target.value)}
+      />
       <Input label="Website URL" value={props.url} disabled />
       <Textarea
         label="Description"
+        maxLength={2000}
         placeholder="What does it do, and what happens when you use it from Syria?"
         value={description}
         onChange={(event) => setDescription(event.target.value)}
@@ -96,7 +111,7 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
         busyLabel="Submitting…"
         busy={busy}
         blocker={name.trim().length === 0 ? 'Enter the service name.' : null}
-        note="We review all submissions before publishing. Usually within 24 hours."
+        note="We review all submissions before publishing. Your report helps us keep the record accurate."
         error={error}
         onSubmit={() => void submit()}
       />

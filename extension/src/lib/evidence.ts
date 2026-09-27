@@ -9,6 +9,7 @@ export interface PendingEvidence {
   previewUrl: string;
   filename: string;
   uploadedUrl?: string;
+  uploadedAt?: number;
   /**
    * The capture as taken and the edits on it, so the edits can be changed
    * again. Both stay in the panel; only `blob` is ever uploaded.
@@ -37,17 +38,25 @@ function dataUrlToBlob(dataUrl: string): Blob {
 export async function shrinkToFit(blob: Blob): Promise<Blob> {
   if (blob.size <= MAX_EVIDENCE_BYTES) return blob;
   const bitmap = await createImageBitmap(blob);
-  let scale = 0.75;
-  let smaller = blob;
-  // A few steps down is always enough: each one roughly halves the pixels.
-  for (let step = 0; step < 4 && smaller.size > MAX_EVIDENCE_BYTES; step += 1) {
-    const canvas = new OffscreenCanvas(Math.round(bitmap.width * scale), Math.round(bitmap.height * scale));
-    canvas.getContext('2d')?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    smaller = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.85 });
-    scale *= 0.75;
+  try {
+    let scale = 0.75;
+    let smaller = blob;
+    for (let step = 0; step < 4 && smaller.size > MAX_EVIDENCE_BYTES; step += 1) {
+      const canvas = new OffscreenCanvas(
+        Math.max(1, Math.round(bitmap.width * scale)),
+        Math.max(1, Math.round(bitmap.height * scale)),
+      );
+      const context = canvas.getContext('2d');
+      if (context === null) throw new Error('This browser cannot resize the screenshot.');
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      smaller = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.85 });
+      scale *= 0.75;
+    }
+    if (smaller.size > MAX_EVIDENCE_BYTES) throw new Error('The screenshot is too large. Capture a smaller area.');
+    return smaller;
+  } finally {
+    bitmap.close();
   }
-  bitmap.close();
-  return smaller;
 }
 
 export async function captureScreenshot(windowId: number): Promise<PendingEvidence> {
@@ -80,8 +89,15 @@ export async function uploadPendingEvidence(
   item: PendingEvidence,
   reportType: 'submission' | 'correction' | 'functionality_report',
 ): Promise<ApiResult<PendingEvidence>> {
-  if (item.uploadedUrl !== undefined) return { ok: true, data: item };
+  // Claims expire after an hour. Leave five minutes for verification and submission.
+  if (item.uploadedUrl !== undefined && item.uploadedAt !== undefined && Date.now() - item.uploadedAt < 55 * 60_000)
+    return { ok: true, data: item };
+  if (item.blob.size === 0 || item.blob.size > MAX_EVIDENCE_BYTES)
+    return {
+      ok: false,
+      error: { error: 'INVALID_FILE', message: 'Screenshots must be between 1 byte and 5 MB.', status: 0 },
+    };
   const upload = await uploadEvidence(item.blob, item.filename, reportType);
   if (!upload.ok) return upload;
-  return { ok: true, data: { ...item, uploadedUrl: upload.data } };
+  return { ok: true, data: { ...item, uploadedUrl: upload.data, uploadedAt: Date.now() } };
 }

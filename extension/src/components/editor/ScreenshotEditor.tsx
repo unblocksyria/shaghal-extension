@@ -424,6 +424,7 @@ function Workspace(props: {
       }
       return;
     }
+    if (event.target instanceof HTMLElement && event.target.closest('input, select, textarea, summary, a')) return;
     const mod = event.metaKey || event.ctrlKey;
     const key = event.key.toLowerCase();
     if (mod && key === 'z') {
@@ -566,6 +567,100 @@ function Workspace(props: {
       </div>
 
       <div className="us-editor-footer" inert={confirming}>
+        <details style={{ marginBottom: 8 }}>
+          <summary>Precise crop and redaction</summary>
+          <fieldset disabled={saving || leaving} style={{ border: 0, padding: '8px 0', margin: 0 }}>
+            <label style={{ display: 'grid', gap: 4 }}>
+              Edit region
+              <select
+                value={selected?.id ?? 'crop'}
+                onChange={(event) => setSelectedId(event.target.value === 'crop' ? null : event.target.value)}
+              >
+                <option value="crop">Crop frame</option>
+                {edits.boxes.map((box, index) => (
+                  <option key={box.id} value={box.id}>
+                    Black box {index + 1}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6, marginTop: 8 }}>
+              {(['x', 'y', 'width', 'height'] as const).map((field) => {
+                const rect = selected ?? edits.crop;
+                const max =
+                  field === 'x'
+                    ? image.width - rect.width
+                    : field === 'y'
+                      ? image.height - rect.height
+                      : field === 'width'
+                        ? image.width - rect.x
+                        : image.height - rect.y;
+                const min = field === 'x' || field === 'y' ? 0 : 1;
+                return (
+                  <label key={field} style={{ display: 'grid', gap: 3, fontSize: 12 }}>
+                    {{ x: 'Left', y: 'Top', width: 'Width', height: 'Height' }[field]} (pixels)
+                    <input
+                      type="number"
+                      min={min}
+                      max={max}
+                      step={1}
+                      value={rect[field]}
+                      style={{ minWidth: 0 }}
+                      onChange={(event) => {
+                        if (!Number.isFinite(event.target.valueAsNumber)) return;
+                        const next = {
+                          ...rect,
+                          [field]: Math.max(min, Math.min(max, Math.round(event.target.valueAsNumber))),
+                        };
+                        apply(
+                          selected === null
+                            ? { ...edits, crop: next }
+                            : {
+                                ...edits,
+                                boxes: edits.boxes.map((box) => (box.id === selected.id ? { ...box, ...next } : box)),
+                              },
+                        );
+                      }}
+                    />
+                  </label>
+                );
+              })}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+              <button
+                type="button"
+                className="us-editor-text-btn"
+                onClick={() => {
+                  const crop = edits.crop;
+                  const id = newBoxId();
+                  const width = Math.max(1, Math.round(crop.width / 3));
+                  const height = Math.max(1, Math.round(crop.height / 8));
+                  apply({
+                    ...edits,
+                    boxes: [
+                      ...edits.boxes,
+                      {
+                        id,
+                        x: Math.round(crop.x + (crop.width - width) / 2),
+                        y: Math.round(crop.y + (crop.height - height) / 2),
+                        width,
+                        height,
+                      },
+                    ],
+                  });
+                  setSelectedId(id);
+                }}
+              >
+                Add black box
+              </button>
+              {selected !== null && (
+                <button type="button" className="us-editor-text-btn" onClick={removeSelected}>
+                  Remove black box
+                </button>
+              )}
+            </div>
+          </fieldset>
+        </details>
         <div className="us-editor-options">
           <p
             key={hint}

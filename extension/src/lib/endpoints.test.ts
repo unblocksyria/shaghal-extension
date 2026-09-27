@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { uploadEvidence } from './endpoints';
+import {
+  uploadEvidence,
+  matchService,
+  getCategories,
+  getFunctionalities,
+  getServiceBySlug,
+  voteForService,
+} from './endpoints';
 import { fakeApi } from '../testing/fakeApi';
 import upload from '../testing/fixtures/upload.json';
 
@@ -24,5 +31,22 @@ describe('uploadEvidence', () => {
       ok: false,
       error: { error: 'BAD_RESPONSE', message: 'The upload answered without a file address.', status: 200 },
     });
+  });
+});
+
+describe('untrusted API data', () => {
+  it.each([
+    ['POST', '/services/match', () => matchService('https://example.com'), { service: {}, alternatives: [] }],
+    ['GET', '/categories', getCategories, [{ id: 'x' }]],
+    ['GET', '/functionalities', getFunctionalities, null],
+    ['GET', '/functionalities', getFunctionalities, [{ slug: 'constructor', name: 'Constructor' }]],
+    ['GET', '/services/x', () => getServiceBySlug('x'), { id: 'x', name: 'X', url: null, functionalities: [{}] }],
+  ] as const)('rejects malformed data from %s %s', async (method, path, request, data) => {
+    fakeApi().on(method, path, { data }).install();
+    expect(await request()).toMatchObject({ ok: false, error: { error: 'BAD_RESPONSE' } });
+  });
+  it.each([null, {}, { voteCount: -1 }, { voteCount: '12' }])('rejects malformed vote receipts', async (json) => {
+    fakeApi().on('POST', '/services/x/vote', { json }).install();
+    expect(await voteForService('x')).toMatchObject({ ok: false, error: { error: 'BAD_RESPONSE' } });
   });
 });

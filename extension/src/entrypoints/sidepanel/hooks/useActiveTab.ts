@@ -7,16 +7,6 @@ export interface ActiveTabInfo {
 
 const DEV_FALLBACK: ActiveTabInfo = { url: 'https://example.com', title: 'Example' };
 
-function queryActiveTab(setTab: (tab: ActiveTabInfo) => void): void {
-  if (typeof chrome === 'undefined' || chrome?.tabs?.query === undefined) {
-    setTab(DEV_FALLBACK);
-    return;
-  }
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    setTab({ url: tabs[0]?.url ?? null, title: tabs[0]?.title ?? null });
-  });
-}
-
 /**
  * Development builds only: `sidepanel.html?preview=<url>` opened as a tab shows
  * the panel for that address, so a state can be viewed or screenshotted
@@ -43,7 +33,16 @@ function useFollowedTab(enabled: boolean): ActiveTabInfo {
 
   useEffect(() => {
     if (!chromeTabsAvailable) return;
-    const refresh = () => queryActiveTab(setTab);
+    let sequence = 0;
+    let disposed = false;
+    const refresh = () => {
+      const request = ++sequence;
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const error = chrome.runtime.lastError;
+        if (disposed || request !== sequence) return;
+        setTab(error ? { url: null, title: null } : { url: tabs[0]?.url ?? null, title: tabs[0]?.title ?? null });
+      });
+    };
     // Only the shown tab's address and title matter, not loading, favicon or audio updates.
     const onUpdated = (_tabId: number, change: chrome.tabs.OnUpdatedInfo, updated: chrome.tabs.Tab) => {
       if (updated.active && (change.url !== undefined || change.title !== undefined)) refresh();
@@ -53,6 +52,7 @@ function useFollowedTab(enabled: boolean): ActiveTabInfo {
     chrome.tabs.onUpdated.addListener(onUpdated);
     chrome.windows.onFocusChanged.addListener(refresh);
     return () => {
+      disposed = true;
       chrome.tabs.onActivated.removeListener(refresh);
       chrome.tabs.onUpdated.removeListener(onUpdated);
       chrome.windows.onFocusChanged.removeListener(refresh);

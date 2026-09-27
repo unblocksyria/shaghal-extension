@@ -15,7 +15,7 @@ async function openCorrection(user: UserEvent, pageUrl: string): Promise<FakeApi
     .on('POST', '/services/match', { data: match })
     .on('GET', '/services/netflix', { data: serviceRecord })
     .on('GET', '/categories', { data: categories })
-    .on('POST', '/corrections', { status: 201, json: { success: true } })
+    .on('POST', '/corrections', { status: 201, json: { id: 'receipt' } })
     .install();
   await openPanel(pageUrl);
   await user.click(await screen.findByRole('button', { name: 'Suggest Correction' }, { timeout: 3000 }));

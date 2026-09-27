@@ -10,21 +10,27 @@ const VOTED_KEY = 'votedServiceSlugs';
  * API's `ALREADY_VOTED` and `NO_VOTE_FOUND` answers correct it: someone else
  * on the same network may have voted, or the vote was cast from the website.
  */
-async function readVoted(): Promise<Set<string>> {
-  const stored = await chrome.storage.local.get(VOTED_KEY);
-  const slugs = stored[VOTED_KEY];
-  return new Set(Array.isArray(slugs) ? slugs.filter((slug): slug is string => typeof slug === 'string') : []);
-}
+const hintKey = (slug: string) => `voteHint:${slug}`;
 
 async function writeVoted(slug: string, voted: boolean): Promise<void> {
-  const current = await readVoted();
-  if (voted) current.add(slug);
-  else current.delete(slug);
-  await chrome.storage.local.set({ [VOTED_KEY]: [...current] });
+  // Independent keys avoid losing another window's vote during read/modify/write.
+  await chrome.storage.local.set({ [hintKey(slug)]: voted }).catch(() => undefined);
 }
 
 export async function hasVoted(slug: string): Promise<boolean> {
-  return (await readVoted()).has(slug);
+  const key = hintKey(slug);
+  const stored: Record<string, unknown> = await chrome.storage.local.get([key, VOTED_KEY]).catch(() => ({}));
+  if (typeof stored[key] === 'boolean') return stored[key];
+  // Read legacy hints without a migration that could overwrite a concurrent vote.
+  return Array.isArray(stored[VOTED_KEY]) && stored[VOTED_KEY].includes(slug);
+}
+
+export function watchVote(slug: string, changed: (voted: boolean) => void): () => void {
+  const listener = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+    if (area === 'local' && hintKey(slug) in changes) changed(changes[hintKey(slug)]?.newValue === true);
+  };
+  chrome.storage.onChanged.addListener(listener);
+  return () => chrome.storage.onChanged.removeListener(listener);
 }
 
 export type VoteOutcome = { ok: true; voted: boolean; voteCount: number | null } | { ok: false; message: string };

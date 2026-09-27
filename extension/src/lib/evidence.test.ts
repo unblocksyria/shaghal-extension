@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
-import { withEdits, type PendingEvidence } from './evidence';
+import { fakeApi } from '../testing/fakeApi';
+import upload from '../testing/fixtures/upload.json';
+import { describe, expect, it, vi } from 'vitest';
+import { uploadPendingEvidence, withEdits, type PendingEvidence } from './evidence';
 import type { ImageEdits } from './imageEdits';
 
 const edits: ImageEdits = { crop: { x: 0, y: 0, width: 5, height: 5 }, boxes: [] };
@@ -40,5 +42,29 @@ describe('a screenshot with edits', () => {
     expect(restored.original).toBeUndefined();
     expect(restored.edits).toBeUndefined();
     expect(restored.uploadedUrl).toBeUndefined();
+  });
+});
+
+describe('upload lifetime', () => {
+  it('reuses a recent claim and refreshes an old one', async () => {
+    const now = Date.now();
+    vi.spyOn(Date, 'now').mockReturnValue(now);
+    const item = { ...captured(), uploadedAt: now };
+    const api = fakeApi().on('POST', '/uploads/evidence', { json: upload }).install();
+    expect(await uploadPendingEvidence(item, 'submission')).toEqual({ ok: true, data: item });
+    expect(api.callsTo('POST', '/uploads/evidence')).toHaveLength(0);
+    vi.spyOn(Date, 'now').mockReturnValue(now + 56 * 60_000);
+    expect(await uploadPendingEvidence(item, 'submission')).toMatchObject({
+      ok: true,
+      data: { uploadedUrl: upload.file.url, uploadedAt: now + 56 * 60_000 },
+    });
+    expect(api.callsTo('POST', '/uploads/evidence')).toHaveLength(1);
+  });
+  it('refuses an oversized image without making a request', async () => {
+    const item = { ...captured(), uploadedUrl: undefined, blob: new Blob([new Uint8Array(5 * 1024 * 1024 + 1)]) };
+    expect(await uploadPendingEvidence(item, 'submission')).toMatchObject({
+      ok: false,
+      error: { error: 'INVALID_FILE' },
+    });
   });
 });
