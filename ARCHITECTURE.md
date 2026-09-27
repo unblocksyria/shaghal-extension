@@ -131,17 +131,19 @@ the native panel. Draft text and screenshots are intentionally held in memory.
 ## Permissions and storage
 
 - `tabs` reads the active tab's URL and title.
-- `sidePanel` enables the panel, and `storage` holds email and vote hints.
+- `sidePanel` enables the panel, and `storage` holds email, vote hints and the
+  language pick.
 - `<all_urls>` permits cross-site capture while the panel follows navigation and
   permits API requests. It is broad access. Replacing it with `activeTab` would
   require a fresh toolbar invocation when the grant expires on navigation; see
   [Chrome's permission model](https://developer.chrome.com/docs/extensions/develop/concepts/activeTab).
-- `chrome.storage.local` holds `testerEmail` and independent `voteHint:<slug>`
-  booleans; legacy `votedServiceSlugs` remains readable. Storage events update
-  other panels without sharing a read/modify/write array. Successful submissions
-  remember a nonempty email; failed or anonymous submissions preserve the saved
-  address. Saving a blank email in Settings clears it. Hints cannot establish
-  a vote after the user's network changes.
+- `chrome.storage.local` holds `testerEmail`, the `language` preference and
+  independent `voteHint:<slug>` booleans; legacy `votedServiceSlugs` remains
+  readable. Storage events update other panels without sharing a
+  read/modify/write array. Successful submissions remember a nonempty email;
+  failed or anonymous submissions preserve the saved address. Saving a blank
+  email in Settings clears it. Hints cannot establish a vote after the user's
+  network changes.
 - `chrome.storage.session` holds uncertain receipt keys and payload fingerprints;
   these survive panel closure but not a browser restart. `localStorage` holds the
   theme. No browsing history or screenshot is persisted by this code.

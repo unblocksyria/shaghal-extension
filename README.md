@@ -9,8 +9,9 @@ accurate. Shaghal opens beside your page and lets you:
 - **Report a service** that isn't tracked yet.
 
 Reports and corrections go to Unblock Syria's review queues. They do not change
-public listings automatically. The panel interface is in English; the extension's
-name and store description also have Arabic translations.
+public listings automatically. The panel reads in English or Arabic, right to
+left, with the language chosen in Settings; the extension's name and store
+description also have Arabic translations.
 
 ## Try it locally
 
