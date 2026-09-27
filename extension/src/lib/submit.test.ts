@@ -1,13 +1,19 @@
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { submitCorrection, submitFunctionalityReport, submitService } from './submit';
 import { getSavedEmail, saveEmail } from './settings';
+import { i18next } from './i18n';
 
 vi.mock('./turnstile', () => ({ turnstileToken: () => Promise.resolve({ ok: true, token: 'verified' }) }));
 
 beforeEach(async () => {
   await Promise.resolve(fakeBrowser.reset());
   vi.stubGlobal('chrome', fakeBrowser);
+});
+
+// The language of one test must not tag the submissions of the next.
+afterEach(async () => {
+  await i18next.changeLanguage('en');
 });
 
 const forms = [
@@ -75,6 +81,18 @@ it.each(forms)('keeps a confirmed $name submission successful if remembering the
   vi.spyOn(chrome.storage.local, 'set').mockRejectedValueOnce(new Error('Storage unavailable'));
   const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ id: 'receipt' }));
   vi.stubGlobal('fetch', fetcher);
-  expect(await send('new@example.com')).toEqual({ ok: true, data: { id: 'receipt' } });
+  expect(await send()).toEqual({ ok: true, data: { id: 'receipt' } });
   expect(fetcher).toHaveBeenCalledTimes(1);
+});
+
+// Every write route carries the language it was written in, not just the reads (spec 0002, AC-7).
+it.each(forms)('tags a $name submission with the language the panel is in', async ({ send }) => {
+  await i18next.changeLanguage('ar');
+  const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ id: 'receipt' }));
+  vi.stubGlobal('fetch', fetcher);
+  expect((await send()).ok).toBe(true);
+
+  const [, init] = fetcher.mock.calls[0] ?? [];
+  const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as { locale?: unknown }) : {};
+  expect(body.locale).toBe('ar');
 });

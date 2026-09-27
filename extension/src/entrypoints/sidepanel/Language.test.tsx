@@ -1,16 +1,68 @@
 /** @vitest-environment jsdom */
 import { afterEach, describe, expect, it } from 'vitest';
-import userEvent from '@testing-library/user-event';
-import { screen, within } from '@testing-library/react';
+import userEvent, { type UserEvent } from '@testing-library/user-event';
+import { screen, waitFor, within } from '@testing-library/react';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { i18next } from '../../lib/i18n';
 import { fakeApi } from '../../testing/fakeApi';
-import { openPanel } from '../../testing/panel';
+import { openPanel, stubScreenshot } from '../../testing/panel';
 import categories from '../../testing/fixtures/categories.json';
 import functionalities from '../../testing/fixtures/functionalities.json';
 import match from '../../testing/fixtures/match.json';
 import matchNone from '../../testing/fixtures/match-none.json';
 import serviceRecord from '../../testing/fixtures/service-record.json';
+
+/** What every button involved in a language switch is called, per language. */
+const LANGUAGE_LABELS = {
+  en: {
+    settings: 'Settings',
+    title: 'Settings',
+    back: 'Back',
+    language: 'Language',
+    pick: { en: 'English', ar: 'Arabic' },
+  },
+  ar: {
+    settings: 'الإعدادات',
+    title: 'الإعدادات',
+    back: 'رجوع',
+    language: 'اللغة',
+    pick: { en: 'الإنجليزية', ar: 'العربية' },
+  },
+} as const;
+
+/**
+ * Picks a language in Settings and closes Settings again, the way a tester does
+ * it. The labels come from the language the panel is in right now, which the
+ * document root carries.
+ */
+async function switchLanguage(user: UserEvent, pick: 'en' | 'ar'): Promise<void> {
+  const from = document.documentElement.lang === 'ar' ? 'ar' : 'en';
+  const before = LANGUAGE_LABELS[from];
+  const after = LANGUAGE_LABELS[pick];
+  await user.click(screen.getByRole('button', { name: before.settings }));
+  const languages = await screen.findByRole('radiogroup', { name: before.language });
+  await user.click(within(languages).getByRole('radio', { name: before.pick[pick] }));
+  await screen.findByRole('heading', { name: after.title });
+  // The close button has already taken the language you just picked.
+  await user.click(screen.getByRole('button', { name: after.back }));
+}
+
+/** A service recording a part the form does not own, so only the catalogue can name it. */
+const recordWithParts = {
+  ...serviceRecord,
+  functionalities: [
+    { slug: 'core_use', name: 'Core use', level: 'failing' },
+    { slug: 'sign_up', name: 'Sign up', level: 'working' },
+  ],
+};
+
+/** The catalogue as the API answers it in Arabic (spec 0002, AC-7). */
+const arabicCatalogue = [
+  { slug: 'core_use', name: 'الاستخدام الأساسي' },
+  { slug: 'landing_page', name: 'الصفحة الرئيسية' },
+  { slug: 'sign_up', name: 'التسجيل' },
+  { slug: 'payments', name: 'المدفوعات' },
+];
 
 // The language pick, the direction flip and the English fallback, each against
 // the acceptance criteria of spec 0002.
@@ -285,5 +337,151 @@ describe('language', () => {
 
     await screen.findByRole('heading', { name: 'استلمنا التقرير' });
     expect(api.callsTo('POST', '/submissions').at(0)?.json).toMatchObject({ locale: 'ar' });
+  });
+
+  it('leaves the names owed when the catalogue fails on a switch, and Try again finishes them (AC-7)', async () => {
+    const user = userEvent.setup();
+    // The English catalogue always answers; only the Arabic one can fail.
+    let arabicCatalogueFails = true;
+    const api = fakeApi()
+      .on('POST', '/services/match', { data: match })
+      .on('GET', '/services/netflix', { data: recordWithParts })
+      .on('GET', '/functionalities', (call) => {
+        const locale = new URL(call.url).searchParams.get('locale');
+        if (locale === 'ar' && arabicCatalogueFails) {
+          return { status: 500, json: { error: 'UPSET', message: 'The catalogue is down' } };
+        }
+        return { data: locale === 'ar' ? arabicCatalogue : functionalities };
+      })
+      .install();
+
+    await openPanel('https://catalogue.example/');
+    await user.click(await screen.findByRole('button', { name: 'Report what works' }, { timeout: 3000 }));
+    expect(screen.getByText('Sign up')).toBeDefined();
+
+    await switchLanguage(user, 'ar');
+
+    // The failure is said in the new language, and the two parts the extension
+    // names itself are renamed anyway, because no catalogue is needed for them.
+    await screen.findByText(/تعذّر تحميل الأجزاء/, {}, { timeout: 3000 });
+    expect(screen.getByRole('button', { name: 'أعد المحاولة' })).toBeDefined();
+    expect(screen.getByText('الاستخدام الأساسي')).toBeDefined();
+    // The part only the catalogue can name still waits for it.
+    expect(screen.getByText('Sign up')).toBeDefined();
+
+    arabicCatalogueFails = false;
+    await user.click(screen.getByRole('button', { name: 'أعد المحاولة' }));
+
+    expect(await screen.findByText('التسجيل', {}, { timeout: 3000 })).toBeDefined();
+    expect(screen.queryByText('Sign up')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'أعد المحاولة' })).toBeNull();
+    // The retry asked in the language the panel is showing (spec 0002, AC-7).
+    expect(api.callsTo('GET', '/functionalities').at(-1)?.url).toContain('locale=ar');
+  });
+
+  it('keeps the level, the note and the screenshot while the parts take their Arabic names (AC-11)', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    fakeApi()
+      .on('POST', '/services/match', { data: match })
+      .on('GET', '/services/netflix', { data: recordWithParts })
+      .on('GET', '/functionalities', (call) => ({
+        data: new URL(call.url).searchParams.get('locale') === 'ar' ? arabicCatalogue : functionalities,
+      }))
+      .install();
+
+    await openPanel('https://kept.example/');
+    await user.click(await screen.findByRole('button', { name: 'Report what works' }, { timeout: 3000 }));
+
+    // A mark the record disagrees with, backed by a note and a screenshot.
+    const group = screen.getByRole('radiogroup', { name: 'Sign up' });
+    await user.click(within(group).getByRole('radio', { name: 'Fails' }));
+    await user.type(screen.getByPlaceholderText('What happened?'), 'The sign up form never opened.');
+    await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
+    await screen.findByAltText('Evidence #1');
+
+    await switchLanguage(user, 'ar');
+
+    // Everything typed and chosen is still there, under the Arabic part name.
+    const renamed = await screen.findByRole('radiogroup', { name: 'التسجيل' }, { timeout: 3000 });
+    expect(within(renamed).getByRole('radio', { name: 'لا يعمل' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('textbox', { name: 'ملاحظات التسجيل' })).toHaveProperty(
+      'value',
+      'The sign up form never opened.',
+    );
+    expect(screen.getByAltText('الدليل رقم 1')).toBeDefined();
+  });
+
+  it('restores the English part names when the panel is switched back (AC-7)', async () => {
+    const user = userEvent.setup();
+    const api = fakeApi()
+      .on('POST', '/services/match', { data: match })
+      .on('GET', '/services/netflix', { data: recordWithParts })
+      .on('GET', '/functionalities', (call) => ({
+        data: new URL(call.url).searchParams.get('locale') === 'ar' ? arabicCatalogue : functionalities,
+      }))
+      .install();
+
+    await openPanel('https://again.example/');
+    await user.click(await screen.findByRole('button', { name: 'Report what works' }, { timeout: 3000 }));
+    expect(screen.getByText('Sign up')).toBeDefined();
+
+    await switchLanguage(user, 'ar');
+    expect(await screen.findByText('التسجيل', {}, { timeout: 3000 })).toBeDefined();
+
+    await switchLanguage(user, 'en');
+
+    expect(await screen.findByText('Sign up', {}, { timeout: 3000 })).toBeDefined();
+    expect(screen.queryByText('التسجيل')).toBeNull();
+    expect(document.documentElement.dir).toBe('ltr');
+    // The names came back from a catalogue asked for in English.
+    expect(api.callsTo('GET', '/functionalities').at(-1)?.url).toContain('locale=en');
+  });
+
+  it('keeps the loaded category names through a failed refetch and catches up on the next switch (AC-7)', async () => {
+    const user = userEvent.setup();
+    let arabicCategoriesFail = true;
+    const arabicCategories = [
+      { id: 'cat-streaming', name: 'بث' },
+      { id: 'cat-entertainment', name: 'ترفيه' },
+      { id: 'cat-social', name: 'تواصل' },
+    ];
+    const api = fakeApi()
+      .on('POST', '/services/match', { data: match })
+      .on('GET', '/services/netflix', { data: serviceRecord })
+      .on('GET', '/categories', (call) => {
+        const locale = new URL(call.url).searchParams.get('locale');
+        if (locale === 'ar' && arabicCategoriesFail) {
+          return { status: 500, json: { error: 'UPSET', message: 'Categories are down' } };
+        }
+        return { data: locale === 'ar' ? arabicCategories : categories };
+      })
+      .install();
+
+    await openPanel('https://refetch.example/');
+    await user.click(await screen.findByRole('button', { name: 'Suggest Correction' }, { timeout: 3000 }));
+    await user.click(screen.getByRole('checkbox', { name: 'Categories' }));
+    await screen.findByRole('button', { name: /2 selected: Streaming, Entertainment/ });
+
+    await switchLanguage(user, 'ar');
+    // Wait for the refetch the switch made before judging what it left behind.
+    await waitFor(() => expect(api.callsTo('GET', '/categories')).toHaveLength(2));
+
+    // The names loaded in English are still on screen and no error is raised:
+    // the form stays usable while the options wait for a language that answers.
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('button', { name: /تم اختيار 2: Streaming, Entertainment/ })).toBeDefined();
+
+    // Coming back to Arabic asks once more, and this time the names follow.
+    arabicCategoriesFail = false;
+    await switchLanguage(user, 'en');
+    await switchLanguage(user, 'ar');
+
+    expect(await screen.findByRole('button', { name: /تم اختيار 2: بث, ترفيه/ }, { timeout: 3000 })).toBeDefined();
+    expect(api.callsTo('GET', '/categories').map((call) => new URL(call.url).searchParams.get('locale'))).toEqual([
+      'en',
+      'ar',
+      'ar',
+    ]);
   });
 });
