@@ -10,14 +10,16 @@ import { EditorApp } from './EditorApp';
 const panel = vi.hoisted(() => ({
   sessions: [] as string[],
   open: null as ((request: EditRequest) => void) | null,
+  dismiss: null as (() => void) | null,
   saved: [] as (EditedScreenshot | null)[],
   cancelled: 0,
   closed: 0,
 }));
 vi.mock('../../lib/editorWindow', () => ({
-  connectToPanel: (session: string, onOpen: (request: EditRequest) => void) => {
+  connectToPanel: (session: string, onOpen: (request: EditRequest) => void, onDismiss: () => void) => {
     panel.sessions.push(session);
     panel.open = onOpen;
+    panel.dismiss = onDismiss;
     return {
       save: (edited: EditedScreenshot | null) => panel.saved.push(edited),
       cancel: () => (panel.cancelled += 1),
@@ -32,7 +34,7 @@ vi.mock('../../lib/imageBake', () => ({
 }));
 
 function openAt(search: string) {
-  Object.assign(panel, { sessions: [], open: null, saved: [], cancelled: 0, closed: 0 });
+  Object.assign(panel, { sessions: [], open: null, dismiss: null, saved: [], cancelled: 0, closed: 0 });
   window.history.replaceState(null, '', `/editor.html${search}`);
   return render(<EditorApp />);
 }
@@ -93,5 +95,33 @@ describe('the editor window page', () => {
     const { unmount } = openAt('?session=abc');
     unmount();
     expect(panel.closed).toBe(1);
+  });
+
+  it('closes itself when the panel lets the screenshot go, unsaved edits and all', async () => {
+    const user = userEvent.setup();
+    const close = vi.spyOn(window, 'close').mockImplementation(() => undefined);
+    openAt('?session=abc');
+    act(() => void panel.open?.({ source: new Blob(['capture']), label: 'evidence #1' }));
+    await screen.findByRole('button', { name: 'Undo' });
+
+    const canvas = document.querySelector<HTMLElement>('.us-editor-canvas');
+    if (canvas === null) throw new Error('No image');
+    await user.pointer([
+      { keys: '[MouseLeft>]', target: canvas, coords: { clientX: 20, clientY: 20 } },
+      { target: canvas, coords: { clientX: 90, clientY: 60 } },
+      { keys: '[/MouseLeft]', target: canvas },
+    ]);
+    const closing = () => {
+      const event = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    expect(closing()).toBe(true);
+
+    act(() => panel.dismiss?.());
+    // The warning is lifted before the window closes, so nothing holds it open.
+    expect(closing()).toBe(false);
+    expect(close).toHaveBeenCalledOnce();
+    expect(panel.saved).toEqual([]);
   });
 });

@@ -9,9 +9,12 @@ import type { EditedScreenshot, ImageEdits } from './imageEdits';
  *   editor → panel  ready     (the window has loaded; repeated until answered)
  *   panel → editor  open      (the screenshot and its edits)
  *   editor → panel  saved | cancelled
+ *   panel → editor  dismiss   (the panel let the screenshot go; the window closes itself)
  *
  * The panel closes the window once it has the answer, so the answer is never
- * lost to a window closing mid-message.
+ * lost to a window closing mid-message. A dismissed window closes itself,
+ * since only it can lift its own warning about unsaved edits, and the panel
+ * counts it as open until Chrome says it is gone.
  */
 const CHANNEL = 'shaghal-screenshot-editor';
 
@@ -25,7 +28,8 @@ type EditorMessage =
   | { type: 'ready'; session: string }
   | ({ type: 'open'; session: string } & EditRequest)
   | { type: 'saved'; session: string; edited: EditedScreenshot | null }
-  | { type: 'cancelled'; session: string };
+  | { type: 'cancelled'; session: string }
+  | { type: 'dismiss'; session: string };
 
 /** What an edit ended with: new edits, all edits taken off (null), or nothing changed (undefined). */
 export type EditOutcome = EditedScreenshot | null | undefined;
@@ -41,7 +45,7 @@ export class EditorBusyError extends Error {
 interface OpenEditor {
   /** Unset while the window is still opening. */
   windowId?: number;
-  finish: (outcome: EditOutcome) => void;
+  dismiss: () => void;
 }
 
 let current: OpenEditor | null = null;
@@ -62,6 +66,9 @@ export function watchEditor(watcher: () => void): () => void {
   watchers.add(watcher);
   return () => watchers.delete(watcher);
 }
+
+/** How long a dismissed editor window has to close itself before it is closed for it. */
+const DISMISS_GRACE_MS = 1000;
 
 /** The browser window's bounds, which the editor window takes to cover it. */
 async function browserBounds(): Promise<chrome.windows.CreateData> {
@@ -92,24 +99,49 @@ export function editInWindow(request: EditRequest): Promise<EditOutcome> {
     settle = resolve;
     fail = reject;
   });
-  let done = false;
+  // Settled: the caller has its outcome. Released: this editor is no longer
+  // tracked, which waits until its window is really gone.
+  let settled = false;
+  let released = false;
 
+  const settleOnce = (result: EditOutcome) => {
+    if (settled) return;
+    settled = true;
+    settle(result);
+  };
   const release = () => {
-    done = true;
+    if (released) return;
+    released = true;
     if (current === self) setCurrent(null);
     channel.close();
     chrome.windows.onRemoved.removeListener(onRemoved);
   };
+  /** The editor answered: take its answer and close its window. */
   const finish = (result: EditOutcome) => {
-    if (done) return;
+    settleOnce(result);
     release();
     if (self.windowId !== undefined) void chrome.windows.remove(self.windowId).catch(() => undefined);
-    settle(result);
+  };
+  /**
+   * The panel lets the screenshot go. The window may hold unsaved edits and a
+   * warning against closing, so it is asked to close itself, with a forced
+   * close as a fallback; it stays tracked until it is gone.
+   */
+  const dismiss = () => {
+    settleOnce(undefined);
+    if (self.windowId === undefined) return release();
+    channel.postMessage({ type: 'dismiss', session } satisfies EditorMessage);
+    const windowId = self.windowId;
+    setTimeout(() => {
+      if (!released) void chrome.windows.remove(windowId).catch(() => undefined);
+    }, DISMISS_GRACE_MS);
   };
   const onRemoved = (removedId: number) => {
-    if (removedId === self.windowId) finish(undefined);
+    if (removedId !== self.windowId) return;
+    settleOnce(undefined);
+    release();
   };
-  const self: OpenEditor = { finish };
+  const self: OpenEditor = { dismiss };
   setCurrent(self);
   chrome.windows.onRemoved.addListener(onRemoved);
 
@@ -137,11 +169,11 @@ export function editInWindow(request: EditRequest): Promise<EditOutcome> {
       .catch(() => chrome.windows.create(editorPage));
     if (created?.id === undefined) throw new Error('The editor window did not open.');
     self.windowId = created.id;
-    // Closed while its window was opening, as when its screenshot was removed.
-    if (done) void chrome.windows.remove(created.id).catch(() => undefined);
+    // Dismissed while its window was opening, as when its screenshot was removed.
+    if (released) void chrome.windows.remove(created.id).catch(() => undefined);
   };
   open().catch((error: unknown) => {
-    if (done) return;
+    if (released) return;
     release();
     fail(error);
   });
@@ -150,7 +182,7 @@ export function editInWindow(request: EditRequest): Promise<EditOutcome> {
 
 /** Close the open editor window without taking its edits, as when its screenshot is removed. */
 export function closeEditorWindow(): void {
-  current?.finish(undefined);
+  current?.dismiss();
 }
 
 /** Bring the open editor window to the front, if there is one. */
@@ -168,6 +200,7 @@ const READY_EVERY_MS = 300;
 export function connectToPanel(
   session: string,
   onOpen: (request: EditRequest) => void,
+  onDismiss: () => void = () => undefined,
 ): { save: (edited: EditedScreenshot | null) => void; cancel: () => void; close: () => void } {
   const channel = new BroadcastChannel(CHANNEL);
   const ready = () => channel.postMessage({ type: 'ready', session } satisfies EditorMessage);
@@ -177,10 +210,15 @@ export function connectToPanel(
   let opened = false;
   channel.onmessage = (event: MessageEvent<EditorMessage>) => {
     const message = event.data;
-    if (opened || message.session !== session || message.type !== 'open') return;
-    opened = true;
-    clearInterval(asking);
-    onOpen({ source: message.source, edits: message.edits, label: message.label });
+    if (message.session !== session) return;
+    if (message.type === 'dismiss') {
+      clearInterval(asking);
+      onDismiss();
+    } else if (message.type === 'open' && !opened) {
+      opened = true;
+      clearInterval(asking);
+      onOpen({ source: message.source, edits: message.edits, label: message.label });
+    }
   };
   ready();
 

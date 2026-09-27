@@ -217,3 +217,23 @@ test('keeps to one editor, and sends nothing while a screenshot is open in it', 
   await Promise.all([editor.waitForEvent('close'), editor.getByRole('button', { name: 'Cancel' }).click()]);
   await expect(panel.getByRole('button', { name: 'Add another screenshot' })).toBeEnabled();
 });
+
+test('closes an editor with unsaved edits when the panel lets it go, and forgets it', async ({
+  context,
+  page,
+  panel,
+}) => {
+  const editor = await captureIntoEditor(context, page, panel);
+  await dragAcross(editor, [0.25, 0.25], [0.45, 0.75]);
+  // The close warning is armed now; the panel's own dismissal must not trip it.
+  editor.on('dialog', (dialog) => void dialog.dismiss());
+
+  await Promise.all([editor.waitForEvent('close'), panel.getByRole('button', { name: 'Remove evidence #1' }).click()]);
+  // No editor is left behind: a new capture opens a fresh one.
+  await expect(panel.getByRole('button', { name: 'Add screenshot' })).toBeEnabled();
+  const [next] = await Promise.all([
+    context.waitForEvent('page'),
+    panel.getByRole('button', { name: 'Add screenshot' }).click(),
+  ]);
+  await expect(next.getByRole('dialog', { name: 'Edit evidence #1' })).toBeVisible();
+});

@@ -33,6 +33,7 @@ function fakeChrome(
     closeByUser: (id) => listeners.forEach((listener) => listener(id)),
   };
   let nextId = 100;
+  active = windows;
   vi.stubGlobal('chrome', {
     runtime: { getURL: (path: string) => `chrome-extension://shaghal${path}` },
     windows: {
@@ -62,6 +63,9 @@ function fakeChrome(
   return windows;
 }
 
+/** The fake windows of the running test, closed after it. */
+let active: FakeWindows | null = null;
+
 const request: EditRequest = { source: new Blob(['capture']), label: 'evidence #1' };
 const edits: ImageEdits = { crop: { x: 0, y: 0, width: 10, height: 10 }, boxes: [] };
 
@@ -80,8 +84,12 @@ async function editorFor(windows: FakeWindows, index = 0) {
   return { panel, received: received[0] as EditRequest };
 }
 
+// A dismissed editor stays tracked until its window is gone, so each test ends
+// by closing its windows, as a user would.
 afterEach(() => {
   closeEditorWindow();
+  for (let id = 100; id < 100 + (active?.created.length ?? 0); id += 1) active?.closeByUser(id);
+  active = null;
 });
 
 describe('the editor window', () => {
@@ -162,14 +170,13 @@ describe('the editor window', () => {
     expect(focusEditorWindow()).toBe(true);
     expect(windows.focused).toEqual([100]);
 
-    closeEditorWindow();
+    windows.closeByUser(100);
     expect(await first).toBeUndefined();
-    expect(windows.removed).toEqual([100]);
     expect(focusEditorWindow()).toBe(false);
 
     const second = editInWindow({ ...request, label: 'evidence #2' });
     await vi.waitFor(() => expect(windows.created).toHaveLength(2));
-    closeEditorWindow();
+    windows.closeByUser(101);
     expect(await second).toBeUndefined();
   });
 
@@ -186,6 +193,49 @@ describe('the editor window', () => {
     expect(isEditorOpen()).toBe(false);
     expect(seen).toEqual([true, false]);
     stop();
+  });
+
+  it('asks a dismissed editor to close itself, and counts it open until it is gone', async () => {
+    vi.stubGlobal('window', { close: () => undefined });
+    const windows = fakeChrome();
+    const result = editInWindow(request);
+    await vi.waitFor(() => expect(windows.created).toHaveLength(1));
+    const dismissed: string[] = [];
+    const editor = connectToPanel(
+      sessionOf(windows.created[0]),
+      () => undefined,
+      () => dismissed.push('dismissed'),
+    );
+
+    // Its screenshot is removed while the editor may hold unsaved edits.
+    closeEditorWindow();
+    expect(await result).toBeUndefined();
+    await vi.waitFor(() => expect(dismissed).toEqual(['dismissed']));
+    // Only the editor can lift its warning about unsaved edits, so the panel does not force it...
+    expect(windows.removed).toEqual([]);
+    // ...and nothing else opens or is sent until it is gone.
+    expect(isEditorOpen()).toBe(true);
+    await expect(editInWindow(request)).rejects.toBeInstanceOf(EditorBusyError);
+
+    windows.closeByUser(100);
+    expect(isEditorOpen()).toBe(false);
+    editor.close();
+  });
+
+  it('closes a dismissed editor that does not close itself', async () => {
+    const windows = fakeChrome();
+    const result = editInWindow(request);
+    await vi.waitFor(() => expect(windows.created).toHaveLength(1));
+
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    closeEditorWindow();
+    vi.advanceTimersByTime(999);
+    expect(windows.removed).toEqual([]);
+    vi.advanceTimersByTime(1);
+    expect(windows.removed).toEqual([100]);
+    expect(isEditorOpen()).toBe(false);
+    vi.useRealTimers();
+    expect(await result).toBeUndefined();
   });
 
   it('closes a window that was dismissed while it was still opening', async () => {

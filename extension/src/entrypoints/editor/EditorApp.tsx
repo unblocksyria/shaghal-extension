@@ -10,11 +10,13 @@ export function EditorApp() {
   const [session] = useState(() => new URLSearchParams(location.search).get('session'));
   const [request, setRequest] = useState<EditRequest | null>(null);
   const [lost, setLost] = useState(session === null);
+  // The panel let this screenshot go, as when it was removed from the form.
+  const [dismissed, setDismissed] = useState(false);
   const panel = useRef<ReturnType<typeof connectToPanel> | null>(null);
 
   useEffect(() => {
     if (session === null) return;
-    const connection = connectToPanel(session, setRequest);
+    const connection = connectToPanel(session, setRequest, () => setDismissed(true));
     panel.current = connection;
     const timer = setTimeout(() => setLost(true), HANDOVER_TIMEOUT_MS);
     return () => {
@@ -26,6 +28,12 @@ export function EditorApp() {
   useEffect(() => {
     if (request !== null) document.title = `Edit ${request.label}`;
   }, [request]);
+
+  // Runs after the editor has lifted its warning about unsaved edits (its effects
+  // run first), so nothing stands in the way of closing.
+  useEffect(() => {
+    if (dismissed) window.close();
+  }, [dismissed]);
 
   if (request === null) {
     return (
@@ -49,7 +57,7 @@ export function EditorApp() {
       source={request.source}
       edits={request.edits}
       label={request.label}
-      guardClose
+      guardClose={!dismissed}
       onCancel={() => panel.current?.cancel()}
       onSave={(edited) => panel.current?.save(edited)}
     />
