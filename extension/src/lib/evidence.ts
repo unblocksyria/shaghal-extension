@@ -1,12 +1,20 @@
 import type { ApiResult } from './api';
 import { uploadEvidence } from './endpoints';
+import type { ImageEdits } from './imageEdits';
 
 export interface PendingEvidence {
   id: string;
+  /** What gets uploaded: the capture, or the edited copy once it has been edited. */
   blob: Blob;
   previewUrl: string;
   filename: string;
   uploadedUrl?: string;
+  /**
+   * The capture as taken and the edits on it, so the edits can be changed
+   * again. Both stay in the panel; only `blob` is ever uploaded.
+   */
+  original?: Blob;
+  edits?: ImageEdits;
 }
 
 /** The API refuses evidence files over 5 MB. */
@@ -16,7 +24,7 @@ const MAX_EVIDENCE_BYTES = 5 * 1024 * 1024;
 async function captureVisibleScreenshot(windowId: number): Promise<Blob> {
   const dataUrl = await chrome.tabs.captureVisibleTab(windowId, { format: 'jpeg', quality: 90 });
   const blob = dataUrlToBlob(dataUrl);
-  return blob.size <= MAX_EVIDENCE_BYTES ? blob : shrinkToFit(blob);
+  return shrinkToFit(blob);
 }
 
 function dataUrlToBlob(dataUrl: string): Blob {
@@ -26,7 +34,8 @@ function dataUrlToBlob(dataUrl: string): Blob {
   return new Blob([bytes], { type });
 }
 
-async function shrinkToFit(blob: Blob): Promise<Blob> {
+export async function shrinkToFit(blob: Blob): Promise<Blob> {
+  if (blob.size <= MAX_EVIDENCE_BYTES) return blob;
   const bitmap = await createImageBitmap(blob);
   let scale = 0.75;
   let smaller = blob;
@@ -48,6 +57,22 @@ export async function captureScreenshot(windowId: number): Promise<PendingEviden
     blob,
     previewUrl: URL.createObjectURL(blob),
     filename: `unblocksyria-evidence-${new Date().toISOString()}.jpg`,
+  };
+}
+
+/**
+ * The screenshot with new edits, or back to the capture when `edited` is null.
+ * It needs uploading again, and its old preview is the caller's to revoke.
+ */
+export function withEdits(item: PendingEvidence, edited: { blob: Blob; edits: ImageEdits } | null): PendingEvidence {
+  const original = item.original ?? item.blob;
+  const blob = edited?.blob ?? original;
+  return {
+    id: item.id,
+    filename: item.filename,
+    blob,
+    previewUrl: URL.createObjectURL(blob),
+    ...(edited !== null && { original, edits: edited.edits }),
   };
 }
 

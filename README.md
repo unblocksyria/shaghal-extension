@@ -27,7 +27,9 @@ Everything goes to the same review queues as the forms on
 
 Both report forms warn you to turn off your VPN when your connection seems to come from
 outside Syria. Screenshots capture the visible page and stay in the panel until you send
-the form.
+the form. Each new screenshot opens in an editor over the whole browser window, where you
+can crop it and black out names, emails or numbers before it goes anywhere. Click its
+thumbnail to change the edits later.
 
 ## Getting started
 
@@ -79,4 +81,6 @@ WXT_API_BASE=https://api.unblocksyria.com WXT_VERIFY_BASE=https://verify.unblock
 
 - The panel sends only the open page's address, and only while the panel is open.
 - Screenshots leave your machine only when you send their form.
+- An edited screenshot is uploaded as a new image, so what you cropped or blacked out
+  can't be recovered from it. The unedited capture stays in the panel.
 - Your email is optional, stays in this browser, and goes only with forms you send.

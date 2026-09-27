@@ -422,3 +422,687 @@ textarea.us-field {
 .us-text-link:hover {
   text-decoration: none;
 }
+
+/*
+  The screenshot editor, in a window of its own over the browser (or inside
+  the panel when that window cannot open). It is always dark, like a photo
+  editor, whatever the panel's theme: `color-scheme: dark` makes every token
+  inside it take its dark value.
+
+  Motion: what follows the pointer follows it exactly, and what the editor
+  moves by itself (undo, redo, Reset crop) glides there. Nothing scales;
+  things fade in and out.
+*/
+.us-editor {
+  color-scheme: dark;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background-color: #0b0b0d;
+  color: var(--us-text-primary);
+  font-family: var(--us-font);
+  overflow: hidden;
+}
+
+.us-editor[open] {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.us-editor::backdrop {
+  background-color: #0b0b0d;
+}
+
+/* The editor window's page, before the screenshot arrives. */
+.us-editor-page {
+  color-scheme: dark;
+  min-height: 100vh;
+}
+
+.us-editor-layout {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-row: 1 / -1;
+  min-height: 0;
+  transition: opacity 0.14s ease-in;
+}
+
+/* Saved or cancelled: the editor fades before its window closes. */
+.us-editor-layout[data-leaving='true'] {
+  opacity: 0;
+}
+
+.us-editor-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+/* Buttons: they brighten on hover and dim while pressed. */
+.us-editor-text-btn,
+.us-editor-icon-btn,
+.us-editor-save,
+.us-editor-discard,
+.us-editor-float-delete {
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    filter 0.15s ease,
+    opacity 0.1s ease;
+}
+
+.us-editor-text-btn:active:not(:disabled),
+.us-editor-icon-btn:active:not(:disabled),
+.us-editor-save:active:not(:disabled),
+.us-editor-discard:active {
+  opacity: 0.7;
+}
+
+.us-editor-text-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: none;
+  border-radius: var(--us-radius-control);
+  background: transparent;
+  color: var(--us-text-primary);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.us-editor-icon-btn {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--us-text-primary);
+}
+
+.us-editor-text-btn:hover:not(:disabled),
+.us-editor-icon-btn:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.us-editor-text-btn:disabled,
+.us-editor-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.us-editor-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 16px;
+  border: none;
+  border-radius: var(--us-radius-pill);
+  background-color: var(--us-gold);
+  color: var(--us-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.us-editor-save:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.us-editor-save:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.us-editor-stage {
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
+}
+
+.us-editor-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--us-text-muted);
+}
+
+.us-editor-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The image: a crosshair inside the frame, where a drag draws a box. */
+.us-editor-canvas {
+  position: absolute;
+  cursor: crosshair;
+  animation: usEditorFade 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* The dimmed part is outside what is kept: a drag there moves the frame. */
+.us-editor-canvas[data-over='outside'] {
+  cursor: grab;
+}
+
+.us-editor-clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  box-shadow: 0 2px 24px rgba(0, 0, 0, 0.5);
+}
+
+.us-editor-clip > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  display: block;
+  pointer-events: none;
+}
+
+.us-editor-box {
+  position: absolute;
+  background-color: #000000;
+  cursor: move;
+}
+
+.us-editor-box:hover:not([aria-current]) {
+  outline: 1px solid rgba(185, 168, 123, 0.8);
+}
+
+.us-editor-selection {
+  position: absolute;
+  outline: 2px solid var(--us-gold);
+  outline-offset: 1px;
+  pointer-events: none;
+  animation: usEditorFade 0.12s ease-out;
+}
+
+/* The crop frame dims what will be left out, like the photo editors do. It
+   never catches the pointer: the kept area is for drawing boxes. */
+.us-editor-crop {
+  position: absolute;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.62);
+  pointer-events: none;
+}
+
+.us-editor-thirds {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  background:
+    linear-gradient(
+      to right,
+      transparent calc(100% / 3 - 0.5px),
+      rgba(255, 255, 255, 0.45) 0,
+      transparent calc(100% / 3 + 0.5px)
+    ),
+    linear-gradient(
+      to right,
+      transparent calc(200% / 3 - 0.5px),
+      rgba(255, 255, 255, 0.45) 0,
+      transparent calc(200% / 3 + 0.5px)
+    ),
+    linear-gradient(
+      to bottom,
+      transparent calc(100% / 3 - 0.5px),
+      rgba(255, 255, 255, 0.45) 0,
+      transparent calc(100% / 3 + 0.5px)
+    ),
+    linear-gradient(
+      to bottom,
+      transparent calc(200% / 3 - 0.5px),
+      rgba(255, 255, 255, 0.45) 0,
+      transparent calc(200% / 3 + 0.5px)
+    );
+}
+
+.us-editor-crop[data-active='true'] .us-editor-thirds {
+  opacity: 1;
+}
+
+/* Crop handles: a 28px corner target that reaches 8px into the frame, and
+   16px side strips that reach 4px in. Corners are thick white brackets drawn
+   on the frame's corner; sides get a short bar on the frame's edge. */
+.us-editor-crop-handle {
+  position: absolute;
+  touch-action: none;
+}
+
+.us-editor-crop-handle > span {
+  position: absolute;
+  pointer-events: none;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.7));
+  opacity: 0.9;
+  transition: opacity 0.12s ease;
+}
+
+.us-editor-crop-handle:hover > span {
+  opacity: 1;
+}
+
+.us-editor-crop-handle[data-handle='nw'],
+.us-editor-crop-handle[data-handle='se'] {
+  cursor: nwse-resize;
+}
+
+.us-editor-crop-handle[data-handle='ne'],
+.us-editor-crop-handle[data-handle='sw'] {
+  cursor: nesw-resize;
+}
+
+.us-editor-crop-handle[data-handle='n'],
+.us-editor-crop-handle[data-handle='s'] {
+  cursor: ns-resize;
+}
+
+.us-editor-crop-handle[data-handle='e'],
+.us-editor-crop-handle[data-handle='w'] {
+  cursor: ew-resize;
+}
+
+.us-editor-crop-handle[data-handle='nw'] > span,
+.us-editor-crop-handle[data-handle='ne'] > span,
+.us-editor-crop-handle[data-handle='se'] > span,
+.us-editor-crop-handle[data-handle='sw'] > span {
+  width: 20px;
+  height: 20px;
+  border: 0 solid #ffffff;
+}
+
+/* The frame's corner is 20px from the target's outer sides. */
+.us-editor-crop-handle[data-handle='nw'] > span {
+  left: 17px;
+  top: 17px;
+  border-top-width: 3px;
+  border-left-width: 3px;
+}
+
+.us-editor-crop-handle[data-handle='ne'] > span {
+  left: -9px;
+  top: 17px;
+  border-top-width: 3px;
+  border-right-width: 3px;
+}
+
+.us-editor-crop-handle[data-handle='se'] > span {
+  left: -9px;
+  top: -9px;
+  border-bottom-width: 3px;
+  border-right-width: 3px;
+}
+
+.us-editor-crop-handle[data-handle='sw'] > span {
+  left: 17px;
+  top: -9px;
+  border-bottom-width: 3px;
+  border-left-width: 3px;
+}
+
+.us-editor-crop-handle[data-handle='n'] > span,
+.us-editor-crop-handle[data-handle='s'] > span {
+  left: 50%;
+  width: 24px;
+  height: 3px;
+  margin-left: -12px;
+  background-color: #ffffff;
+}
+
+.us-editor-crop-handle[data-handle='n'] > span {
+  top: 10px;
+}
+
+.us-editor-crop-handle[data-handle='s'] > span {
+  top: 3px;
+}
+
+.us-editor-crop-handle[data-handle='e'] > span,
+.us-editor-crop-handle[data-handle='w'] > span {
+  top: 50%;
+  width: 3px;
+  height: 24px;
+  margin-top: -12px;
+  background-color: #ffffff;
+}
+
+.us-editor-crop-handle[data-handle='w'] > span {
+  left: 10px;
+}
+
+.us-editor-crop-handle[data-handle='e'] > span {
+  left: 3px;
+}
+
+/* A selected box's grips, centred on its corners and sides. */
+.us-editor-box-handle {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  touch-action: none;
+}
+
+.us-editor-box-handle[data-handle='nw'],
+.us-editor-box-handle[data-handle='se'] {
+  cursor: nwse-resize;
+}
+
+.us-editor-box-handle[data-handle='ne'],
+.us-editor-box-handle[data-handle='sw'] {
+  cursor: nesw-resize;
+}
+
+.us-editor-box-handle[data-handle='n'],
+.us-editor-box-handle[data-handle='s'] {
+  cursor: ns-resize;
+}
+
+.us-editor-box-handle[data-handle='e'],
+.us-editor-box-handle[data-handle='w'] {
+  cursor: ew-resize;
+}
+
+.us-editor-box-handle[data-handle='nw'] > span,
+.us-editor-box-handle[data-handle='ne'] > span,
+.us-editor-box-handle[data-handle='se'] > span,
+.us-editor-box-handle[data-handle='sw'] > span {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background-color: #ffffff;
+  border: 2px solid var(--us-gold);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+.us-editor-box-handle > span {
+  animation: usEditorFade 0.12s ease-out;
+}
+
+/* Delete, floating by the selected box so it is where the pointer already is. */
+.us-editor-float-delete {
+  position: absolute;
+  transform: translateX(-50%);
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 50%;
+  background-color: #232326;
+  color: var(--us-text-primary);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  animation: usEditorFade 0.12s ease-out;
+}
+
+.us-editor-float-delete:hover {
+  background-color: var(--us-status-blocked);
+  border-color: var(--us-status-blocked);
+  color: var(--us-on-color);
+}
+
+/* During a drag the cursor keeps its shape wherever the pointer strays. */
+.us-editor-stage[data-dragging='draw'],
+.us-editor-stage[data-dragging='draw'] * {
+  cursor: crosshair !important;
+}
+
+.us-editor-stage[data-dragging='frame'],
+.us-editor-stage[data-dragging='frame'] * {
+  cursor: grabbing !important;
+}
+
+.us-editor-stage[data-dragging='box']:not([data-resizing]),
+.us-editor-stage[data-dragging='box']:not([data-resizing]) * {
+  cursor: move !important;
+}
+
+.us-editor-stage:is([data-resizing='nw'], [data-resizing='se']),
+.us-editor-stage:is([data-resizing='nw'], [data-resizing='se']) * {
+  cursor: nwse-resize !important;
+}
+
+.us-editor-stage:is([data-resizing='ne'], [data-resizing='sw']),
+.us-editor-stage:is([data-resizing='ne'], [data-resizing='sw']) * {
+  cursor: nesw-resize !important;
+}
+
+.us-editor-stage:is([data-resizing='n'], [data-resizing='s']),
+.us-editor-stage:is([data-resizing='n'], [data-resizing='s']) * {
+  cursor: ns-resize !important;
+}
+
+.us-editor-stage:is([data-resizing='e'], [data-resizing='w']),
+.us-editor-stage:is([data-resizing='e'], [data-resizing='w']) * {
+  cursor: ew-resize !important;
+}
+
+.us-editor-stage[data-gliding]
+  :is(
+    .us-editor-canvas,
+    .us-editor-box,
+    .us-editor-crop,
+    .us-editor-crop-handle,
+    .us-editor-selection,
+    .us-editor-box-handle,
+    .us-editor-float-delete
+  ) {
+  transition:
+    left 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    top 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    width 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    height 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.us-editor-footer {
+  display: grid;
+  justify-items: center;
+  padding: 8px 12px 14px;
+  background-color: #0b0b0d;
+}
+
+/* In a full window the footer stays a comfortable width, centred. */
+.us-editor-footer > * {
+  width: 100%;
+  max-width: 560px;
+}
+
+.us-editor-options {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  min-height: 36px;
+}
+
+.us-editor-hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--us-text-muted);
+  text-align: center;
+  animation: usEditorFade 0.2s ease-out;
+}
+
+.us-editor-hint[data-error='true'] {
+  color: var(--us-danger);
+}
+
+/* Asking before edits are thrown away. */
+.us-editor-confirm-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background-color: rgba(0, 0, 0, 0.55);
+  animation: usEditorFade 0.15s ease-out;
+}
+
+.us-editor-confirm {
+  display: grid;
+  gap: 8px;
+  width: min(100%, 340px);
+  padding: 20px 20px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  background-color: #1c1c1f;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  text-align: center;
+  animation: usEditorRise 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.us-editor-confirm-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.us-editor-confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.us-editor-confirm-actions > button {
+  justify-content: center;
+}
+
+.us-editor-discard {
+  min-height: 36px;
+  border: none;
+  border-radius: var(--us-radius-control);
+  background-color: var(--us-status-blocked);
+  color: var(--us-on-color);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.us-editor-discard:hover {
+  filter: brightness(1.2);
+}
+
+/*
+  A screenshot's thumbnail in a form: clicking it opens the editor. A new one
+  fades into the list, and an edited one fades into its new image.
+*/
+.us-thumb {
+  animation: usEditorFade 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: box-shadow 0.2s ease;
+}
+
+/* The screenshot open in the editor window. */
+.us-thumb[data-editing='true'] {
+  box-shadow:
+    0 0 0 2px var(--us-card),
+    0 0 0 4px var(--us-gold);
+}
+
+.us-thumb-edit {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.us-thumb-edit > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: filter 0.2s ease;
+  animation: usEditorFade 0.3s ease-out;
+}
+
+.us-thumb-edit:hover > img {
+  filter: brightness(1.06);
+}
+
+.us-thumb-edit-badge {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: #ffffff;
+  background-color: rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+.us-thumb-editing {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffffff;
+  background-color: rgba(9, 39, 36, 0.55);
+  pointer-events: none;
+  animation: usEditorFade 0.2s ease-out;
+}
+
+@keyframes usEditorFade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes usEditorRise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .us-editor,
+  .us-editor *,
+  .us-thumb,
+  .us-thumb * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

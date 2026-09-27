@@ -265,7 +265,7 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
                     onChange={(event) => setNotes((current) => ({ ...current, [part.slug]: event.target.value }))}
                     rows={2}
                   />
-                  <ScreenshotField screenshots={screenshots.list(part.slug)} max={5} />
+                  <ScreenshotField screenshots={screenshots.list(part.slug)} max={5} locked={busy} />
                   {matchesRecord(part) && !hasDetail(part) && (
                     <p style={hintStyle}>Same as recorded. Add a note or a screenshot to confirm it again.</p>
                   )}

@@ -216,6 +216,7 @@ export function CorrectionForm(props: { service: ServiceRecord; onBack: () => vo
 
       <ScreenshotField
         screenshots={screenshots}
+        locked={busy}
         label="Evidence screenshots"
         hint="Optional. A screenshot from the official source helps us verify it faster."
       />
