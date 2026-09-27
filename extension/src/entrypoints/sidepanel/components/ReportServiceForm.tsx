@@ -86,6 +86,7 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
       />
       <ScreenshotField
         screenshots={screenshots}
+        locked={busy}
         label="Evidence screenshots"
         hint="Screenshots are how we verify a report. Add one showing the block or error message."
       />
