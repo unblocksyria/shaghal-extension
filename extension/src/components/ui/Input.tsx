@@ -7,7 +7,9 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const Input: React.FC<InputProps> = ({ label, requiredMark = false, helperText, id, className, ...props }) => {
-  const generatedId = id ?? (label ? `input-${label.toLowerCase().replace(/[^a-z0-9]/g, '-')}` : undefined);
+  const uniqueId = React.useId();
+  const generatedId = id ?? uniqueId;
+  const helpId = `${generatedId}-help`;
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 6, width: '100%' }}>
       {label && (
@@ -20,8 +22,17 @@ export const Input: React.FC<InputProps> = ({ label, requiredMark = false, helpe
           )}
         </label>
       )}
-      <input id={generatedId} className={['us-field', className].filter(Boolean).join(' ')} {...props} />
-      {helperText && <p className="us-help">{helperText}</p>}
+      <input
+        id={generatedId}
+        aria-describedby={helperText ? helpId : undefined}
+        className={['us-field', className].filter(Boolean).join(' ')}
+        {...props}
+      />
+      {helperText && (
+        <p id={helpId} className="us-help">
+          {helperText}
+        </p>
+      )}
     </div>
   );
 };

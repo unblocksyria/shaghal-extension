@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it } from 'vitest';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import { API_BASE } from '../../../lib/config';
 import { fakeApi, type FakeApi } from '../../../testing/fakeApi';
 import { openPanel } from '../../../testing/panel';
@@ -11,7 +11,7 @@ import matchNone from '../../../testing/fixtures/match-none.json';
 async function openReportService(user: UserEvent, pageUrl: string): Promise<FakeApi> {
   const api = fakeApi()
     .on('POST', '/services/match', { data: matchNone })
-    .on('POST', '/submissions', { status: 201, json: { success: true } })
+    .on('POST', '/submissions', { status: 201, json: { id: 'receipt' } })
     .install();
   await openPanel(pageUrl);
   await user.click(await screen.findByRole('button', { name: 'Report a Service' }, { timeout: 3000 }));
@@ -71,4 +71,27 @@ describe('the report a service form', () => {
     expect(screen.getByRole('textbox', { name: 'Service name' })).toHaveProperty('value', 'Half typed Service');
     expect(api.callsTo('POST', '/submissions')).toHaveLength(1);
   });
+});
+
+it('prefills the next form and Settings with the email from a successful report', async () => {
+  const user = userEvent.setup();
+  await openReportService(user, 'https://remember.example/');
+  await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Example');
+  await user.type(screen.getByRole('textbox', { name: 'Your email' }), 'tester@example.com');
+  await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+  await screen.findByRole('heading', { name: 'Report received' });
+  await user.click(screen.getByRole('button', { name: 'Done' }));
+  await user.click(await screen.findByRole('button', { name: 'Report a Service' }));
+  await waitFor(() =>
+    expect(screen.getByRole('textbox', { name: 'Your email' })).toHaveProperty('value', 'tester@example.com'),
+  );
+  await user.click(screen.getByRole('button', { name: 'Settings' }));
+  await waitFor(() =>
+    expect(screen.getByRole('textbox', { name: 'Your email' })).toHaveProperty('value', 'tester@example.com'),
+  );
+  await user.clear(screen.getByRole('textbox', { name: 'Your email' }));
+  await user.click(screen.getByRole('button', { name: 'Save email' }));
+  await screen.findByText('Saved');
+  await user.click(screen.getByRole('button', { name: 'Back' }));
+  await waitFor(() => expect(screen.getByRole('textbox', { name: 'Your email' })).toHaveProperty('value', ''));
 });

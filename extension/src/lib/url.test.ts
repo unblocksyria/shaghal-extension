@@ -1,3 +1,4 @@
+import { matchUrl } from './url';
 import { describe, expect, it } from 'vitest';
 import { hostOf, isOwnSite, normalizeServiceUrl, siteOf } from './url';
 
@@ -51,4 +52,22 @@ describe('isOwnSite', () => {
     expect(isOwnSite(null)).toBe(false);
     expect(isOwnSite('chrome://newtab')).toBe(false);
   });
+});
+
+describe('lookup privacy', () => {
+  it('keeps detailed matching but removes credentials and fragments', () => {
+    expect(matchUrl('https://alice:secret@play.google.com/store/apps/details?id=app.name#token=private')).toBe(
+      'https://play.google.com/store/apps/details?id=app.name',
+    );
+  });
+  it.each([
+    'http://localhost:8787/secret',
+    'http://127.0.0.1/',
+    'http://[::1]/',
+    'http://printer/',
+    'http://office.local/',
+    'file:///private/a',
+    'chrome://settings/',
+    'https://example.com/' + 'a'.repeat(2048),
+  ])('does not disclose an unsupported or local address: %s', (url) => expect(matchUrl(url)).toBeNull());
 });

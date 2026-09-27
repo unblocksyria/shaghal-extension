@@ -15,7 +15,7 @@ async function openReport(user: UserEvent, pageUrl: string): Promise<FakeApi> {
     .on('POST', '/services/match', { data: match })
     .on('GET', '/services/netflix', { data: serviceRecord })
     .on('GET', '/functionalities', { data: functionalities })
-    .on('POST', '/functionality-reports', { status: 201, json: { success: true } })
+    .on('POST', '/functionality-reports', { status: 201, json: { id: 'receipt' } })
     .install();
   await openPanel(pageUrl);
   await user.click(await screen.findByRole('button', { name: 'Report what works' }, { timeout: 3000 }));
@@ -39,7 +39,8 @@ describe('the report form', () => {
     const sent = api.callsTo('POST', '/functionality-reports');
     expect(sent).toHaveLength(1);
     expect(sent.at(0)?.url).toBe(`${API_BASE}/functionality-reports`);
-    expect(sent.at(0)?.headers).toEqual({ 'Content-Type': 'application/json' });
+    expect(sent.at(0)?.headers?.['Content-Type']).toBe('application/json');
+    expect(sent.at(0)?.headers?.['Idempotency-Key']).toMatch(/^\d{13}\./);
     expect(sent.at(0)?.json).toEqual({
       serviceId: 'svc-netflix',
       items: [{ slug: 'core_use', level: 'working', description: 'The login page opened first try.' }],

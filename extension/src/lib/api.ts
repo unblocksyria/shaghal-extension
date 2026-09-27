@@ -9,10 +9,21 @@ export interface ApiError {
   retryAfterSeconds?: number;
 }
 
+/** Keep the draft open and make a shared-network cooldown actionable. */
+export function formErrorMessage(error: ApiError): string {
+  if (error.status !== 429) return error.message;
+  const seconds = Math.max(1, Math.ceil(error.retryAfterSeconds ?? 60));
+  const amount = seconds < 60 ? seconds : Math.ceil(seconds / 60);
+  const unit = seconds < 60 ? 'second' : 'minute';
+  const wait = `${amount} ${unit}${amount === 1 ? '' : 's'}`;
+  return `This shared network is busy. Try again in ${wait}. Keep this panel open to preserve your draft.`;
+}
+
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: ApiError };
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'DELETE';
+  signal?: AbortSignal;
   body?: unknown;
   headers?: Record<string, string>;
   unwrap?: 'data' | 'raw';
@@ -35,7 +46,9 @@ function extractRetryAfter(response: Response): number | undefined {
   const raw = response.headers.get('Retry-After');
   if (raw === null) return undefined;
   const seconds = Number(raw);
-  return Number.isFinite(seconds) ? seconds : undefined;
+  if (raw.trim() !== '' && Number.isFinite(seconds)) return Math.max(0, Math.ceil(seconds));
+  const date = Date.parse(raw);
+  return Number.isFinite(date) ? Math.max(0, Math.ceil((date - Date.now()) / 1000)) : undefined;
 }
 
 async function parseErrorBody(response: Response): Promise<{ error: string; message: string; requestId?: string }> {
@@ -88,7 +101,14 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
           : isMultipart
             ? (options.body as FormData)
             : JSON.stringify(options.body),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      // Never forward uploads or verification tokens through an unexpected redirect.
+      redirect: 'error',
+      credentials: 'omit',
+      referrerPolicy: 'no-referrer',
+      signal:
+        options.signal === undefined
+          ? AbortSignal.timeout(TIMEOUT_MS)
+          : AbortSignal.any([options.signal, AbortSignal.timeout(TIMEOUT_MS)]),
     });
   } catch (networkError) {
     const timedOut = networkError instanceof DOMException && networkError.name === 'TimeoutError';
@@ -97,8 +117,10 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       error: {
         error: timedOut ? 'TIMEOUT' : 'NETWORK_ERROR',
         message: timedOut
-          ? 'Unblock Syria took too long to answer. Try again.'
-          : 'Could not reach Unblock Syria. Check your connection.',
+          ? 'Unblock Syria took too long to answer. Your request may have arrived; check before sending again.'
+          : options.method === 'POST' || options.method === 'DELETE'
+            ? 'The request could not be confirmed. It may have arrived; check before sending again.'
+            : 'Could not reach Unblock Syria. Check your connection.',
         status: 0,
       },
     };
@@ -115,7 +137,11 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     return badResponse(response.status, 'Unblock Syria sent an answer the panel could not read.');
   }
   const unwrapped = (options.unwrap ?? 'data') === 'raw' ? payload : (payload as { data?: unknown } | null)?.data;
-  if (options.expect !== undefined && !options.expect.check(unwrapped))
-    return badResponse(response.status, options.expect.message);
+  try {
+    if (unwrapped === undefined || (options.expect !== undefined && !options.expect.check(unwrapped)))
+      return badResponse(response.status, options.expect?.message ?? 'Unblock Syria sent an incomplete answer.');
+  } catch {
+    return badResponse(response.status, 'Unblock Syria sent an invalid answer.');
+  }
   return { ok: true, data: unwrapped as T };
 }

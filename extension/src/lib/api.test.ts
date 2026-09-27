@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { apiRequest } from './api';
+import { formErrorMessage, apiRequest } from './api';
 import { API_BASE, IS_LOCAL_API } from './config';
 
 function stubFetch(...responses: Array<Response | Error>) {
@@ -88,4 +88,52 @@ describe('apiRequest', () => {
     expect(offline.ok === false && offline.error).toMatchObject({ error: 'NETWORK_ERROR', status: 0 });
     expect(slow.ok === false && slow.error).toMatchObject({ error: 'TIMEOUT', status: 0 });
   });
+});
+
+describe('request safety', () => {
+  it('does not follow redirects or send browser credentials', async () => {
+    const fetchMock = stubFetch(Response.json({ data: null }));
+    await apiRequest('/x');
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+      redirect: 'error',
+      credentials: 'omit',
+      referrerPolicy: 'no-referrer',
+    });
+  });
+  it('rejects missing data and throwing response validators', async () => {
+    stubFetch(Response.json({}), Response.json({ data: {} }));
+    expect(await apiRequest('/x')).toMatchObject({ ok: false, error: { error: 'BAD_RESPONSE' } });
+    expect(
+      await apiRequest('/x', {
+        expect: {
+          check: () => {
+            throw new Error('bad');
+          },
+          message: 'bad',
+        },
+      }),
+    ).toMatchObject({ ok: false, error: { error: 'BAD_RESPONSE' } });
+  });
+  it('supports HTTP-date Retry-After and clamps negative delays', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-09-27T12:00:00Z'));
+    stubFetch(
+      Response.json({}, { status: 429, headers: { 'Retry-After': 'Sun, 27 Sep 2026 12:01:00 GMT' } }),
+      Response.json({}, { status: 429, headers: { 'Retry-After': '-5' } }),
+    );
+    expect(await apiRequest('/x')).toMatchObject({ ok: false, error: { retryAfterSeconds: 60 } });
+    expect(await apiRequest('/x')).toMatchObject({ ok: false, error: { retryAfterSeconds: 0 } });
+  });
+});
+
+it('explains shared-network cooldowns without losing the draft', () => {
+  expect(formErrorMessage({ error: 'RATE_LIMITED', message: 'Limit', status: 429, retryAfterSeconds: 42 })).toContain(
+    '42 seconds',
+  );
+  expect(formErrorMessage({ error: 'RATE_LIMITED', message: 'Limit', status: 429, retryAfterSeconds: 120 })).toContain(
+    '2 minutes',
+  );
+  expect(formErrorMessage({ error: 'RATE_LIMITED', message: 'Limit', status: 429 })).toContain('Keep this panel open');
+  expect(formErrorMessage({ error: 'SERVICE_UNAVAILABLE', message: 'Temporarily unavailable', status: 503 })).toBe(
+    'Temporarily unavailable',
+  );
 });

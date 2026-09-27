@@ -1,3 +1,5 @@
+import { formErrorMessage } from '../../../lib/api';
+import { RadioGroup } from '../../../components/ui/RadioGroup';
 import { useEffect, useState } from 'react';
 import { getFunctionalities, type FunctionalityItem, type ServiceRecord } from '../../../lib/endpoints';
 import { submitFunctionalityReport } from '../../../lib/submit';
@@ -5,6 +7,7 @@ import { SITE_BASE } from '../../../lib/config';
 import { Textarea } from '../../../components/ui/Textarea';
 import {
   EmailField,
+  emailError,
   FormFooter,
   FormShell,
   ScreenshotField,
@@ -39,20 +42,21 @@ interface Part {
 
 function LevelPicker(props: { name: string; value: Level; onChange: (level: Level) => void }) {
   return (
-    <div className="us-level-picker" role="radiogroup" aria-label={props.name}>
+    <RadioGroup className="us-level-picker" aria-label={props.name}>
       {LEVELS.map(({ level, label }) => (
         <button
           key={level}
           type="button"
           role="radio"
           aria-checked={props.value === level}
+          tabIndex={props.value === level ? 0 : -1}
           data-level={level}
           onClick={() => props.onChange(level)}
         >
           {label}
         </button>
       ))}
-    </div>
+    </RadioGroup>
   );
 }
 
@@ -139,9 +143,23 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
   };
 
   const submit = async () => {
+    if (busy) return;
+    const invalidEmail = emailError(email);
+    if (invalidEmail !== null) {
+      setError(invalidEmail);
+      return;
+    }
     if (missingDetail.length > 0) {
       setShowMissing(true);
       setError('Add a note or a screenshot to every part you marked.');
+      return;
+    }
+    if (answered.length === 0) return;
+    if (
+      answered.length > 30 ||
+      answered.reduce((total, part) => total + screenshots.list(part.slug).items.length, 0) > 100
+    ) {
+      setError('A report can include at most 30 parts and 100 screenshots. Remove some before sending.');
       return;
     }
     setBusy(true);
@@ -169,9 +187,7 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
     });
     setBusy(false);
     if (!result.ok) {
-      setError(
-        result.error.status === 429 ? 'Too many reports from this network. Try again later.' : result.error.message,
-      );
+      setError(formErrorMessage(result.error));
       return;
     }
     setSent(true);
@@ -190,6 +206,7 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
 
   return (
     <FormShell
+      busy={busy}
       backLabel={`Back to ${props.service.name}`}
       onBack={props.onBack}
       title="Report what works"
@@ -259,6 +276,7 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
               {touched[part.slug] === true && level !== 'unknown' && (
                 <div className="us-animate-fade" style={{ display: 'grid', gap: 10 }}>
                   <Textarea
+                    aria-label={`Notes for ${part.name}`}
                     placeholder="What happened?"
                     value={notes[part.slug] ?? ''}
                     maxLength={2000}

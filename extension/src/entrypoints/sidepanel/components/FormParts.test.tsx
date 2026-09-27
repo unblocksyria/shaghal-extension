@@ -14,7 +14,7 @@ async function openReportService(user: UserEvent, pageUrl: string): Promise<Fake
   const api = fakeApi()
     .on('POST', '/services/match', { data: matchNone })
     .on('POST', '/uploads/evidence', { json: upload })
-    .on('POST', '/submissions', { status: 201, json: { success: true } })
+    .on('POST', '/submissions', { status: 201, json: { id: 'receipt' } })
     .install();
   await openPanel(pageUrl);
   await user.click(await screen.findByRole('button', { name: 'Report a Service' }, { timeout: 3000 }));
@@ -49,7 +49,7 @@ describe('the screenshot list', () => {
         sends += 1;
         return sends === 1
           ? { status: 422, json: { error: 'INVALID', message: 'Needs a description' } }
-          : { status: 201, json: { success: true } };
+          : { status: 201, json: { id: 'receipt' } };
       })
       .install();
     await openPanel('https://retry.example/download');
@@ -85,7 +85,7 @@ describe('the screenshot list', () => {
         uploads += 1;
         return uploads === 1 ? { json: null } : { json: upload };
       })
-      .on('POST', '/submissions', { status: 201, json: { success: true } })
+      .on('POST', '/submissions', { status: 201, json: { id: 'receipt' } })
       .install();
     await openPanel('https://empty-upload.example/download');
     await user.click(await screen.findByRole('button', { name: 'Report a Service' }, { timeout: 3000 }));

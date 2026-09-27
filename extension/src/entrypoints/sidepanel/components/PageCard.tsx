@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Availability, CatalogService } from '../../../lib/endpoints';
 import { SITE_BASE } from '../../../lib/config';
 import { hostOf } from '../../../lib/url';
-import { hasVoted, setVote } from '../../../lib/votes';
+import { hasVoted, setVote, watchVote } from '../../../lib/votes';
 import type { MatchState } from '../hooks/useServiceMatch';
 import { Button } from '../../../components/ui/Button';
 import { cardStyle, hintStyle, titleStyle } from './FormParts';
@@ -51,7 +51,7 @@ const STATUS: Record<Availability, { label: string; meaning: string; fill: strin
 
 /** The API may add a status this build does not know yet; it reads as unknown. */
 function statusOf(availability: Availability) {
-  return STATUS[availability] ?? STATUS.unknown;
+  return Object.hasOwn(STATUS, availability) ? STATUS[availability] : STATUS.unknown;
 }
 
 function formatCount(count: number): string {
@@ -59,7 +59,7 @@ function formatCount(count: number): string {
 }
 
 function checkedText(iso: string | null): string | null {
-  if (iso === null) return null;
+  if (iso === null || !Number.isFinite(Date.parse(iso))) return null;
   return `Checked ${new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
 }
 
@@ -116,6 +116,7 @@ function ServiceLogo(props: { service: CatalogService; size: number }) {
       <img
         src={props.service.logoUrl}
         alt=""
+        referrerPolicy="no-referrer"
         onError={() => setFailed(true)}
         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
       />
@@ -148,11 +149,17 @@ function VoteButton(props: { service: CatalogService }) {
 
   useEffect(() => {
     let cancelled = false;
+    let changed = false;
+    const unwatch = watchVote(props.service.slug, (value) => {
+      changed = true;
+      setVoted(value);
+    });
     void hasVoted(props.service.slug).then((value) => {
-      if (!cancelled) setVoted(value);
+      if (!cancelled && !changed) setVoted(value);
     });
     return () => {
       cancelled = true;
+      unwatch();
       clearTimeout(confirmTimer.current);
     };
   }, [props.service.slug]);
@@ -323,7 +330,12 @@ function ServiceView(props: {
         <button type="button" onClick={props.onCorrect} style={linkStyle}>
           Suggest Correction
         </button>
-        <a href={`${SITE_BASE}/en/services/${service.slug}`} target="_blank" rel="noreferrer" style={linkStyle}>
+        <a
+          href={`${SITE_BASE}/en/services/${encodeURIComponent(service.slug)}`}
+          target="_blank"
+          rel="noreferrer"
+          style={linkStyle}
+        >
           View on Unblock Syria <ArrowUpRight size={13} />
         </a>
       </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getServiceBySlug, type CatalogService, type ServiceRecord } from '../../lib/endpoints';
 import { isOwnSite, normalizeServiceUrl } from '../../lib/url';
 import { SettingsView } from './SettingsView';
@@ -23,6 +23,10 @@ export function SidePanelApp() {
   // Settings opens over the current view, which stays mounted so a form's draft survives.
   const [settingsOpen, setSettingsOpen] = useState(false);
   const activeTab = useActiveTab();
+  const currentPage = useRef(activeTab.url);
+  useEffect(() => {
+    currentPage.current = activeTab.url;
+  }, [activeTab.url]);
   const onOwnSite = isOwnSite(activeTab.url);
   const { state: matchState, reload } = useServiceMatch(onOwnSite ? null : activeTab.url);
 
@@ -36,10 +40,12 @@ export function SidePanelApp() {
   const [openFailure, setOpenFailure] = useState<{ pageUrl: string | null; message: string } | null>(null);
   const openError = openFailure !== null && openFailure.pageUrl === activeTab.url ? openFailure.message : null;
   const open = async (service: CatalogService, name: 'report' | 'correction') => {
+    if (opening) return;
     setOpenFailure(null);
     setOpening(true);
     const result = await getServiceBySlug(service.slug);
     setOpening(false);
+    if (currentPage.current !== activeTab.url) return;
     if (!result.ok) {
       setOpenFailure({ pageUrl: activeTab.url, message: `Could not open ${service.name}: ${result.error.message}` });
       return;

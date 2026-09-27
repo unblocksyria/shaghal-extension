@@ -6,7 +6,9 @@ interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 }
 
 export const Textarea: React.FC<TextareaProps> = ({ label, helperText, id, rows = 3, className, ...props }) => {
-  const generatedId = id ?? (label ? `textarea-${label.toLowerCase().replace(/[^a-z0-9]/g, '-')}` : undefined);
+  const uniqueId = React.useId();
+  const generatedId = id ?? uniqueId;
+  const helpId = `${generatedId}-help`;
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 6, width: '100%' }}>
       {label && (
@@ -14,8 +16,18 @@ export const Textarea: React.FC<TextareaProps> = ({ label, helperText, id, rows 
           {label}
         </label>
       )}
-      <textarea id={generatedId} rows={rows} className={['us-field', className].filter(Boolean).join(' ')} {...props} />
-      {helperText && <p className="us-help">{helperText}</p>}
+      <textarea
+        id={generatedId}
+        rows={rows}
+        aria-describedby={helperText ? helpId : undefined}
+        className={['us-field', className].filter(Boolean).join(' ')}
+        {...props}
+      />
+      {helperText && (
+        <p id={helpId} className="us-help">
+          {helperText}
+        </p>
+      )}
     </div>
   );
 };

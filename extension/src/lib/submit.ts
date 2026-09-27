@@ -1,4 +1,16 @@
-import { apiRequest } from './api';
+import { submitWithReceipt } from './receipts';
+import { saveEmail } from './settings';
+import type { TurnstileAction } from './turnstile';
+
+/** Remember only confirmed submissions; a preference failure must not invite resending. */
+async function submitPublicForm(path: string, body: Record<string, unknown>, verify: TurnstileAction) {
+  const result = await submitWithReceipt(path, body, verify);
+  const email = body.submitterEmail;
+  if (result.ok && typeof email === 'string' && email.trim() !== '') {
+    await saveEmail(email).catch(() => undefined);
+  }
+  return result;
+}
 
 export interface SubmitServiceInput {
   name: string;
@@ -9,11 +21,9 @@ export interface SubmitServiceInput {
 }
 
 export async function submitService(input: SubmitServiceInput) {
-  return apiRequest<unknown>('/submissions', {
-    method: 'POST',
-    unwrap: 'raw',
-    verify: 'submission',
-    body: {
+  return submitPublicForm(
+    '/submissions',
+    {
       name: input.name,
       url: input.url,
       description: input.description ?? null,
@@ -21,7 +31,8 @@ export async function submitService(input: SubmitServiceInput) {
       evidenceUrls: input.evidenceUrls,
       locale: 'en',
     },
-  });
+    'submission',
+  );
 }
 
 export interface SubmitFunctionalityReportInput {
@@ -37,17 +48,16 @@ export interface SubmitFunctionalityReportInput {
 }
 
 export async function submitFunctionalityReport(input: SubmitFunctionalityReportInput) {
-  return apiRequest<unknown>('/functionality-reports', {
-    method: 'POST',
-    unwrap: 'raw',
-    verify: 'report',
-    body: {
+  return submitPublicForm(
+    '/functionality-reports',
+    {
       serviceId: input.serviceId,
       items: input.items,
       submitterEmail: input.submitterEmail ?? null,
       locale: 'en',
     },
-  });
+    'report',
+  );
 }
 
 export type CorrectionType = 'url' | 'description' | 'category' | 'support_email' | 'support_url' | 'other';
@@ -60,16 +70,15 @@ export interface SubmitCorrectionInput {
 }
 
 export async function submitCorrection(input: SubmitCorrectionInput) {
-  return apiRequest<unknown>('/corrections', {
-    method: 'POST',
-    unwrap: 'raw',
-    verify: 'correction',
-    body: {
+  return submitPublicForm(
+    '/corrections',
+    {
       serviceId: input.serviceId,
       changes: input.changes,
       submitterEmail: input.submitterEmail ?? null,
       evidenceUrls: input.evidenceUrls,
       locale: 'en',
     },
-  });
+    'correction',
+  );
 }

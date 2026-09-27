@@ -51,3 +51,28 @@ export function isOwnSite(rawUrl: string | null): boolean {
   if (OWN_DOMAINS.some((domain) => host === domain || host.endsWith(`.${domain}`))) return true;
   return parsed.origin === new URL(SITE_BASE).origin;
 }
+
+/** Preserve path/query matching, but never disclose embedded credentials or fragments. */
+export function matchUrl(rawUrl: string | null): string | null {
+  if (rawUrl === null) return null;
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+    const host = parsed.hostname.toLowerCase().replace(/\.$/, '');
+    // The catalogue cannot match IP literals, local names, or reserved local domains.
+    if (
+      !host.includes('.') ||
+      host.startsWith('[') ||
+      /^[0-9.]+$/.test(host) ||
+      ['localhost', 'local', 'internal', 'home.arpa'].some((suffix) => host === suffix || host.endsWith(`.${suffix}`))
+    )
+      return null;
+    parsed.username = '';
+    parsed.password = '';
+    parsed.hash = '';
+    const url = parsed.toString();
+    return url.length <= 2048 ? url : null;
+  } catch {
+    return null;
+  }
+}
