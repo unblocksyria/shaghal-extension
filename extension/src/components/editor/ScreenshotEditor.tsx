@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { LoaderCircle, Redo2, RotateCcw, Trash2, Undo2 } from 'lucide-react';
 import { bakeEdits, openEditableImage, type EditableImage } from '../../lib/imageBake';
 import {
@@ -40,6 +41,7 @@ export function ScreenshotEditor(props: {
   onCancel: () => void;
   onSave: (edited: EditedScreenshot | null) => void;
 }) {
+  const { t } = useTranslation();
   const dialog = useRef<HTMLDialogElement>(null);
   const [image, setImage] = useState<EditableImage | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -80,7 +82,7 @@ export function ScreenshotEditor(props: {
     <dialog
       ref={dialog}
       className="us-editor"
-      aria-label={`Edit ${props.label}`}
+      aria-label={t('editor.dialog', { label: props.label })}
       // Once the image is open, Escape is handled below, where it first clears a
       // selection and asks before throwing edits away. Until then it just closes.
       onCancel={(event) => {
@@ -93,14 +95,14 @@ export function ScreenshotEditor(props: {
         <>
           <div className="us-editor-bar">
             <button type="button" className="us-editor-text-btn" onClick={props.onCancel}>
-              Cancel
+              {t('editor.cancel')}
             </button>
           </div>
           <div className="us-editor-stage us-editor-message" role="status">
             {failed ?? (
               <>
                 <LoaderCircle size={22} style={{ animation: 'spin 1s linear infinite' }} aria-hidden />
-                <span className="us-editor-visually-hidden">Opening the screenshot…</span>
+                <span className="us-editor-visually-hidden">{t('editor.opening')}</span>
               </>
             )}
           </div>
@@ -195,6 +197,7 @@ function Workspace(props: {
   onCancel: () => void;
   onSave: (edited: EditedScreenshot | null) => void;
 }) {
+  const { t } = useTranslation();
   const { image } = props;
   const full: Rect = { x: 0, y: 0, width: image.width, height: image.height };
 
@@ -402,7 +405,7 @@ function Workspace(props: {
       leave(() => props.onSave(edited));
     } catch (bakeError) {
       setSaving(false);
-      setError(`Could not save the edits: ${String(bakeError)}`);
+      setError(t('editor.saveFailed', { error: String(bakeError) }));
     }
   };
 
@@ -467,30 +470,30 @@ function Workspace(props: {
   const hint =
     error ??
     (dragging === 'crop' || dragging === 'frame'
-      ? 'Everything outside the frame is left out.'
+      ? t('editor.hintOutside')
       : selected !== null
-        ? 'Drag to move it, or drag a corner to resize. Delete removes it.'
+        ? t('editor.hintSelected')
         : overOutside
-          ? 'Drag the dimmed part to move the frame.'
+          ? t('editor.hintFrame')
           : edits.boxes.length === 0 && !cropped
-            ? 'Drag over names, emails or numbers to black them out. Drag the white corners to crop.'
+            ? t('editor.hintDraw')
             : cropped
-              ? 'Drag to black out more, or drag the dimmed part to move the frame. Enter saves.'
-              : 'Drag to black out more. Press Enter or Save when you’re done.');
+              ? t('editor.hintCropped')
+              : t('editor.hintBlackout'));
 
   return (
     <div className="us-editor-layout" data-leaving={leaving}>
       {/* While the discard question is open, everything behind it is out of reach, Tab included. */}
       <div className="us-editor-bar" inert={confirming}>
         <button type="button" className="us-editor-text-btn" onClick={requestCancel} disabled={saving || leaving}>
-          Cancel
+          {t('editor.cancel')}
         </button>
         <div style={{ display: 'flex', gap: 4 }}>
           <button
             type="button"
             className="us-editor-icon-btn"
-            aria-label="Undo"
-            title="Undo (⌘Z / Ctrl+Z)"
+            aria-label={t('editor.undo')}
+            title={t('editor.undoTitle')}
             disabled={saving || history.past.length === 0}
             onClick={() => jump(undo)}
           >
@@ -499,8 +502,8 @@ function Workspace(props: {
           <button
             type="button"
             className="us-editor-icon-btn"
-            aria-label="Redo"
-            title="Redo (⇧⌘Z / Shift+Ctrl+Z)"
+            aria-label={t('editor.redo')}
+            title={t('editor.redoTitle')}
             disabled={saving || history.future.length === 0}
             onClick={() => jump(redo)}
           >
@@ -509,7 +512,7 @@ function Workspace(props: {
         </div>
         <button type="button" className="us-editor-save" onClick={() => void save()} disabled={saving || leaving}>
           {saving && <LoaderCircle size={14} style={{ animation: 'spin 1s linear infinite' }} aria-hidden />}
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? t('editor.saving') : t('editor.save')}
         </button>
       </div>
 
@@ -545,7 +548,7 @@ function Workspace(props: {
                 data-box={box.id}
                 className="us-editor-box"
                 role="img"
-                aria-label={`Hidden area ${index + 1}`}
+                aria-label={t('editor.hiddenArea', { n: index + 1 })}
                 aria-current={box.id === selected?.id ? 'true' : undefined}
                 style={toStage(box)}
               />
@@ -584,7 +587,7 @@ function Workspace(props: {
                 apply({ ...history.present, crop: full });
               }}
             >
-              <RotateCcw size={15} /> Reset crop
+              <RotateCcw size={15} /> {t('editor.resetCrop')}
             </button>
           )}
         </div>
@@ -600,17 +603,17 @@ function Workspace(props: {
             aria-describedby="us-editor-discard-text"
           >
             <p id="us-editor-discard-title" className="us-editor-confirm-title">
-              Discard your changes?
+              {t('editor.discardTitle')}
             </p>
             <p id="us-editor-discard-text" className="us-editor-hint">
-              The screenshot stays as it was before you opened it.
+              {t('editor.discardText')}
             </p>
             <div className="us-editor-confirm-actions">
               <button type="button" className="us-editor-text-btn" onClick={() => setConfirming(false)}>
-                Keep editing
+                {t('editor.keepEditing')}
               </button>
               <button type="button" className="us-editor-discard" onClick={cancel} autoFocus>
-                Discard
+                {t('editor.discard')}
               </button>
             </div>
           </div>
@@ -679,6 +682,7 @@ function CropFrame(props: { box: Box; active: boolean }) {
  * the box is always left to move it by.
  */
 function BoxHandles(props: { id: string; box: Box; canvasTop: number; moving: boolean; onDelete: () => void }) {
+  const { t } = useTranslation();
   const { box } = props;
   const grip = Math.max(10, Math.min(24, Math.min(box.width, box.height) / 2));
   // A side grip runs between the corner grips, so it needs room there, and a box
@@ -729,8 +733,8 @@ function BoxHandles(props: { id: string; box: Box; canvasTop: number; moving: bo
         <button
           type="button"
           className="us-editor-float-delete"
-          aria-label="Delete this box"
-          title="Delete (⌫)"
+          aria-label={t('editor.deleteBox')}
+          title={t('editor.deleteTitle')}
           onClick={props.onDelete}
           style={{ left: box.left + box.width / 2, top: above ? box.top - 40 : box.top + box.height + 8 }}
         >
