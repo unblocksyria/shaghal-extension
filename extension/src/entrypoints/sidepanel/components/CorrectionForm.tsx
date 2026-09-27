@@ -22,14 +22,18 @@ import {
 /** The six fields, keyed by the type the API records each correction against. */
 const FIELD_TYPES: CorrectionType[] = ['url', 'description', 'category', 'support_email', 'support_url', 'other'];
 
-function recorded(service: ServiceRecord, type: CorrectionType): string {
+function recorded(service: ServiceRecord, type: CorrectionType, options: CategoryItem[] = []): string {
   switch (type) {
     case 'url':
       return service.url ?? '';
     case 'description':
       return service.description ?? '';
-    case 'category':
-      return (service.categories ?? []).map((category) => category.name).join(', ');
+    case 'category': {
+      // The options arrive in the active locale, so their names follow a switch
+      // while the record itself still holds the language the form opened in.
+      const names = new Map(options.map((option) => [option.id, option.name]));
+      return (service.categories ?? []).map((category) => names.get(category.id) ?? category.name).join(', ');
+    }
     case 'support_email':
       return service.supportEmail ?? '';
     case 'support_url':
@@ -217,7 +221,7 @@ export function CorrectionForm(props: { service: ServiceRecord; onBack: () => vo
       </div>
 
       {chosen.map((type) => {
-        const current = recorded(props.service, type);
+        const current = recorded(props.service, type, categoryOptions);
         return (
           <div key={type} className="us-animate-fade" style={{ display: 'grid', gap: 8 }}>
             <span className="us-label">

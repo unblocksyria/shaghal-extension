@@ -235,7 +235,7 @@ describe('language', () => {
     expect(screen.queryByText('Sign up')).toBeNull();
   });
 
-  it('relabels the category options in the new language and keeps the ticks (AC-7)', async () => {
+  it('relabels the category options and the recorded line in the new language (AC-7)', async () => {
     const user = userEvent.setup();
     const arabicCategories = [
       { id: 'cat-streaming', name: 'بث' },
@@ -267,5 +267,7 @@ describe('language', () => {
     expect(await screen.findByText('بث', {}, { timeout: 3000 })).toBeDefined();
     expect(screen.getByText('ترفيه')).toBeDefined();
     expect(screen.getByRole('button', { name: /2: بث, ترفيه/ })).toBeDefined();
+    // The recorded line reads those names too, not the ones the form opened with.
+    expect(screen.getByText('بث, ترفيه')).toBeDefined();
   });
 });
