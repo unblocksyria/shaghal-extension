@@ -1,7 +1,9 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Settings } from 'lucide-react';
 
 export const BrandHeader: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSettings }) => {
+  const { t } = useTranslation();
   return (
     <div
       style={{
@@ -27,7 +29,7 @@ export const BrandHeader: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSe
         }}
         onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.85')}
         onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
-        title="Unblock Syria home"
+        title={t('header.home')}
       >
         <svg
           width="132"
@@ -73,8 +75,8 @@ export const BrandHeader: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSe
         <button
           type="button"
           onClick={onOpenSettings}
-          title="Settings"
-          aria-label="Settings"
+          title={t('header.settings')}
+          aria-label={t('header.settings')}
           style={{
             background: 'var(--us-card)',
             border: '1px solid var(--us-border)',

@@ -2,18 +2,30 @@ import { render, type RenderResult } from '@testing-library/react';
 import { vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { SidePanelApp } from '../entrypoints/sidepanel/SidePanelApp';
+import { applyStoredLanguage } from '../lib/i18n';
 
 /**
  * Mount the panel on a fake browser tab, the way opening the side panel does.
  * `url` is the address of the page the panel reads; null leaves the tab without one.
+ * `language` seeds the stored pick first, so a test can start the panel in
+ * Arabic (spec 0002, AC-2); it defaults to the empty store, which is `system`.
+ * `uiLanguage` is what the browser reports, so `system` can be resolved either way.
  */
-export async function openPanel(url: string | null): Promise<RenderResult> {
+export async function openPanel(
+  url: string | null,
+  options: { language?: 'system' | 'en' | 'ar'; uiLanguage?: string } = {},
+): Promise<RenderResult> {
   // The chrome typings describe reset as a void method; fakeBrowser answers with a promise.
   await Promise.resolve(fakeBrowser.reset());
   vi.stubGlobal('chrome', fakeBrowser);
+  // fakeBrowser has no i18n namespace, which is the one the panel reads for `system`.
+  Object.assign(fakeBrowser, { i18n: { getUILanguage: () => options.uiLanguage ?? 'en-US' } });
+  if (options.language !== undefined) await fakeBrowser.storage.local.set({ language: options.language });
   // The panel asks for the active tab in the current window, which needs a focused window.
   const created = await fakeBrowser.windows.create({ focused: true });
   await fakeBrowser.tabs.create({ url: url ?? undefined, active: true, windowId: created?.id });
+  // main.tsx settles the language before the first paint, so the harness does too.
+  await applyStoredLanguage();
   return render(<SidePanelApp />);
 }
 
