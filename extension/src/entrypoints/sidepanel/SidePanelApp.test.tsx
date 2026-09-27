@@ -16,7 +16,11 @@ describe('the panel home', () => {
     await openPanel('https://another.example/page');
     await screen.findByRole('button', { name: 'Report what works' }, { timeout: 3000 });
 
-    expect(api.callsTo('POST', '/services/match').at(0)?.json).toEqual({ url: 'https://another.example/page' });
+    // The match body carries the active locale (spec 0002, AC-7).
+    expect(api.callsTo('POST', '/services/match').at(0)?.json).toEqual({
+      url: 'https://another.example/page',
+      locale: 'en',
+    });
   });
 });
 

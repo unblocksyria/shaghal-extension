@@ -1,4 +1,5 @@
 import { API_BASE } from './config';
+import { i18next } from './i18n';
 import { turnstileToken, type TurnstileAction } from './turnstile';
 
 export interface ApiError {
@@ -96,9 +97,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       ok: false,
       error: {
         error: timedOut ? 'TIMEOUT' : 'NETWORK_ERROR',
-        message: timedOut
-          ? 'Unblock Syria took too long to answer. Try again.'
-          : 'Could not reach Unblock Syria. Check your connection.',
+        message: timedOut ? i18next.t('api.timeout') : i18next.t('api.network'),
         status: 0,
       },
     };
@@ -112,7 +111,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   try {
     payload = await response.json();
   } catch {
-    return badResponse(response.status, 'Unblock Syria sent an answer the panel could not read.');
+    return badResponse(response.status, i18next.t('api.unreadable'));
   }
   const unwrapped = (options.unwrap ?? 'data') === 'raw' ? payload : (payload as { data?: unknown } | null)?.data;
   if (options.expect !== undefined && !options.expect.check(unwrapped))

@@ -1,4 +1,5 @@
 import { removeVoteForService, voteForService } from './endpoints';
+import { i18next } from './i18n';
 
 const VOTED_KEY = 'votedServiceSlugs';
 
@@ -49,7 +50,7 @@ export async function setVote(slug: string, wantVoted: boolean): Promise<VoteOut
     return { ok: true, voted: false, voteCount: null };
   }
   if (result.error.status === 429) {
-    return { ok: false, message: 'Too many votes from this network. Try again later.' };
+    return { ok: false, message: i18next.t('votes.rateLimited') };
   }
   return { ok: false, message: result.error.message };
 }

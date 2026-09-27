@@ -1,9 +1,12 @@
 import { apiRequest, type ApiResult } from './api';
+import { activeLanguage, i18next } from './i18n';
 
 /** A service's full record, as the report and correction forms need it. */
 export interface ServiceRecord {
   id: string;
   name: string;
+  /** The Arabic name, or null when the catalogue has none (spec 0002, AC-6). */
+  nameAr?: string | null;
   url: string | null;
   description?: string | null;
   supportEmail?: string | null;
@@ -13,7 +16,7 @@ export interface ServiceRecord {
 }
 
 export async function getServiceBySlug(slug: string): Promise<ApiResult<ServiceRecord>> {
-  return apiRequest<ServiceRecord>(`/services/${encodeURIComponent(slug)}`);
+  return apiRequest<ServiceRecord>(`/services/${encodeURIComponent(slug)}?locale=${activeLanguage()}`);
 }
 
 export interface FunctionalityItem {
@@ -27,11 +30,11 @@ export interface CategoryItem {
 }
 
 export async function getCategories(): Promise<ApiResult<CategoryItem[]>> {
-  return apiRequest<CategoryItem[]>('/categories');
+  return apiRequest<CategoryItem[]>(`/categories?locale=${activeLanguage()}`);
 }
 
 export async function getFunctionalities(): Promise<ApiResult<FunctionalityItem[]>> {
-  return apiRequest<FunctionalityItem[]>('/functionalities');
+  return apiRequest<FunctionalityItem[]>(`/functionalities?locale=${activeLanguage()}`);
 }
 
 interface EvidenceFilePayload {
@@ -59,7 +62,7 @@ export async function uploadEvidence(
     contentType: 'multipart',
     body: form,
     unwrap: 'raw',
-    expect: { check: isEvidenceFile, message: 'The upload answered without a file address.' },
+    expect: { check: isEvidenceFile, message: i18next.t('api.uploadNoFile') },
   });
   if (!result.ok) return result;
   return { ok: true, data: result.data.file.url };
@@ -71,6 +74,8 @@ export type Availability = 'available' | 'usable' | 'blocked' | 'unknown';
 export interface CatalogService {
   id: string;
   name: string;
+  /** The Arabic name, or null when the catalogue has none (spec 0002, AC-6). */
+  nameAr?: string | null;
   slug: string;
   logoUrl: string | null;
   availability: Availability;
@@ -93,7 +98,10 @@ export interface ServiceMatch {
  * it never appears in request logs; send the page URL as the browser has it.
  */
 export async function matchService(url: string): Promise<ApiResult<ServiceMatch>> {
-  return apiRequest<ServiceMatch>('/services/match', { method: 'POST', body: { url } });
+  return apiRequest<ServiceMatch>('/services/match', {
+    method: 'POST',
+    body: { url, locale: activeLanguage() },
+  });
 }
 
 interface VotePayload {

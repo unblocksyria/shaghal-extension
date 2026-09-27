@@ -1,4 +1,5 @@
 import { IS_LOCAL_API, VERIFY_BASE } from './config';
+import { i18next } from './i18n';
 
 /** The Turnstile action each API endpoint expects its token to carry. */
 export type TurnstileAction = 'vote' | 'submission' | 'report' | 'correction';
@@ -47,14 +48,14 @@ function requestTurnstileToken(action: TurnstileAction): Promise<string> {
 
     const overlay = document.createElement('div');
     overlay.setAttribute('role', 'dialog');
-    overlay.setAttribute('aria-label', 'Confirm you are human');
+    overlay.setAttribute('aria-label', i18next.t('turnstile.dialogLabel'));
     // Invisible but rendered, so the challenge runs. Shown on `interactive`.
     overlay.style.cssText =
       'position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;align-items:center;' +
       'justify-content:center;gap:12px;padding:16px;background:rgba(0,0,0,0.72);opacity:0;pointer-events:none;';
 
     const label = document.createElement('p');
-    label.textContent = 'Confirm you are human to continue.';
+    label.textContent = i18next.t('turnstile.confirm');
     label.style.cssText = 'margin:0;color:#ffffff;font-size:14px;text-align:center;';
 
     const frame = document.createElement('iframe');
@@ -62,21 +63,18 @@ function requestTurnstileToken(action: TurnstileAction): Promise<string> {
     url.searchParams.set('action', action);
     url.searchParams.set('nonce', nonce);
     frame.src = url.toString();
-    frame.title = 'Verify you are human';
+    frame.title = i18next.t('turnstile.frameTitle');
     frame.style.cssText =
       'width:100%;max-width:340px;height:140px;border:0;border-radius:10px;background:var(--us-card);';
 
     const cancel = document.createElement('button');
     cancel.type = 'button';
-    cancel.textContent = 'Cancel';
+    cancel.textContent = i18next.t('turnstile.cancel');
     cancel.style.cssText =
       'background:var(--us-card);border:1px solid var(--us-border);color:var(--us-text-primary);' +
       'border-radius:8px;padding:6px 14px;cursor:pointer;font-family:inherit;';
 
-    let timer = setTimeout(
-      () => finish(new Error('Verification did not load. Check your connection and try again.')),
-      LOAD_TIMEOUT_MS,
-    );
+    let timer = setTimeout(() => finish(new Error(i18next.t('turnstile.loadFailed'))), LOAD_TIMEOUT_MS);
 
     function finish(outcome: string | Error) {
       window.removeEventListener('message', onMessage);
@@ -94,16 +92,16 @@ function requestTurnstileToken(action: TurnstileAction): Promise<string> {
         finish(message.token);
       } else if (message.status === 'error') {
         // Turnstile's own error code, so a tester's report can be traced.
-        finish(new Error(`Verification failed (error ${message.code}). Try again.`));
+        finish(new Error(i18next.t('turnstile.failed', { code: message.code })));
       } else {
         overlay.style.opacity = '1';
         overlay.style.pointerEvents = 'auto';
         clearTimeout(timer);
-        timer = setTimeout(() => finish(new Error('Verification timed out. Try again.')), INTERACTIVE_TIMEOUT_MS);
+        timer = setTimeout(() => finish(new Error(i18next.t('turnstile.timedOut'))), INTERACTIVE_TIMEOUT_MS);
       }
     }
 
-    cancel.onclick = () => finish(new Error('Verification cancelled.'));
+    cancel.onclick = () => finish(new Error(i18next.t('turnstile.cancelled')));
     window.addEventListener('message', onMessage);
     overlay.append(label, frame, cancel);
     document.body.append(overlay);
