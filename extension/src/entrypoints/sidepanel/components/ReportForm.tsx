@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getFunctionalities, type FunctionalityItem, type ServiceRecord } from '../../../lib/endpoints';
 import { submitFunctionalityReport } from '../../../lib/submit';
 import { SITE_BASE } from '../../../lib/config';
+import { activeLanguage, sitePathSegment } from '../../../lib/i18n';
+import { serviceName } from '../../../lib/serviceName';
 import { Textarea } from '../../../components/ui/Textarea';
 import {
   EmailField,
@@ -19,16 +22,21 @@ import { ArrowUpRight, BookOpen, X } from 'lucide-react';
 
 type Level = 'working' | 'failing' | 'unknown';
 
-const LEVELS: { level: Level; label: string }[] = [
-  { level: 'working', label: 'Works' },
-  { level: 'failing', label: 'Fails' },
-  { level: 'unknown', label: 'Not checked' },
-];
+const LEVELS: Level[] = ['working', 'failing', 'unknown'];
 
 /** Every service has these two. Offered when it records no parts yet, even if the catalogue cannot be loaded. */
-const DEFAULT_PARTS: Record<string, string> = { core_use: 'Core use', landing_page: 'Landing page' };
+const DEFAULT_PART_SLUGS = ['core_use', 'landing_page'] as const;
 
-const TESTING_GUIDE_URL = `${SITE_BASE}/en/articles/how-to-test-a-service-from-syria`;
+/** The key naming each default part, so the fallback names follow the panel's language. */
+const DEFAULT_PART_KEYS: Record<string, 'report.partCoreUse' | 'report.partLandingPage'> = {
+  core_use: 'report.partCoreUse',
+  landing_page: 'report.partLandingPage',
+};
+
+/** The site's testing guide, on the path for the active language (spec 0002, AC-9). */
+function testingGuideUrl(): string {
+  return `${SITE_BASE}${sitePathSegment(activeLanguage())}/articles/how-to-test-a-service-from-syria`;
+}
 
 interface Part {
   slug: string;
@@ -38,9 +46,15 @@ interface Part {
 }
 
 function LevelPicker(props: { name: string; value: Level; onChange: (level: Level) => void }) {
+  const { t } = useTranslation();
+  const labels: Record<Level, string> = {
+    working: t('report.levelWorking'),
+    failing: t('report.levelFailing'),
+    unknown: t('report.levelUnknown'),
+  };
   return (
     <div className="us-level-picker" role="radiogroup" aria-label={props.name}>
-      {LEVELS.map(({ level, label }) => (
+      {LEVELS.map((level) => (
         <button
           key={level}
           type="button"
@@ -49,7 +63,7 @@ function LevelPicker(props: { name: string; value: Level; onChange: (level: Leve
           data-level={level}
           onClick={() => props.onChange(level)}
         >
-          {label}
+          {labels[level]}
         </button>
       ))}
     </div>
@@ -62,6 +76,8 @@ function LevelPicker(props: { name: string; value: Level; onChange: (level: Leve
  * screenshot. A part that contradicts the record needs a note or a screenshot.
  */
 export function ReportForm(props: { service: ServiceRecord; pageUrl: string | null; onBack: () => void }) {
+  const { t, i18n } = useTranslation();
+  const language = i18n.language;
   const [parts, setParts] = useState<Part[]>(() =>
     (props.service.functionalities ?? []).map((part) => ({ slug: part.slug, name: part.name, recorded: part.level })),
   );
@@ -80,34 +96,46 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
 
   const screenshots = useScreenshotLists(props.pageUrl);
 
+  // The catalogue arrives in the active locale, so a language switch reasks (spec 0002, AC-7).
+  const languageRef = useRef(language);
+
   useEffect(() => {
+    const renamed = languageRef.current !== language;
+    languageRef.current = language;
+    // The extension owned fallback names, read here so a language switch can
+    // rename the two default parts without touching what was typed.
+    const defaultNames: Record<string, string> = {
+      core_use: t('report.partCoreUse'),
+      landing_page: t('report.partLandingPage'),
+    };
     let cancelled = false;
     void getFunctionalities().then((result) => {
       if (cancelled) return;
+      const catalogueNames = new Map(result.ok ? result.data.map((item) => [item.slug, item.name]) : []);
+      const nameOf = (slug: string): string => catalogueNames.get(slug) ?? defaultNames[slug] ?? slug;
       if (!result.ok) {
         // The form still works: the default parts need no catalogue.
         setCatalogueFailed(true);
-        setParts((current) =>
-          current.length > 0
-            ? current
-            : Object.entries(DEFAULT_PARTS).map(([slug, name]) => ({ slug, name, recorded: null })),
-        );
-        return;
+      } else {
+        setCatalogueFailed(false);
+        setCatalogue(result.data);
       }
-      setCatalogueFailed(false);
-      setCatalogue(result.data);
-      setParts((current) =>
-        current.length > 0
-          ? current
-          : result.data
-              .filter((item) => item.slug in DEFAULT_PARTS)
-              .map((item) => ({ slug: item.slug, name: item.name, recorded: null })),
-      );
+      setParts((current) => {
+        if (current.length === 0) {
+          return DEFAULT_PART_SLUGS.map((slug) => ({ slug, name: nameOf(slug), recorded: null }));
+        }
+        // A switch renames only the two parts this form owns; typed notes,
+        // levels and screenshots stay exactly as they are (spec 0002, AC-11).
+        if (!renamed) return current;
+        return current.map((part) =>
+          part.slug in DEFAULT_PART_KEYS ? { ...part, name: defaultNames[part.slug] ?? part.name } : part,
+        );
+      });
     });
     return () => {
       cancelled = true;
     };
-  }, [catalogueAttempt]);
+  }, [catalogueAttempt, language, t]);
 
   const recordedOf = (part: Part): Level => part.recorded ?? 'unknown';
   const levelOf = (part: Part): Level => levels[part.slug] ?? recordedOf(part);
@@ -141,7 +169,7 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
   const submit = async () => {
     if (missingDetail.length > 0) {
       setShowMissing(true);
-      setError('Add a note or a screenshot to every part you marked.');
+      setError(t('report.addDetailError'));
       return;
     }
     setBusy(true);
@@ -169,9 +197,7 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
     });
     setBusy(false);
     if (!result.ok) {
-      setError(
-        result.error.status === 429 ? 'Too many reports from this network. Try again later.' : result.error.message,
-      );
+      setError(result.error.status === 429 ? t('report.rateLimited') : result.error.message);
       return;
     }
     setSent(true);
@@ -180,9 +206,9 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
   if (sent) {
     return (
       <SentState
-        title="Report sent"
-        message="Thank you. A volunteer reviews every report before it changes the record."
-        actionLabel={`Back to ${props.service.name}`}
+        title={t('report.sentTitle')}
+        message={t('report.sentMessage')}
+        actionLabel={t('common.backTo', { name: serviceName(props.service) })}
         onAction={props.onBack}
       />
     );
@@ -190,26 +216,26 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
 
   return (
     <FormShell
-      backLabel={`Back to ${props.service.name}`}
+      backLabel={t('common.backTo', { name: serviceName(props.service) })}
       onBack={props.onBack}
-      title="Report what works"
-      intro={`${props.service.name}: mark what worked and what failed from Syria, without a VPN.`}
+      title={t('report.title')}
+      intro={t('report.intro', { name: serviceName(props.service) })}
     >
       <VpnWarning />
 
       <p className="us-callout">
         <BookOpen size={16} aria-hidden="true" />
         <span>
-          <span style={{ color: 'var(--us-text-muted)' }}>New to testing? </span>
+          <span style={{ color: 'var(--us-text-muted)' }}>{t('report.newToTesting')} </span>
           <a
             className="us-text-link"
-            href={TESTING_GUIDE_URL}
+            href={testingGuideUrl()}
             target="_blank"
             rel="noreferrer"
             style={{ whiteSpace: 'nowrap' }}
           >
-            Read the guide
-            <ArrowUpRight size={13} style={{ verticalAlign: '-2px', marginLeft: 2 }} aria-hidden="true" />
+            {t('report.readGuide')}
+            <ArrowUpRight size={13} style={{ verticalAlign: '-2px', marginInlineStart: 2 }} aria-hidden="true" />
           </a>
         </span>
       </p>
@@ -217,7 +243,7 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
       <div
         style={{ display: 'grid', borderTop: '1px solid var(--us-border)', borderBottom: '1px solid var(--us-border)' }}
       >
-        {parts.length === 0 && <p style={{ ...hintStyle, padding: '16px 0' }}>Loading the parts to check…</p>}
+        {parts.length === 0 && <p style={{ ...hintStyle, padding: '16px 0' }}>{t('report.loading')}</p>}
         {parts.map((part, index) => {
           const level = levelOf(part);
           return (
@@ -234,12 +260,12 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
                 <span style={{ fontSize: 14, fontWeight: 600 }}>{part.name}</span>
                 {part.recorded === null && (
                   <>
-                    <span className="us-tag">Not recorded yet</span>
+                    <span className="us-tag">{t('report.notRecorded')}</span>
                     <button
                       type="button"
                       onClick={() => removePart(part.slug)}
-                      aria-label={`Remove ${part.name}`}
-                      title={`Remove ${part.name}`}
+                      aria-label={t('report.remove', { name: part.name })}
+                      title={t('report.remove', { name: part.name })}
                       style={{
                         display: 'inline-flex',
                         padding: 4,
@@ -259,16 +285,14 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
               {touched[part.slug] === true && level !== 'unknown' && (
                 <div className="us-animate-fade" style={{ display: 'grid', gap: 10 }}>
                   <Textarea
-                    placeholder="What happened?"
+                    placeholder={t('report.notePlaceholder')}
                     value={notes[part.slug] ?? ''}
                     maxLength={2000}
                     onChange={(event) => setNotes((current) => ({ ...current, [part.slug]: event.target.value }))}
                     rows={2}
                   />
                   <ScreenshotField screenshots={screenshots.list(part.slug)} max={5} locked={busy} />
-                  {matchesRecord(part) && !hasDetail(part) && (
-                    <p style={hintStyle}>Same as recorded. Add a note or a screenshot to confirm it again.</p>
-                  )}
+                  {matchesRecord(part) && !hasDetail(part) && <p style={hintStyle}>{t('report.sameAsRecorded')}</p>}
                   {needsDetail(part) && (
                     <p
                       style={{
@@ -277,7 +301,7 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
                         fontWeight: showMissing ? 500 : 400,
                       }}
                     >
-                      Required: a note or a screenshot showing this.
+                      {t('report.required')}
                     </p>
                   )}
                 </div>
@@ -289,21 +313,21 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
 
       {catalogueFailed && (
         <p style={hintStyle}>
-          Could not load the other parts you can add.{' '}
+          {t('report.catalogueFailed')}{' '}
           <button
             type="button"
             className="us-text-link"
             onClick={() => setCatalogueAttempt((attempt) => attempt + 1)}
             style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}
           >
-            Try again
+            {t('common.tryAgain')}
           </button>
         </p>
       )}
 
       {addable.length > 0 && (
         <label style={{ display: 'grid', gap: 6 }}>
-          <span className="us-label">Add a part you tried</span>
+          <span className="us-label">{t('report.addPart')}</span>
           <select
             className="us-field"
             value=""
@@ -314,7 +338,7 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
             }}
           >
             <option value="" disabled>
-              Choose a part
+              {t('report.choosePart')}
             </option>
             {addable.map((item) => (
               <option key={item.slug} value={item.slug}>
@@ -328,11 +352,11 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
       <EmailField value={email} onChange={setEmail} />
 
       <FormFooter
-        label="Send report"
-        busyLabel="Sending…"
+        label={t('report.send')}
+        busyLabel={t('report.sending')}
         busy={busy}
-        blocker={answered.length === 0 ? 'Mark at least one as working or failing.' : null}
-        note="Anything you mark is reviewed before it changes the record."
+        blocker={answered.length === 0 ? t('report.blocker') : null}
+        note={t('report.note')}
         error={error}
         onSubmit={() => void submit()}
       />

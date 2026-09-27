@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { CategoryItem } from '../../../lib/endpoints';
 import { ChevronDown, Search } from 'lucide-react';
 
@@ -7,6 +8,7 @@ export function CategoryPicker(props: {
   selected: Set<string>;
   onChange: (selected: Set<string>) => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
 
@@ -35,8 +37,8 @@ export function CategoryPicker(props: {
           style={{
             position: 'absolute',
             bottom: '100%',
-            left: 0,
-            right: 0,
+            insetInlineStart: 0,
+            insetInlineEnd: 0,
             marginBottom: 6,
             backgroundColor: 'var(--us-card)',
             border: '1px solid var(--us-border)',
@@ -51,10 +53,14 @@ export function CategoryPicker(props: {
           }}
         >
           <div style={{ position: 'relative', padding: 10 }}>
-            <Search size={14} color="var(--us-text-dim)" style={{ position: 'absolute', left: 20, top: 20 }} />
+            <Search
+              size={14}
+              color="var(--us-text-dim)"
+              style={{ position: 'absolute', insetInlineStart: 20, top: 20 }}
+            />
             <input
               autoFocus
-              placeholder="Search categories..."
+              placeholder={t('categoryPicker.search')}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               style={{
@@ -63,7 +69,9 @@ export function CategoryPicker(props: {
                 backgroundColor: 'var(--us-input-bg)',
                 border: '1px solid var(--us-border)',
                 borderRadius: 'var(--us-radius-control)',
-                padding: '0 12px 0 32px',
+                paddingBlock: 0,
+                paddingInlineStart: 32,
+                paddingInlineEnd: 12,
                 color: 'var(--us-text-primary)',
                 fontSize: 13,
                 outline: 'none',
@@ -72,7 +80,9 @@ export function CategoryPicker(props: {
           </div>
           <div style={{ overflowY: 'auto', padding: '0 6px 6px 6px' }}>
             {filtered.length === 0 && (
-              <div style={{ padding: '10px 8px', fontSize: 12, color: 'var(--us-text-dim)' }}>No categories found.</div>
+              <div style={{ padding: '10px 8px', fontSize: 12, color: 'var(--us-text-dim)' }}>
+                {t('categoryPicker.none')}
+              </div>
             )}
             {filtered.map((option) => (
               <label
@@ -123,13 +133,16 @@ export function CategoryPicker(props: {
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
-            textAlign: 'left',
+            textAlign: 'start',
             color: props.selected.size === 0 ? 'var(--us-text-dim)' : 'var(--us-text-primary)',
           }}
         >
           {props.selected.size === 0
-            ? 'Select correct categories...'
-            : `${props.selected.size} selected: ${selectedNames.slice(0, 3).join(', ')}${selectedNames.length > 3 ? '…' : ''}`}
+            ? t('categoryPicker.select')
+            : t('categoryPicker.selected', {
+                n: props.selected.size,
+                names: `${selectedNames.slice(0, 3).join(', ')}${selectedNames.length > 3 ? '…' : ''}`,
+              })}
         </span>
         <ChevronDown
           size={14}
