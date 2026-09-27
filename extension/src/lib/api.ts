@@ -19,6 +19,16 @@ interface RequestOptions {
   contentType?: 'json' | 'multipart';
   /** Attach a Turnstile token solved for this action (see lib/turnstile.ts). */
   verify?: TurnstileAction;
+  /**
+   * What a successful answer must look like. One that doesn't pass `check` is
+   * a BAD_RESPONSE with this `message`, as an unreadable answer is, so a
+   * caller never reads fields that are not there.
+   */
+  expect?: { check: (data: unknown) => boolean; message: string };
+}
+
+function badResponse(status: number, message: string): { ok: false; error: ApiError } {
+  return { ok: false, error: { error: 'BAD_RESPONSE', message, status } };
 }
 
 function extractRetryAfter(response: Response): number | undefined {
@@ -102,15 +112,10 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   try {
     payload = await response.json();
   } catch {
-    return {
-      ok: false,
-      error: {
-        error: 'BAD_RESPONSE',
-        message: 'Unblock Syria sent an answer the panel could not read.',
-        status: response.status,
-      },
-    };
+    return badResponse(response.status, 'Unblock Syria sent an answer the panel could not read.');
   }
   const unwrapped = (options.unwrap ?? 'data') === 'raw' ? payload : (payload as { data?: unknown } | null)?.data;
+  if (options.expect !== undefined && !options.expect.check(unwrapped))
+    return badResponse(response.status, options.expect.message);
   return { ok: true, data: unwrapped as T };
 }
