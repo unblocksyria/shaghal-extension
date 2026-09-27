@@ -100,12 +100,11 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
 
   const screenshots = useScreenshotLists(props.pageUrl);
 
-  // The catalogue arrives in the active locale, so a language switch reasks (spec 0002, AC-7).
-  const languageRef = useRef(language);
+  // The language the part names on screen are in. The catalogue arrives in the
+  // active locale, so a switch only has to rename once a fetch has answered.
+  const namesLanguage = useRef(language);
 
   useEffect(() => {
-    const renamed = languageRef.current !== language;
-    languageRef.current = language;
     // The extension owned fallback names, read here so a language switch can
     // rename the two default parts without touching what was typed.
     const defaultNames: Record<string, string> = {
@@ -124,17 +123,25 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
         setCatalogueFailed(false);
         setCatalogue(result.data);
       }
+      // Read now: the updater runs after the line below has already advanced it.
+      const rename = namesLanguage.current !== language;
       setParts((current) => {
         if (current.length === 0) {
           return DEFAULT_PART_SLUGS.map((slug) => ({ slug, name: nameOf(slug), recorded: null }));
         }
-        // A switch renames only the two parts this form owns; typed notes,
-        // levels and screenshots stay exactly as they are (spec 0002, AC-11).
-        if (!renamed) return current;
+        // A switch takes every part's name from the catalogue just fetched in
+        // the new language, not only the two the form owns; typed notes, levels
+        // and screenshots stay exactly as they are (spec 0002, AC-11).
+        if (!rename) return current;
         return current.map((part) =>
-          part.slug in DEFAULT_PART_KEYS ? { ...part, name: defaultNames[part.slug] ?? part.name } : part,
+          part.slug in DEFAULT_PART_KEYS
+            ? { ...part, name: defaultNames[part.slug] ?? part.name }
+            : { ...part, name: catalogueNames.get(part.slug) ?? part.name },
         );
       });
+      // Only a loaded catalogue settles the names. A failed one leaves the new
+      // language owed, so "Try again" still finishes the rename.
+      if (result.ok) namesLanguage.current = language;
     });
     return () => {
       cancelled = true;

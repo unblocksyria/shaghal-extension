@@ -194,4 +194,78 @@ describe('language', () => {
     expect(screen.getByAltText('الدليل رقم 1')).toBeDefined();
     expect(document.documentElement.dir).toBe('rtl');
   });
+
+  it('relabels the parts the service recorded from the catalogue in the new language (AC-7)', async () => {
+    const user = userEvent.setup();
+    // A part that is not one of the two the form owns: only the catalogue can name it.
+    const record = {
+      ...serviceRecord,
+      functionalities: [
+        { slug: 'core_use', name: 'Core use', level: 'failing' as const },
+        { slug: 'sign_up', name: 'Sign up', level: 'working' as const },
+      ],
+    };
+    const arabicCatalogue = [
+      { slug: 'core_use', name: 'الاستخدام الأساسي' },
+      { slug: 'landing_page', name: 'الصفحة الرئيسية' },
+      { slug: 'sign_up', name: 'التسجيل' },
+      { slug: 'payments', name: 'المدفوعات' },
+    ];
+    fakeApi()
+      .on('POST', '/services/match', { data: match })
+      .on('GET', '/services/netflix', { data: record })
+      // The catalogue answers in the locale it is asked for, which is what the API does (AC-7).
+      .on('GET', '/functionalities', (call) => ({
+        data: new URL(call.url).searchParams.get('locale') === 'ar' ? arabicCatalogue : functionalities,
+      }))
+      .install();
+
+    await openPanel('https://parts.example/');
+    await user.click(await screen.findByRole('button', { name: 'Report what works' }, { timeout: 3000 }));
+    expect(screen.getByText('Sign up')).toBeDefined();
+
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    const languages = screen.getByRole('radiogroup', { name: 'Language' });
+    await user.click(within(languages).getByRole('radio', { name: 'Arabic' }));
+    await screen.findByRole('heading', { name: 'الإعدادات' });
+    await user.click(screen.getByRole('button', { name: 'رجوع' }));
+
+    // The catalogue came back in Arabic, so the part the record named in English is Arabic too.
+    expect(await screen.findByText('التسجيل', {}, { timeout: 3000 })).toBeDefined();
+    expect(screen.queryByText('Sign up')).toBeNull();
+  });
+
+  it('relabels the category options in the new language and keeps the ticks (AC-7)', async () => {
+    const user = userEvent.setup();
+    const arabicCategories = [
+      { id: 'cat-streaming', name: 'بث' },
+      { id: 'cat-entertainment', name: 'ترفيه' },
+      { id: 'cat-social', name: 'تواصل' },
+    ];
+    fakeApi()
+      .on('POST', '/services/match', { data: match })
+      .on('GET', '/services/netflix', { data: serviceRecord })
+      .on('GET', '/categories', (call) => ({
+        data: new URL(call.url).searchParams.get('locale') === 'ar' ? arabicCategories : categories,
+      }))
+      .install();
+
+    await openPanel('https://labels.example/');
+    await user.click(await screen.findByRole('button', { name: 'Suggest Correction' }, { timeout: 3000 }));
+    await user.click(screen.getByRole('checkbox', { name: 'Categories' }));
+    // The picker opens with the two recorded categories already ticked.
+    await user.click(screen.getByRole('button', { name: /Select correct categories|\d+ selected/ }));
+    expect(screen.getByText('Streaming')).toBeDefined();
+
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    const languages = screen.getByRole('radiogroup', { name: 'Language' });
+    await user.click(within(languages).getByRole('radio', { name: 'Arabic' }));
+    await screen.findByRole('heading', { name: 'الإعدادات' });
+    await user.click(screen.getByRole('button', { name: 'رجوع' }));
+
+    // The same two categories, now under their Arabic names, still ticked.
+    expect(await screen.findByText('بث', {}, { timeout: 3000 })).toBeDefined();
+    expect(screen.getByText('ترفيه')).toBeDefined();
+    expect(screen.getByRole('button', { name: /2: بث, ترفيه/ })).toBeDefined();
+  });
 });

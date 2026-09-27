@@ -1,5 +1,5 @@
 import { formErrorMessage } from '../../../lib/api';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getCategories, type CategoryItem, type ServiceRecord } from '../../../lib/endpoints';
 import { submitCorrection, type CorrectionType } from '../../../lib/submit';
@@ -52,7 +52,7 @@ function sameSet(a: Set<string>, b: Set<string>): boolean {
 
 /** Everything ticked goes in one submission; the review queue splits it into one item per field. */
 export function CorrectionForm(props: { service: ServiceRecord; onBack: () => void }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const labels: Record<CorrectionType, string> = {
     url: t('correction.fieldUrl'),
     description: t('correction.fieldDescription'),
@@ -79,6 +79,24 @@ export function CorrectionForm(props: { service: ServiceRecord; onBack: () => vo
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
+  const language = i18n.language;
+  // The language the options on screen are in, or null while the picker has
+  // none loaded. A switch relabels what is there and leaves the ticked IDs
+  // alone, because only the names change (spec 0002, AC-7).
+  const optionsLanguage = useRef<string | null>(null);
+  const wantedLanguage = useRef(language);
+
+  useEffect(() => {
+    wantedLanguage.current = language;
+    if (categoryOptions.length === 0 || optionsLanguage.current === language) return;
+    void getCategories().then((result) => {
+      // A later switch wins: only the response for the language still wanted lands.
+      if (!result.ok || wantedLanguage.current !== language) return;
+      setCategoryOptions(result.data);
+      optionsLanguage.current = language;
+    });
+  }, [language, categoryOptions.length]);
+
   const toggle = (type: CorrectionType) => {
     const adding = !selected.has(type);
     setSelected((current) => {
@@ -91,9 +109,12 @@ export function CorrectionForm(props: { service: ServiceRecord; onBack: () => vo
     if (adding && type === 'category') {
       setCategories(recordedCategoryIds(props.service));
       if (categoryOptions.length === 0) {
+        const wanted = i18n.language;
         void getCategories().then((result) => {
-          if (result.ok) setCategoryOptions(result.data);
-          else setError(t('correction.categoriesFailed', { message: result.error.message }));
+          if (result.ok) {
+            setCategoryOptions(result.data);
+            optionsLanguage.current = wanted;
+          } else setError(t('correction.categoriesFailed', { message: result.error.message }));
         });
       }
     }
