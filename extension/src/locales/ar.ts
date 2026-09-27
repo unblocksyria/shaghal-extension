@@ -128,7 +128,7 @@ export const ar: Arabic<Catalog> = {
     required: 'مطلوب: ملاحظة أو صورة تُظهر ذلك.',
     addDetailError: 'أضف ملاحظة أو صورة لكل جزء حددته.',
     catalogueFailed: 'تعذّر تحميل الأجزاء الأخرى التي يمكنك إضافتها.',
-    addPart: ' أضف جزءاً جرّبته',
+    addPart: 'أضف جزءاً جرّبته',
     choosePart: 'اختر جزءاً',
     send: 'أرسل التقرير',
     sending: 'جارٍ الإرسال…',
