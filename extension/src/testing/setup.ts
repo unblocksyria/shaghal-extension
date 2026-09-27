@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, vi } from 'vitest';
+// Sets up the i18next instance every component's `useTranslation` reads, the
+// way each entrypoint does when the panel or the editor window opens.
+import '../lib/i18n';
 import { clearRefusedRequests, refuseRequest, refusedRequests } from './fakeApi';
 import { closeEditorWindow } from '../lib/editorWindow';
 import { closeEditorWindows } from './editorWindows';
