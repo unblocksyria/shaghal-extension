@@ -59,7 +59,7 @@ const recordWithParts = {
 /** The catalogue as the API answers it in Arabic (spec 0002, AC-7). */
 const arabicCatalogue = [
   { slug: 'core_use', name: 'الاستخدام الأساسي' },
-  { slug: 'landing_page', name: 'الصفحة الرئيسية' },
+  { slug: 'landing_page', name: 'الصفحة التعريفية' },
   { slug: 'sign_up', name: 'التسجيل' },
   { slug: 'payments', name: 'المدفوعات' },
 ];
@@ -209,8 +209,8 @@ describe('language', () => {
 
     // The form's back button carries the service name (AC-6 shows it in brackets when there is an Arabic one).
     await user.click(screen.getByRole('button', { name: 'العودة إلى Netflix' }));
-    await user.click(await screen.findByRole('button', { name: 'اقترح تصحيحًا' }));
-    await screen.findByRole('heading', { name: 'اقترح تصحيحًا' });
+    await user.click(await screen.findByRole('button', { name: 'اقترح تصحيحاً' }));
+    await screen.findByRole('heading', { name: 'اقترح تصحيحاً' });
     await user.click(screen.getByRole('checkbox', { name: 'الفئات' }));
 
     expect(api.calls.find((call) => call.path === '/categories')?.url).toContain('locale=ar');
@@ -220,7 +220,7 @@ describe('language', () => {
     fakeApi().on('POST', '/services/match', { data: match }).install();
 
     await openPanel('https://dates.example/', { language: 'ar' });
-    const checked = await screen.findByText(/آخر فحص/, {}, { timeout: 3000 });
+    const checked = await screen.findByText(/فُحص في/, {}, { timeout: 3000 });
     // The fixture was checked on 1 September 2026; Arabic months are not "Sep".
     expect(checked.textContent).toContain('2026');
     expect(checked.textContent).not.toContain('Sep');
@@ -235,7 +235,7 @@ describe('language', () => {
       .install();
 
     await openPanel('https://links.example/', { language: 'ar' });
-    const serviceLink = await screen.findByRole('link', { name: /عرض على Unblock Syria/ }, { timeout: 3000 });
+    const serviceLink = await screen.findByRole('link', { name: /عرض على سوريا بدون قيود/ }, { timeout: 3000 });
     expect(serviceLink.getAttribute('href')).toContain('/ar/services/netflix');
 
     await user.click(screen.getByRole('button', { name: 'أبلغ عمّا يعمل' }));
@@ -280,7 +280,7 @@ describe('language', () => {
     };
     const arabicCatalogue = [
       { slug: 'core_use', name: 'الاستخدام الأساسي' },
-      { slug: 'landing_page', name: 'الصفحة الرئيسية' },
+      { slug: 'landing_page', name: 'الصفحة التعريفية' },
       { slug: 'sign_up', name: 'التسجيل' },
       { slug: 'payments', name: 'المدفوعات' },
     ];
@@ -354,9 +354,9 @@ describe('language', () => {
     await openPanel('https://writes.example/', { language: 'ar' });
     await user.click(await screen.findByRole('button', { name: 'أبلغ عن خدمة' }, { timeout: 3000 }));
     await user.type(screen.getByRole('textbox', { name: 'اسم الخدمة' }), 'خدمة غير متتبعة');
-    await user.click(screen.getByRole('button', { name: 'أرسل التقرير' }));
+    await user.click(screen.getByRole('button', { name: 'إرسال البلاغ' }));
 
-    await screen.findByRole('heading', { name: 'استلمنا التقرير' });
+    await screen.findByRole('heading', { name: 'تم استلام البلاغ' });
     expect(api.callsTo('POST', '/submissions').at(0)?.json).toMatchObject({ locale: 'ar' });
   });
 
@@ -385,17 +385,17 @@ describe('language', () => {
     // The failure is said in the new language, and the two parts the extension
     // names itself are renamed anyway, because no catalogue is needed for them.
     await screen.findByText(/تعذّر تحميل الأجزاء/, {}, { timeout: 3000 });
-    expect(screen.getByRole('button', { name: 'أعد المحاولة' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'حاول مجدداً' })).toBeDefined();
     expect(screen.getByText('الاستخدام الأساسي')).toBeDefined();
     // The part only the catalogue can name still waits for it.
     expect(screen.getByText('Sign up')).toBeDefined();
 
     arabicCatalogueFails = false;
-    await user.click(screen.getByRole('button', { name: 'أعد المحاولة' }));
+    await user.click(screen.getByRole('button', { name: 'حاول مجدداً' }));
 
     expect(await screen.findByText('التسجيل', {}, { timeout: 3000 })).toBeDefined();
     expect(screen.queryByText('Sign up')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'أعد المحاولة' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'حاول مجدداً' })).toBeNull();
     // The retry asked in the language the panel is showing (spec 0002, AC-7).
     expect(api.callsTo('GET', '/functionalities').at(-1)?.url).toContain('locale=ar');
   });
