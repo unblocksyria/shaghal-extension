@@ -1,6 +1,6 @@
 {
   "name": "shaghal",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "Unblock Syria browser extension: see whether a site works from Syria and report what works.",
   "license": "MIT",
@@ -15,11 +15,15 @@
   },
   "scripts": {
     "dev": "wxt",
+    "dev:firefox": "wxt -b firefox",
     "build": "wxt build",
+    "build:firefox": "wxt build -b firefox",
     "zip": "wxt zip",
+    "zip:firefox": "wxt zip -b firefox",
     "postinstall": "wxt prepare",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
+    "lint:firefox": "addons-linter .output/firefox-mv3",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
@@ -27,7 +31,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "check": "npm run lint && npm run format:check && npm run typecheck && npm test && npm run build"
+    "check": "npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run build:firefox && npm run lint:firefox"
   },
   "dependencies": {
     "i18next": "^26.4.2",
@@ -47,6 +51,7 @@
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@vitest/coverage-v8": "^5.0.2",
+    "addons-linter": "^10.13.0",
     "eslint": "^10.11.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "jsdom": "^29.1.1",

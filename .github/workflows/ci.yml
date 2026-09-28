@@ -53,6 +53,13 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Build for Firefox
+        run: npm run build:firefox
+
+      # The checks addons.mozilla.org runs on upload.
+      - name: Lint the Firefox build
+        run: npm run lint:firefox
+
   # Separate job, so the slow browser run does not hold up the checks in verify.
   e2e:
     runs-on: ubuntu-latest

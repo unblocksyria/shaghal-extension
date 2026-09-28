@@ -42,6 +42,13 @@ describe('the pull request pipeline', () => {
     expect(verify).not.toContain('test:e2e');
   });
 
+  it('builds for both browsers and lints the Firefox build', () => {
+    const verify = job('verify');
+    expect(verify).toContain('run: npm run build\n');
+    expect(verify).toContain('run: npm run build:firefox');
+    expect(verify).toContain('run: npm run lint:firefox');
+  });
+
   it('runs the end to end suite as its own job', () => {
     const e2e = job('e2e');
     expect(e2e).toContain('run: npm run build');

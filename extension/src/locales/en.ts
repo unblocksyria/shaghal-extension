@@ -218,6 +218,12 @@ export const en = {
     torNetwork: 'the Tor network',
   },
 
+  hostAccess: {
+    title: 'Shaghal cannot see websites.',
+    body: 'Access to websites is off for this extension. Shaghal needs it to check the page you are on, take screenshots and reach Unblock Syria.',
+    allow: 'Allow access',
+  },
+
   categoryPicker: {
     search: 'Search categories...',
     none: 'No categories found.',

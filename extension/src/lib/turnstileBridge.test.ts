@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { turnstileToken } from './turnstile';
 
-vi.mock('./config', () => ({ IS_LOCAL_API: false, VERIFY_BASE: 'https://verify.example.test' }));
+vi.mock('./config', () => ({ IS_FIREFOX: false, IS_LOCAL_API: false, VERIFY_BASE: 'https://verify.example.test' }));
 afterEach(() => vi.useRealTimers());
 
 function bridge() {
