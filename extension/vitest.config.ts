@@ -15,5 +15,12 @@ export default defineConfig({
     testTimeout: 10_000,
     restoreMocks: true,
     unstubGlobals: true,
+    // Written only with --coverage. CI uploads coverage/lcov.info to Codecov.
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/**/*.test.{ts,tsx}', 'src/testing/**', 'src/env.d.ts'],
+      reporter: ['text-summary', 'lcov'],
+    },
   },
 });

@@ -1,6 +1,7 @@
 # Shaghal (شغّال)
 
 [![CI](https://github.com/unblocksyria/shaghal-extension/actions/workflows/ci.yml/badge.svg)](https://github.com/unblocksyria/shaghal-extension/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/unblocksyria/shaghal-extension/graph/badge.svg)](https://codecov.io/gh/unblocksyria/shaghal-extension)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A browser extension from [Unblock Syria](https://unblocksyria.com) that shows
@@ -82,8 +83,9 @@ npx playwright install chromium  # once
 npm run test:e2e                 # browser tests against the last build
 ```
 
-`npm test` runs the unit tests alone, and `npm run format` formats the code. CI
-runs both `check` and the browser tests.
+`npm test` runs the unit tests alone, `npm run test:coverage` adds a coverage
+report in `extension/coverage/`, and `npm run format` formats the code. CI runs
+`check` with coverage, uploads it to Codecov, and runs the browser tests.
 
 ### Builds
 

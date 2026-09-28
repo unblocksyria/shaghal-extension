@@ -22,3 +22,6 @@ desktop.ini
 # Logs
 *.log
 npm-debug.log*
+
+# Coverage reports
+coverage/

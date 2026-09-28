@@ -36,7 +36,8 @@ describe('the pull request pipeline', () => {
 
   it('runs that suite in the existing verify job', () => {
     const verify = job('verify');
-    expect(verify).toContain('run: npm test');
+    expect(verify).toContain('run: npm run test:coverage');
+    expect(verify).toContain('codecov/codecov-action');
     expect(verify).toContain('run: npm run typecheck');
     expect(verify).not.toContain('test:e2e');
   });

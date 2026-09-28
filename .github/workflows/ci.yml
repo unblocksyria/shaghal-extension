@@ -39,7 +39,15 @@ jobs:
         run: npm run typecheck
 
       - name: Test
-        run: npm test
+        run: npm run test:coverage
+
+      # Tokenless for this public repo; a CODECOV_TOKEN secret is used when set.
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: extension/coverage/lcov.info
+          disable_search: true
 
       - name: Build
         run: npm run build
