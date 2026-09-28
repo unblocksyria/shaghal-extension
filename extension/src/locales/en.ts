@@ -55,7 +55,7 @@ export const en = {
       },
       blocked: {
         label: 'Blocked',
-        meaning: 'Core use does not work from Syria.',
+        meaning: 'Core use or the website does not work from Syria.',
       },
       unknown: {
         label: 'Unknown',
