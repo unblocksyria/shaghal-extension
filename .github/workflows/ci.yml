@@ -41,7 +41,8 @@ jobs:
       - name: Test
         run: npm run test:coverage
 
-      # Tokenless for this public repo; a CODECOV_TOKEN secret is used when set.
+      # Branches in this repository need the CODECOV_TOKEN secret. Pull requests
+      # from forks upload without one.
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
