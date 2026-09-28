@@ -29,6 +29,7 @@ interface Opened {
   user: UserEvent;
   saved: (EditedScreenshot | null)[];
   cancelled: () => number;
+  unmount: () => void;
 }
 
 async function openEditor(edits?: ImageEdits, options: { guardClose?: boolean } = {}): Promise<Opened> {
@@ -36,7 +37,7 @@ async function openEditor(edits?: ImageEdits, options: { guardClose?: boolean } 
   const saved: (EditedScreenshot | null)[] = [];
   let cancels = 0;
   const user = userEvent.setup();
-  render(
+  const { unmount } = render(
     <ScreenshotEditor
       source={new Blob(['capture'])}
       edits={edits}
@@ -47,7 +48,7 @@ async function openEditor(edits?: ImageEdits, options: { guardClose?: boolean } 
     />,
   );
   await screen.findByRole('button', { name: 'Undo' });
-  return { user, saved, cancelled: () => cancels };
+  return { user, saved, cancelled: () => cancels, unmount };
 }
 
 /** The image canvas. Pointer events on it bubble up to the stage. */
@@ -619,10 +620,10 @@ describe('fitting the window', () => {
 
   it('stops watching the stage when it closes', async () => {
     const observer = fakeResizeObserver();
-    const { user, cancelled } = await openEditor();
+    const { unmount } = await openEditor();
     expect(observer.disconnected()).toBe(false);
-    await user.click(screen.getByRole('button', { name: 'Cancel' }));
-    expect(cancelled()).toBe(1);
+    unmount();
+    expect(observer.disconnected()).toBe(true);
   });
 });
 
