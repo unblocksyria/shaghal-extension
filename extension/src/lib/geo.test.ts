@@ -38,3 +38,22 @@ describe('countryName', () => {
     expect(countryName('T1')).toBe('the Tor network');
   });
 });
+
+describe('the country name', () => {
+  it('is given in the panel language', () => {
+    expect(countryName('DE', 'ar')).toBe('ألمانيا');
+  });
+
+  it('falls back to the code itself when the code is not a region', () => {
+    expect(countryName('??')).toBe('??');
+  });
+});
+
+it('never caches the trace, and gives the check a deadline', async () => {
+  const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(new Response(trace('SY')));
+  vi.stubGlobal('fetch', fetchMock);
+  await browsingCountry();
+  const [, init] = fetchMock.mock.calls[0] ?? [];
+  expect(init?.cache).toBe('no-store');
+  expect(init?.signal).toBeInstanceOf(AbortSignal);
+});

@@ -22,7 +22,15 @@ interface FakeWindows {
 }
 
 function fakeChrome(
-  options: { refuseBounds?: boolean; refuseAll?: boolean; slowCreate?: Promise<void> } = {},
+  options: {
+    refuseBounds?: boolean;
+    refuseAll?: boolean;
+    slowCreate?: Promise<void>;
+    /** chrome.windows.getCurrent rejects, as it can outside a browser window. */
+    noCurrent?: boolean;
+    /** chrome.windows.create answers without a window id. */
+    noId?: boolean;
+  } = {},
 ): FakeWindows {
   const listeners = new Set<(id: number) => void>();
   const windows: FakeWindows = {
@@ -36,13 +44,16 @@ function fakeChrome(
   vi.stubGlobal('chrome', {
     runtime: { getURL: (path: string) => `chrome-extension://shaghal${path}` },
     windows: {
-      getCurrent: () => Promise.resolve({ left: 10, top: 20, width: 1400, height: 900 }),
+      getCurrent: () =>
+        options.noCurrent === true
+          ? Promise.reject(new Error('No current window'))
+          : Promise.resolve({ left: 10, top: 20, width: 1400, height: 900 }),
       create: async (data: chrome.windows.CreateData) => {
         await options.slowCreate;
         if (options.refuseAll === true) throw new Error('No windows here');
         if (options.refuseBounds === true && data.left !== undefined) throw new Error('Invalid value for bounds.');
         windows.created.push(data);
-        return { id: nextId++ };
+        return { id: options.noId === true ? undefined : nextId++ };
       },
       remove: (id: number) => {
         windows.removed.push(id);
@@ -315,5 +326,38 @@ describe('the editor window', () => {
     panel.close();
     editor.close();
     expect(windows.created).toEqual([]);
+  });
+
+  it('opens at a default size when the browser window cannot be measured', async () => {
+    const windows = fakeChrome({ noCurrent: true });
+    const result = editInWindow(request);
+    await vi.waitFor(() => expect(windows.created).toHaveLength(1));
+    expect(windows.created[0]).toMatchObject({ type: 'popup', width: 1200, height: 800 });
+    expect(windows.created[0]?.left).toBeUndefined();
+    windows.closeByUser(100);
+    expect(await result).toBeUndefined();
+  });
+
+  it('fails when Chrome answers without a window, so the panel can edit in place', async () => {
+    fakeChrome({ noId: true });
+    await expect(editInWindow(request)).rejects.toThrow('The editor window did not open.');
+    expect(isEditorOpen()).toBe(false);
+    expect(focusEditorWindow()).toBe(false);
+  });
+
+  it('as the editor, takes a dismissal only for its own session', async () => {
+    vi.stubGlobal('window', { close: () => undefined });
+    const dismissed: string[] = [];
+    const editor = connectToPanel(
+      'mine',
+      () => undefined,
+      () => dismissed.push('mine'),
+    );
+    const panel = new BroadcastChannel('shaghal-screenshot-editor');
+    panel.postMessage({ type: 'dismiss', session: 'other' });
+    panel.postMessage({ type: 'dismiss', session: 'mine' });
+    await vi.waitFor(() => expect(dismissed).toEqual(['mine']));
+    panel.close();
+    editor.close();
   });
 });

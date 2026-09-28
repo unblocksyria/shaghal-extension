@@ -63,8 +63,8 @@ export interface FakeApi {
   readonly calls: FakeCall[];
   /** Answers `METHOD path`. `path` is a pathname or a RegExp over one. The latest match wins. */
   on(method: string, path: string | RegExp, answer: FakeAnswer | FakeResponder): FakeApi;
-  /** Holds `METHOD path` until the returned function is called, then answers with a null body. */
-  hold(method: string, path: string | RegExp): () => void;
+  /** Holds `METHOD path` until the returned function is called, then answers with `answer` (a null body by default). */
+  hold(method: string, path: string | RegExp, answer?: FakeAnswer | FakeResponder): () => void;
   /** Calls with this method and exact path, oldest first. */
   callsTo(method: string, path: string): FakeCall[];
   /** Stubs global fetch for this test. `unstubGlobals` restores it afterwards. */
@@ -139,12 +139,12 @@ export function fakeApi(): FakeApi {
       routes.push({ method: method.toUpperCase(), path, answer });
       return api;
     },
-    hold(method, path) {
+    hold(method, path, answer = { json: null }) {
       let release: () => void = () => undefined;
       const gate = new Promise<void>((resolve) => {
         release = () => resolve();
       });
-      routes.push({ method: method.toUpperCase(), path, answer: { json: null }, gate });
+      routes.push({ method: method.toUpperCase(), path, answer, gate });
       return () => release();
     },
     callsTo(method, path) {

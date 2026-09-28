@@ -8,6 +8,7 @@ import {
   voteForService,
 } from './endpoints';
 import { fakeApi } from '../testing/fakeApi';
+import match from '../testing/fixtures/match.json';
 import upload from '../testing/fixtures/upload.json';
 
 const screenshot = new Blob(['jpeg'], { type: 'image/jpeg' });
@@ -37,6 +38,19 @@ describe('uploadEvidence', () => {
 describe('untrusted API data', () => {
   it.each([
     ['POST', '/services/match', () => matchService('https://example.com'), { service: {}, alternatives: [] }],
+    ['POST', '/services/match', () => matchService('https://example.com'), { ...match, matchType: 'sibling' }],
+    [
+      'POST',
+      '/services/match',
+      () => matchService('https://example.com'),
+      { ...match, service: { ...match.service, company: {} } },
+    ],
+    [
+      'POST',
+      '/services/match',
+      () => matchService('https://example.com'),
+      { ...match, service: { ...match.service, voteCount: 1.5 } },
+    ],
     ['GET', '/categories', getCategories, [{ id: 'x' }]],
     ['GET', '/functionalities', getFunctionalities, null],
     ['GET', '/functionalities', getFunctionalities, [{ slug: 'constructor', name: 'Constructor' }]],

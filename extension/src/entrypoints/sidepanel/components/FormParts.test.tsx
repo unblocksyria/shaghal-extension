@@ -1,8 +1,10 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it, vi } from 'vitest';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
-import { render, screen } from '@testing-library/react';
-import { FormShell } from './FormParts';
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
+import { FormShell, emailError, useSavedEmail, useScreenshotLists } from './FormParts';
+import { saveEmail } from '../../../lib/settings';
+import type { PendingEvidence } from '../../../lib/evidence';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { fakeApi, type FakeApi } from '../../../testing/fakeApi';
 import { openPanel, stubScreenshot } from '../../../testing/panel';
@@ -143,5 +145,139 @@ describe('the screenshot list', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
     await screen.findByAltText('Evidence #1');
+  });
+});
+
+it('keeps editing when the discard question is dismissed with Escape', async () => {
+  const user = userEvent.setup();
+  const onBack = vi.fn();
+  render(
+    <FormShell backLabel="Back" onBack={onBack} title="Report" intro="Describe the issue.">
+      <input aria-label="Description" />
+    </FormShell>,
+  );
+  await user.type(screen.getByRole('textbox', { name: 'Description' }), 'Unsent report');
+  await user.click(screen.getByRole('button', { name: 'Back' }));
+  fireEvent(screen.getByRole('dialog', { name: 'Discard this draft?' }), new Event('cancel'));
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(onBack).not.toHaveBeenCalled();
+  expect(screen.getByRole('textbox', { name: 'Description' })).toHaveProperty('value', 'Unsent report');
+});
+
+describe('the email check', () => {
+  it.each(['', '   ', 'a@b.co', ' tester@example.com ', `${'a'.repeat(242)}@example.com`])('accepts %j', (value) =>
+    expect(emailError(value)).toBeNull(),
+  );
+
+  it.each(['no-at', 'a@b', 'a b@c.com', 'a@b c.com', 'a@@b.co', `${'a'.repeat(243)}@example.com`])(
+    'refuses %j before anything is uploaded',
+    (value) => expect(emailError(value)).toBe('Enter a valid email address, or leave it blank.'),
+  );
+});
+
+describe('the remembered email', () => {
+  it('fills in the saved email, and follows a later save', async () => {
+    await Promise.resolve(fakeBrowser.reset());
+    vi.stubGlobal('chrome', fakeBrowser);
+    await saveEmail('stored@example.com');
+    const { result } = renderHook(() => useSavedEmail());
+    await waitFor(() => expect(result.current[0]).toBe('stored@example.com'));
+    await saveEmail('later@example.com');
+    await waitFor(() => expect(result.current[0]).toBe('later@example.com'));
+  });
+
+  it('does not overwrite what was typed before storage answered', async () => {
+    await Promise.resolve(fakeBrowser.reset());
+    vi.stubGlobal('chrome', fakeBrowser);
+    await saveEmail('stored@example.com');
+    const { result } = renderHook(() => useSavedEmail());
+    // Storage has not answered yet: typing now must win over what it will say.
+    act(() => result.current[1]('typed@example.com'));
+    await act(async () => {
+      await new Promise((resolve) => setImmediate(resolve));
+    });
+    expect(result.current[0]).toBe('typed@example.com');
+  });
+});
+
+/** A screenshot list on a fresh fake browser whose capture waits for the test. */
+async function pendingCapture() {
+  stubScreenshot();
+  await Promise.resolve(fakeBrowser.reset());
+  vi.stubGlobal('chrome', fakeBrowser);
+  const created = await fakeBrowser.windows.create({ focused: true });
+  await fakeBrowser.tabs.create({ url: 'https://slow.example/', active: true, windowId: created?.id });
+  let release: (dataUrl: string) => void = () => undefined;
+  let started: () => void = () => undefined;
+  const capturing = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  fakeBrowser.tabs.captureVisibleTab = () =>
+    new Promise<string>((resolve) => {
+      release = resolve;
+      started();
+    });
+  const hook = renderHook(() => useScreenshotLists('https://slow.example/'));
+  return {
+    ...hook,
+    list: () => hook.result.current.list('form'),
+    /** Resolves once the browser has been asked for the capture. */
+    capturing,
+    release: () => release('data:image/jpeg;base64,aGVsbG8='),
+  };
+}
+
+describe('capturing', () => {
+  it('says why a capture failed and lets the form go on', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    await openReportService(user, 'https://denied.example/download');
+    fakeBrowser.tabs.captureVisibleTab = () => Promise.reject(new Error('Permission denied'));
+
+    await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
+    await screen.findByText('Could not take a screenshot: Permission denied');
+    expect(screen.queryByAltText('Evidence #1')).toBeNull();
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Add screenshot' }).disabled).toBe(false);
+  });
+
+  it('calls a tab with no address another page', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    await openReportService(user, 'https://forms.example/download');
+    await Promise.resolve(fakeBrowser.tabs.create({ active: true }));
+
+    await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
+    await screen.findByText(/This tab shows another page, not forms\.example/);
+  });
+
+  it('takes one capture at a time', async () => {
+    const { list, release } = await pendingCapture();
+    let first: Promise<PendingEvidence | null> = Promise.resolve(null);
+    let second: PendingEvidence | null = null;
+    await act(async () => {
+      first = list().take();
+      second = await list().take();
+    });
+    expect(second).toBeNull();
+    await act(async () => {
+      release();
+      expect(await first).not.toBeNull();
+    });
+    expect(list().items).toHaveLength(1);
+  });
+
+  it('drops a capture that finishes after the form has closed', async () => {
+    const { list, release, capturing, unmount } = await pendingCapture();
+    const revoke = vi.fn();
+    URL.revokeObjectURL = revoke;
+    let taken: Promise<PendingEvidence | null> = Promise.resolve(null);
+    act(() => {
+      taken = list().take();
+    });
+    await capturing;
+    unmount();
+    release();
+    expect(await taken).toBeNull();
+    expect(revoke).toHaveBeenCalledWith('blob:fake-evidence');
   });
 });

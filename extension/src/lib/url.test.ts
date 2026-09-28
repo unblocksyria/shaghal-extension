@@ -1,6 +1,6 @@
-import { matchUrl } from './url';
 import { describe, expect, it } from 'vitest';
-import { hostOf, isOwnSite, normalizeServiceUrl, siteOf } from './url';
+import { SITE_BASE } from './config';
+import { hostOf, isOwnSite, matchUrl, normalizeServiceUrl, siteOf } from './url';
 
 describe('siteOf', () => {
   it('lowercases and drops www. and the port', () => {
@@ -70,4 +70,26 @@ describe('lookup privacy', () => {
     'chrome://settings/',
     'https://example.com/' + 'a'.repeat(2048),
   ])('does not disclose an unsupported or local address: %s', (url) => expect(matchUrl(url)).toBeNull());
+});
+
+describe('addresses that are not a page to look up', () => {
+  it('give no host, no lookup and no own-site claim when they do not parse', () => {
+    expect(hostOf('not a url')).toBe('');
+    expect(isOwnSite('not a url')).toBe(false);
+    expect(matchUrl('not a url')).toBeNull();
+  });
+
+  it('count the configured site as our own, on its exact origin only', () => {
+    expect(isOwnSite(`${SITE_BASE}/en/services/netflix`)).toBe(true);
+    expect(isOwnSite('http://localhost:3010/')).toBe(false);
+  });
+
+  it.each(['https://router.home.arpa/', 'https://wiki.internal/', 'http://intranet./', 'https://nas.local/'])(
+    'are never sent when they name a reserved or single-label host: %s',
+    (url) => expect(matchUrl(url)).toBeNull(),
+  );
+
+  it('are sent with the host lowercased and the path and query kept', () => {
+    expect(matchUrl('HTTPS://Play.Google.COM/store?id=1')).toBe('https://play.google.com/store?id=1');
+  });
 });

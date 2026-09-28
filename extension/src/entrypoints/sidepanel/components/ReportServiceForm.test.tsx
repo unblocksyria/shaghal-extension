@@ -1,7 +1,9 @@
 /** @vitest-environment jsdom */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
-import { screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import { fakeBrowser } from 'wxt/testing/fake-browser';
+import { ReportServiceForm } from './ReportServiceForm';
 import { API_BASE } from '../../../lib/config';
 import { fakeApi, type FakeApi } from '../../../testing/fakeApi';
 import { openPanel } from '../../../testing/panel';
@@ -128,4 +130,75 @@ it('offers to discard an earlier send that could not be confirmed, then sends th
   const [first, second] = api.callsTo('POST', '/submissions');
   expect(second?.json).toMatchObject({ name: 'First edited' });
   expect(second?.headers['Idempotency-Key']).not.toBe(first?.headers['Idempotency-Key']);
+});
+
+/** The form on its own, for what depends only on the page it was opened from. */
+async function renderForm(pageTitle: string | null): Promise<HTMLInputElement> {
+  await Promise.resolve(fakeBrowser.reset());
+  vi.stubGlobal('chrome', fakeBrowser);
+  fakeApi().install();
+  render(<ReportServiceForm url="https://untracked.example" pageTitle={pageTitle} onBack={() => undefined} />);
+  return screen.getByRole<HTMLInputElement>('textbox', { name: 'Service name' });
+}
+
+describe('the suggested name', () => {
+  it.each([
+    ['the first segment of the page title', 'Untracked Download | Best downloads - Home', 'Untracked Download'],
+    ['a title split on an en dash', 'Sign in – Untracked', 'Sign in'],
+    ['a title with no separator, trimmed', '  Plain Title  ', 'Plain Title'],
+    ['a hyphenated word kept whole', 'E-mail portal', 'E-mail portal'],
+    ['nothing, when the page has no title', null, ''],
+  ])('comes from %s', async (_label, title, expected) => {
+    expect((await renderForm(title)).value).toBe(expected);
+  });
+
+  it('is capped at 80 characters', async () => {
+    expect((await renderForm('x'.repeat(100))).value).toHaveLength(80);
+  });
+});
+
+describe('what the form sends', () => {
+  it('includes the description when one is written', async () => {
+    const user = userEvent.setup();
+    const api = await openReportService(user, 'https://described.example/');
+    await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Described Service');
+    await user.type(screen.getByRole('textbox', { name: 'Description' }), '  Blocks Syria at login.  ');
+    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+    await screen.findByRole('heading', { name: 'Report received' });
+    expect(api.callsTo('POST', '/submissions').at(0)?.json).toMatchObject({ description: 'Blocks Syria at login.' });
+  });
+
+  it('refuses an email that is not one, without a request', async () => {
+    const user = userEvent.setup();
+    const api = await openReportService(user, 'https://email.example/');
+    await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Some Service');
+    await user.type(screen.getByRole('textbox', { name: 'Your email' }), 'not-an-email');
+    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('Enter a valid email address, or leave it blank.');
+    expect(api.callsTo('POST', '/submissions')).toHaveLength(0);
+  });
+});
+
+it('says so when the earlier attempt cannot be discarded', async () => {
+  const user = userEvent.setup();
+  fakeApi()
+    .on('POST', '/services/match', { data: matchNone })
+    .on('POST', '/submissions', { status: 503, json: { error: 'UNAVAILABLE', message: 'Try later' } })
+    .on('POST', '/submission-receipts', { json: { state: 'unconfirmed' } })
+    .install();
+  await openPanel('https://undiscardable.example/');
+  await user.click(await screen.findByRole('button', { name: 'Report a Service' }, { timeout: 3000 }));
+
+  const name = await screen.findByRole('textbox', { name: 'Service name' });
+  await user.type(name, 'First');
+  await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+  await screen.findByText('Try later');
+  await user.type(name, ' edited');
+  await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+
+  vi.spyOn(fakeBrowser.storage.session, 'remove').mockRejectedValueOnce(new Error('quota'));
+  await user.click(await screen.findByRole('button', { name: 'Discard earlier attempt' }));
+  await screen.findByText(
+    'Could not save a delivery receipt in this browser. Nothing was sent. Reopen the panel and try again.',
+  );
 });

@@ -1,10 +1,11 @@
 /** @vitest-environment jsdom */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
 import { fireEvent, screen, within } from '@testing-library/react';
+import { closeEditorWindows } from '../../../testing/editorWindows';
 import { API_BASE } from '../../../lib/config';
-import { fakeApi, type FakeApi } from '../../../testing/fakeApi';
-import { openPanel } from '../../../testing/panel';
+import { fakeApi, type FakeAnswer, type FakeApi, type FakeResponder } from '../../../testing/fakeApi';
+import { openPanel, stubScreenshot } from '../../../testing/panel';
 import functionalities from '../../../testing/fixtures/functionalities.json';
 import match from '../../../testing/fixtures/match.json';
 import serviceRecord from '../../../testing/fixtures/service-record.json';
@@ -112,4 +113,187 @@ describe('the report form', () => {
     ).toBeDefined();
     expect(api.callsTo('POST', '/functionality-reports')).toHaveLength(0);
   });
+});
+
+/** The report form for a service that records no parts yet. */
+async function openBlankReport(
+  user: UserEvent,
+  pageUrl: string,
+  catalogue: FakeAnswer | FakeResponder,
+): Promise<FakeApi> {
+  const api = fakeApi()
+    .on('POST', '/services/match', { data: match })
+    .on('GET', '/services/netflix', { data: { ...serviceRecord, functionalities: [] } })
+    .on('GET', '/functionalities', catalogue)
+    .on('POST', '/functionality-reports', { status: 201, json: { id: 'receipt' } })
+    .install();
+  await openPanel(pageUrl);
+  await user.click(await screen.findByRole('button', { name: 'Report what works' }, { timeout: 3000 }));
+  await screen.findByRole('heading', { name: 'Report what works' });
+  return api;
+}
+
+/** The part's own controls: its notes and screenshot field, once it is marked. */
+const partOf = (name: string) => within(screen.getByRole('radiogroup', { name }).parentElement as HTMLElement);
+
+describe('a service with no recorded parts', () => {
+  it('offers the two parts every service has, as not recorded, and lets one be dropped', async () => {
+    const user = userEvent.setup();
+    const api = await openBlankReport(user, 'https://blank.example/', { data: functionalities });
+
+    expect(await screen.findByRole('radiogroup', { name: 'Core use' })).toBeDefined();
+    expect(screen.getByRole('radiogroup', { name: 'Landing page' })).toBeDefined();
+    expect(screen.getAllByText('Not recorded yet')).toHaveLength(2);
+
+    await user.click(screen.getByRole('button', { name: 'Remove Landing page' }));
+    expect(screen.queryByRole('radiogroup', { name: 'Landing page' })).toBeNull();
+
+    // Unrecorded counts as unknown, so Works contradicts it and needs detail.
+    await user.click(
+      within(screen.getByRole('radiogroup', { name: 'Core use' })).getByRole('radio', { name: 'Works' }),
+    );
+    expect(screen.getByText('Required: a note or a screenshot showing this.')).toBeDefined();
+    await user.type(screen.getByPlaceholderText('What happened?'), 'Opens.');
+    await user.click(screen.getByRole('button', { name: 'Send report' }));
+    await screen.findByRole('heading', { name: 'Report sent' });
+    expect(api.callsTo('POST', '/functionality-reports').at(0)?.json).toMatchObject({
+      items: [{ slug: 'core_use', level: 'working', description: 'Opens.' }],
+    });
+  });
+
+  it('still offers them by their built-in names when the catalogue fails, and Try again brings the rest', async () => {
+    const user = userEvent.setup();
+    let failing = true;
+    const api = await openBlankReport(user, 'https://catalogue-down.example/', () =>
+      failing ? { status: 500, json: { error: 'UPSET', message: 'The catalogue is down' } } : { data: functionalities },
+    );
+
+    expect(await screen.findByRole('radiogroup', { name: 'Core use' })).toBeDefined();
+    expect(screen.getByRole('radiogroup', { name: 'Landing page' })).toBeDefined();
+    expect(screen.getByText('Could not load the other parts you can add.')).toBeDefined();
+    expect(screen.queryByRole('combobox', { name: 'Add a part you tried' })).toBeNull();
+
+    failing = false;
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    await screen.findByRole('combobox', { name: 'Add a part you tried' });
+    expect(screen.queryByText('Could not load the other parts you can add.')).toBeNull();
+    expect(api.callsTo('GET', '/functionalities')).toHaveLength(2);
+  });
+});
+
+describe('adding a part', () => {
+  it('adds a part from the catalogue, and forgets its answer when it is removed', async () => {
+    const user = userEvent.setup();
+    await openReport(user, 'https://add-part.example/');
+
+    const picker = await screen.findByRole<HTMLSelectElement>('combobox', { name: 'Add a part you tried' });
+    expect([...picker.options].map((option) => option.textContent)).toEqual(['Choose a part', 'Sign up', 'Payments']);
+    await user.selectOptions(picker, 'sign_up');
+
+    const signUp = screen.getByRole('radiogroup', { name: 'Sign up' });
+    expect(screen.getByText('Not recorded yet')).toBeDefined();
+    expect([...picker.options].map((option) => option.textContent)).toEqual(['Choose a part', 'Payments']);
+    await user.click(within(signUp).getByRole('radio', { name: 'Works' }));
+    await user.type(screen.getByRole('textbox', { name: 'Notes for Sign up' }), 'Signed up fine.');
+
+    await user.click(screen.getByRole('button', { name: 'Remove Sign up' }));
+    expect(screen.queryByRole('radiogroup', { name: 'Sign up' })).toBeNull();
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Send report' }).disabled).toBe(true);
+
+    // Added again, it starts over.
+    await user.selectOptions(picker, 'sign_up');
+    const again = screen.getByRole('radiogroup', { name: 'Sign up' });
+    expect(within(again).getByRole('radio', { name: 'Not checked' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.queryByRole('textbox', { name: 'Notes for Sign up' })).toBeNull();
+  });
+});
+
+describe('confirming what is recorded', () => {
+  it('counts a part marked as recorded only once a note or screenshot backs it', async () => {
+    const user = userEvent.setup();
+    const api = await openReport(user, 'https://confirm.example/');
+    const send = screen.getByRole<HTMLButtonElement>('button', { name: 'Send report' });
+
+    // Core use is recorded as failing.
+    await user.click(
+      within(screen.getByRole('radiogroup', { name: 'Core use' })).getByRole('radio', { name: 'Fails' }),
+    );
+    expect(screen.getByText('Same as recorded. Add a note or a screenshot to confirm it again.')).toBeDefined();
+    expect(send.disabled).toBe(true);
+
+    await user.type(screen.getByPlaceholderText('What happened?'), 'Still fails today.');
+    expect(screen.queryByText(/Same as recorded/)).toBeNull();
+    expect(send.disabled).toBe(false);
+    await user.click(send);
+    await screen.findByRole('heading', { name: 'Report sent' });
+    expect(api.callsTo('POST', '/functionality-reports').at(0)?.json).toMatchObject({
+      items: [{ slug: 'core_use', level: 'failing', description: 'Still fails today.' }],
+    });
+  });
+});
+
+describe('what stops a report', () => {
+  it('refuses an email that is not one, without a request', async () => {
+    const user = userEvent.setup();
+    const api = await openReport(user, 'https://email.example/');
+    await user.click(
+      within(screen.getByRole('radiogroup', { name: 'Core use' })).getByRole('radio', { name: 'Works' }),
+    );
+    await user.type(screen.getByPlaceholderText('What happened?'), 'Opens.');
+    await user.type(screen.getByRole('textbox', { name: 'Your email' }), 'not-an-email');
+
+    await user.click(screen.getByRole('button', { name: 'Send report' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('Enter a valid email address, or leave it blank.');
+    expect(api.callsTo('POST', '/functionality-reports')).toHaveLength(0);
+  });
+
+  it('shows why a screenshot could not be uploaded, and stays sendable', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    const api = await openReport(user, 'https://upload.example/');
+    api.on('POST', '/uploads/evidence', { status: 500, json: { error: 'UPSET', message: 'Upload refused' } });
+    await user.click(
+      within(screen.getByRole('radiogroup', { name: 'Core use' })).getByRole('radio', { name: 'Works' }),
+    );
+    await user.click(partOf('Core use').getByRole('button', { name: 'Add screenshot' }));
+    await screen.findByAltText('Evidence #1');
+    await closeEditorWindows();
+
+    await user.click(screen.getByRole('button', { name: 'Send report' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('A screenshot could not be uploaded: Upload refused');
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Send report' }).disabled).toBe(false);
+    expect(api.callsTo('POST', '/functionality-reports')).toHaveLength(0);
+  });
+
+  it("shows the API's refusal and keeps the draft", async () => {
+    const user = userEvent.setup();
+    const api = await openReport(user, 'https://refused.example/');
+    api.on('POST', '/functionality-reports', { status: 422, json: { error: 'INVALID', message: 'Report refused' } });
+    const coreUse = screen.getByRole('radiogroup', { name: 'Core use' });
+    await user.click(within(coreUse).getByRole('radio', { name: 'Works' }));
+    await user.type(screen.getByPlaceholderText('What happened?'), 'Opens.');
+
+    await user.click(screen.getByRole('button', { name: 'Send report' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('Report refused');
+    expect(within(coreUse).getByRole('radio', { name: 'Works' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByPlaceholderText('What happened?')).toHaveProperty('value', 'Opens.');
+  });
+});
+
+it("frees a removed part's screenshots", async () => {
+  const user = userEvent.setup();
+  stubScreenshot();
+  const revoke = vi.fn();
+  URL.revokeObjectURL = revoke;
+  await openBlankReport(user, 'https://free.example/', { data: functionalities });
+
+  const landing = await screen.findByRole('radiogroup', { name: 'Landing page' });
+  await user.click(within(landing).getByRole('radio', { name: 'Works' }));
+  await user.click(partOf('Landing page').getByRole('button', { name: 'Add screenshot' }));
+  await screen.findByAltText('Evidence #1');
+  await closeEditorWindows();
+
+  await user.click(screen.getByRole('button', { name: 'Remove Landing page' }));
+  expect(screen.queryByAltText('Evidence #1')).toBeNull();
+  expect(revoke).toHaveBeenCalledWith('blob:fake-evidence');
 });
