@@ -9,6 +9,7 @@ whether the site you're on works from Syria, and lets you help keep that record
 accurate.
 
 **[Install from the Chrome Web Store](https://chromewebstore.google.com/detail/shaghal/epmjhaoobmgfclbkelhkiakijjocjgfm)**
+· **[Install from Firefox Add-ons](https://addons.mozilla.org/firefox/addon/shaghal/)**
 · [Learn more](https://unblocksyria.com/shaghal)
 
 ## Features
