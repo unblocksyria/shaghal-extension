@@ -1,6 +1,6 @@
 {
   "name": "shaghal",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Unblock Syria browser extension: see whether a site works from Syria and report what works.",
   "license": "MIT",
