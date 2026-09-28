@@ -4,6 +4,12 @@ export default defineConfig({
   srcDir: 'src',
   // Off 3000, which the website uses in development, so both can run side by side.
   dev: { server: { port: 3010 } },
+  // No modulepreload hint. Chrome declines the crossorigin link it would emit
+  // inside an extension page, calls it a cross world resource mismatch, then
+  // reports the same resource as preloaded but never used. Those two messages
+  // are the panel's only console noise. The shared chunk sits next to the
+  // page, so there is no network to warm up by hinting at it.
+  vite: () => ({ build: { modulePreload: false } }),
   manifest: {
     // Localized in public/_locales: شغّال in Arabic, Shaghal everywhere else.
     name: '__MSG_extName__',

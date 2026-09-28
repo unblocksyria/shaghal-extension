@@ -66,7 +66,11 @@ test('fits a narrow panel in both themes and keeps Settings labels attached to v
   await panel.getByRole('button', { name: 'Settings' }).click();
   await panel.locator('label:visible').filter({ hasText: 'Your email' }).click();
   await expect(panel.getByRole('textbox', { name: 'Your email' })).toBeFocused();
-  await panel.getByRole('radio', { name: 'System', exact: true }).focus();
+  // Scoped to Appearance: the Language row below it has a System radio too.
+  await panel
+    .getByRole('radiogroup', { name: 'Appearance' })
+    .getByRole('radio', { name: 'System', exact: true })
+    .focus();
   await panel.keyboard.press('End');
   await expect(panel.getByRole('radio', { name: 'Dark', exact: true })).toHaveAttribute('aria-checked', 'true');
   await expect(panel.locator('html')).toHaveAttribute('data-theme', 'dark');

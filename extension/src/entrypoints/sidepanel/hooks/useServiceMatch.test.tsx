@@ -12,7 +12,11 @@ describe('lookup lifecycle', () => {
       initialProps: { url: 'https://user:password@privacy.example/path?id=app#secret' },
     });
     await waitFor(() => expect(result.current.state.status).toBe('ready'));
-    expect(api.callsTo('POST', '/services/match')[0]?.json).toEqual({ url: 'https://privacy.example/path?id=app' });
+    // The active locale rides along, so the answer comes back in the panel's language.
+    expect(api.callsTo('POST', '/services/match')[0]?.json).toEqual({
+      url: 'https://privacy.example/path?id=app',
+      locale: 'en',
+    });
     rerender({ url: 'https://privacy.example/path?id=app#other' });
     expect(result.current.state.status).toBe('ready');
     expect(api.callsTo('POST', '/services/match')).toHaveLength(1);

@@ -1,5 +1,6 @@
 import type { ApiResult } from './api';
 import { uploadEvidence } from './endpoints';
+import { i18next } from './i18n';
 import type { ImageEdits } from './imageEdits';
 
 export interface PendingEvidence {
@@ -95,7 +96,7 @@ export async function uploadPendingEvidence(
   if (item.blob.size === 0 || item.blob.size > MAX_EVIDENCE_BYTES)
     return {
       ok: false,
-      error: { error: 'INVALID_FILE', message: 'Screenshots must be between 1 byte and 5 MB.', status: 0 },
+      error: { error: 'INVALID_FILE', message: i18next.t('evidence.sizeRange'), status: 0 },
     };
   const upload = await uploadEvidence(item.blob, item.filename, reportType);
   if (!upload.ok) return upload;

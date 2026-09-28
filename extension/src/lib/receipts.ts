@@ -1,9 +1,11 @@
 import { apiRequest, type ApiResult } from './api';
+import { i18next } from './i18n';
 import type { TurnstileAction } from './turnstile';
 
 type PendingReceipt = { key: string; fingerprint: string };
-const uncertainMessage =
-  'An earlier send has not been confirmed. Keep the original details and screenshots, then send again to check its receipt. Do not start a replacement report yet.';
+
+/** Read when it is shown, so it follows the panel's language. */
+const uncertainMessage = () => i18next.t('receipts.uncertain');
 
 /** Session storage keeps uncertain delivery markers across panel closures, without storing form contents. */
 export async function submitWithReceipt(
@@ -29,7 +31,7 @@ export async function submitWithReceipt(
             typeof value === 'object' &&
             value !== null &&
             ['completed', 'unconfirmed', 'expired'].includes((value as { state: string }).state),
-          message: uncertainMessage,
+          message: uncertainMessage(),
         },
       });
       if (
@@ -48,12 +50,12 @@ export async function submitWithReceipt(
             status: 409,
             message:
               prior.data.status !== undefined && prior.data.status < 300
-                ? 'Your earlier submission was received. Check it before sending another.'
-                : 'Your earlier attempt was refused. Review the current details, then try again.',
+                ? i18next.t('receipts.received')
+                : i18next.t('receipts.refused'),
           },
         };
       }
-      return { ok: false, error: { error: 'DELIVERY_UNCONFIRMED', message: uncertainMessage, status: 409 } };
+      return { ok: false, error: { error: 'DELIVERY_UNCONFIRMED', message: uncertainMessage(), status: 409 } };
     }
     receipt = stored ?? { key: `${Date.now()}.${crypto.randomUUID()}`, fingerprint };
     await chrome.storage.session.set({ [slot]: receipt });
@@ -62,7 +64,7 @@ export async function submitWithReceipt(
       ok: false,
       error: {
         error: 'RECEIPT_STORAGE_UNAVAILABLE',
-        message: 'Could not save a delivery receipt in this browser. Nothing was sent. Reopen the panel and try again.',
+        message: i18next.t('receipts.storageFailed'),
         status: 0,
       },
     };
@@ -79,7 +81,7 @@ export async function submitWithReceipt(
         value !== null &&
         typeof (value as { id?: unknown }).id === 'string' &&
         (value as { id: string }).id.length > 0,
-      message: 'Delivery was not confirmed. Send again with the same details to check its receipt.',
+      message: i18next.t('receipts.unconfirmed'),
     },
   });
   // An unreadable success or server/network failure may follow a completed write.

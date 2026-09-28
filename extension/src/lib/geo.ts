@@ -1,4 +1,5 @@
 import { GEO_TRACE_URL } from './config';
+import { i18next } from './i18n';
 
 /** The country code in a Cloudflare trace, or null when it has none or does not know. */
 export function parseTraceCountry(trace: string): string | null {
@@ -16,11 +17,14 @@ export async function browsingCountry(): Promise<string | null> {
   }
 }
 
-/** A country code as a name to show; Cloudflare reports Tor exits as T1. */
-export function countryName(code: string): string {
-  if (code === 'T1') return 'the Tor network';
+/**
+ * A country code as a name to show, in the panel's own language; Cloudflare
+ * reports Tor exits as T1 (spec 0002, AC-8).
+ */
+export function countryName(code: string, locale = 'en-GB'): string {
+  if (code === 'T1') return i18next.t('vpn.torNetwork');
   try {
-    return new Intl.DisplayNames(['en'], { type: 'region' }).of(code) ?? code;
+    return new Intl.DisplayNames([locale], { type: 'region' }).of(code) ?? code;
   } catch {
     return code;
   }

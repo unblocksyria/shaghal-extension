@@ -1056,7 +1056,7 @@ textarea.us-field {
 
 .us-thumb-edit-badge {
   position: absolute;
-  left: 4px;
+  inset-inline-start: 4px;
   bottom: 4px;
   display: inline-flex;
   align-items: center;

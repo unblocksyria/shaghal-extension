@@ -1,6 +1,8 @@
 import { formErrorMessage } from '../../../lib/api';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useTranslation } from 'react-i18next';
 import { captureScreenshot, uploadPendingEvidence, withEdits, type PendingEvidence } from '../../../lib/evidence';
+import { directionOf, activeLanguage, i18next } from '../../../lib/i18n';
 import { getSavedEmail, watchSavedEmail } from '../../../lib/settings';
 import { siteOf } from '../../../lib/url';
 import { Button } from '../../../components/ui/Button';
@@ -16,7 +18,7 @@ import {
 import type { EditedScreenshot } from '../../../lib/imageEdits';
 import { ScreenshotEditor } from '../../../components/editor/ScreenshotEditor';
 import { EvidenceThumbs } from './EvidenceThumbs';
-import { ArrowLeft, Camera, Check } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Camera, Check } from 'lucide-react';
 
 export const cardStyle: React.CSSProperties = {
   backgroundColor: 'var(--us-card)',
@@ -70,6 +72,9 @@ export function FormShell(props: {
     window.addEventListener('beforeunload', guard);
     return () => window.removeEventListener('beforeunload', guard);
   }, [dirty, trackDraft]);
+  // The back arrow points the way the text runs (spec 0002, AC-3).
+  const Back = directionOf(activeLanguage()) === 'rtl' ? ArrowRight : ArrowLeft;
+  const { t } = useTranslation();
   return (
     <section className="us-animate-fade" style={cardStyle}>
       <button
@@ -90,7 +95,7 @@ export function FormShell(props: {
           fontFamily: 'inherit',
         }}
       >
-        <ArrowLeft size={14} /> {props.backLabel}
+        <Back size={14} /> {props.backLabel}
       </button>
       <div style={{ display: 'grid', gap: 6 }}>
         <h1 style={titleStyle}>{props.title}</h1>
@@ -106,7 +111,7 @@ export function FormShell(props: {
       >
         {props.children}
       </fieldset>
-      {trackDraft && <p style={hintStyle}>Keep this panel open until you finish. Unsent drafts stay here only.</p>}
+      {trackDraft && <p style={hintStyle}>{t('form.stayOpen')}</p>}
       {confirming && (
         <dialog
           ref={discard}
@@ -115,13 +120,13 @@ export function FormShell(props: {
           style={{ ...cardStyle, color: 'var(--us-text-primary)', maxWidth: 300 }}
         >
           <h2 id="discard-draft-title" style={titleStyle}>
-            Discard this draft?
+            {t('form.discardTitle')}
           </h2>
-          <p style={hintStyle}>Your unsent text and screenshots will be removed from this panel.</p>
+          <p style={hintStyle}>{t('form.discardText')}</p>
           <Button onClick={() => setConfirming(false)} autoFocus>
-            Keep editing
+            {t('form.keepEditing')}
           </Button>
-          <Button onClick={props.onBack}>Discard draft</Button>
+          <Button onClick={props.onBack}>{t('form.discardDraft')}</Button>
         </dialog>
       )}
     </section>
@@ -153,6 +158,7 @@ export interface ScreenshotList {
  * (sign-in, payment) on purpose.
  */
 export function useScreenshotLists(pageUrl?: string | null): { list: (key: string) => ScreenshotList } {
+  const { t } = useTranslation();
   const [byKey, setByKey] = useState<Record<string, PendingEvidence[]>>({});
   const [failure, setFailure] = useState<{ key: string; message: string } | null>(null);
   // `${key} ${site}` of the last capture held back; pressing again for it captures.
@@ -194,7 +200,10 @@ export function useScreenshotLists(pageUrl?: string | null): { list: (key: strin
           setHeldFor(`${key} ${site}`);
           setFailure({
             key,
-            message: `This tab shows ${site || 'another page'}, not ${expected}. Switch back to it, or press again to capture this tab anyway.`,
+            message: t('form.wrongTab', {
+              site: site === '' ? t('form.anotherPage') : site,
+              expected,
+            }),
           });
           return null;
         }
@@ -203,14 +212,13 @@ export function useScreenshotLists(pageUrl?: string | null): { list: (key: strin
         const [after] = await chrome.tabs.query({ active: true, windowId: tab?.windowId });
         if (!mounted.current || after?.id !== tab?.id || after?.url !== tab?.url) {
           URL.revokeObjectURL(item.previewUrl);
-          if (mounted.current)
-            setFailure({ key, message: 'The tab changed during capture. Take the screenshot again.' });
+          if (mounted.current) setFailure({ key, message: t('form.tabChanged') });
           return null;
         }
         setByKey((lists) => ({ ...lists, [key]: [...(lists[key] ?? []), item] }));
         return item;
       } catch (captureError) {
-        setFailure({ key, message: `Could not take a screenshot: ${String(captureError)}` });
+        setFailure({ key, message: t('form.captureFailed', { error: String(captureError) }) });
         return null;
       } finally {
         pendingCaptures -= 1;
@@ -265,17 +273,17 @@ export async function uploadScreenshots(
   type: 'submission' | 'correction' | 'functionality_report',
 ): Promise<{ ok: true; urls: string[] } | { ok: false; message: string }> {
   if (pendingCaptures > 0 || inlineEditors.size > 0) {
-    return { ok: false, message: 'Finish capturing or editing your screenshot first.' };
+    return { ok: false, message: i18next.t('form.finishCapturing') };
   }
   if (isEditorOpen()) {
     focusEditorWindow();
-    return { ok: false, message: 'Save or cancel the screenshot open in the editor first.' };
+    return { ok: false, message: i18next.t('form.editorOpen') };
   }
   const urls: string[] = [];
   for (const item of screenshots.items) {
     const result = await uploadPendingEvidence(item, type);
     if (!result.ok)
-      return { ok: false, message: `A screenshot could not be uploaded: ${formErrorMessage(result.error)}` };
+      return { ok: false, message: i18next.t('form.uploadFailed', { message: formErrorMessage(result.error) }) };
     if (result.data !== item) screenshots.replace(result.data);
     urls.push(result.data.uploadedUrl as string);
   }
@@ -298,6 +306,7 @@ export function ScreenshotField(props: {
   max?: number;
   locked?: boolean;
 }) {
+  const { t } = useTranslation();
   const { items, error, take, remove, edit } = props.screenshots;
   const locked = props.locked ?? false;
   const full = items.length >= (props.max ?? 10);
@@ -359,7 +368,7 @@ export function ScreenshotField(props: {
     setCapturing(true);
     try {
       const item = await take();
-      if (item !== null && alive.current) await openEditor(item, `evidence #${items.length + 1}`);
+      if (item !== null && alive.current) await openEditor(item, t('evidence.item', { n: items.length + 1 }));
     } finally {
       setCapturing(false);
     }
@@ -375,11 +384,11 @@ export function ScreenshotField(props: {
   };
 
   const status = inWindow
-    ? `Editing ${editing.label} in its own window.`
+    ? t('form.editingWindow', { label: editing.label })
     : editorOpen
-      ? 'Finish the screenshot open in the editor first.'
+      ? t('form.finishEditorFirst')
       : items.length > 0
-        ? 'Click a screenshot to crop it or hide personal details.'
+        ? t('form.cropHint')
         : null;
 
   return (
@@ -422,10 +431,10 @@ export function ScreenshotField(props: {
         style={{ justifySelf: 'start' }}
       >
         {capturing && editing === null
-          ? 'Capturing…'
+          ? t('form.capturing')
           : items.length === 0
-            ? 'Add screenshot'
-            : 'Add another screenshot'}
+            ? t('form.addScreenshot')
+            : t('form.addAnother')}
       </Button>
       {props.hint !== undefined && <p style={hintStyle}>{props.hint}</p>}
       {error !== null && <p style={{ ...hintStyle, color: 'var(--us-danger)' }}>{error}</p>}
@@ -458,15 +467,16 @@ export function useSavedEmail(): [string, (value: string) => void] {
 }
 
 export function EmailField(props: { value: string; onChange: (value: string) => void }) {
+  const { t } = useTranslation();
   return (
     <Input
-      label="Your email"
+      label={t('common.yourEmail')}
       type="email"
       maxLength={254}
-      placeholder="your@email.com"
+      placeholder={t('common.emailPlaceholder')}
       value={props.value}
       onChange={(event) => props.onChange(event.target.value)}
-      helperText="Optional. Never shown publicly. Remembered in this browser after you send."
+      helperText={t('form.emailHelp')}
     />
   );
 }
@@ -522,5 +532,5 @@ export function emailError(email: string): string | null {
   const value = email.trim();
   return value === '' || (value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
     ? null
-    : 'Enter a valid email address, or leave it blank.';
+    : i18next.t('form.emailInvalid');
 }

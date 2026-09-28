@@ -1,5 +1,6 @@
 import { formErrorMessage } from '../../../lib/api';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { submitService } from '../../../lib/submit';
 import { Input } from '../../../components/ui/Input';
 import { Textarea } from '../../../components/ui/Textarea';
@@ -24,6 +25,7 @@ function nameFromTitle(title: string | null): string {
 }
 
 export function ReportServiceForm(props: { url: string; pageTitle: string | null; onBack: () => void }) {
+  const { t } = useTranslation();
   const [name, setName] = useState(() => nameFromTitle(props.pageTitle));
   const [description, setDescription] = useState('');
   const screenshots = useScreenshots(props.url);
@@ -66,9 +68,9 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
   if (sent) {
     return (
       <SentState
-        title="Report received"
-        message="Thank you for helping map Syria's digital access. A volunteer will review your submission before it can be published."
-        actionLabel="Done"
+        title={t('reportService.sentTitle')}
+        message={t('reportService.sentMessage')}
+        actionLabel={t('reportService.done')}
         onAction={props.onBack}
       />
     );
@@ -77,24 +79,24 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
   return (
     <FormShell
       busy={busy}
-      backLabel="Back"
+      backLabel={t('common.back')}
       onBack={props.onBack}
-      title="Report a Service"
-      intro="Tell us about a service that blocks Syria. We verify it, then track it. Browse from Syria without a VPN so we can check it."
+      title={t('reportService.title')}
+      intro={t('reportService.intro')}
     >
       <VpnWarning />
       <Input
-        label="Service name"
+        label={t('reportService.name')}
         maxLength={200}
         requiredMark
         value={name}
         onChange={(event) => setName(event.target.value)}
       />
-      <Input label="Website URL" value={props.url} disabled />
+      <Input label={t('reportService.url')} value={props.url} disabled />
       <Textarea
-        label="Description"
+        label={t('reportService.description')}
         maxLength={2000}
-        placeholder="What does it do, and what happens when you use it from Syria?"
+        placeholder={t('reportService.descriptionPlaceholder')}
         value={description}
         onChange={(event) => setDescription(event.target.value)}
         rows={3}
@@ -102,16 +104,16 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
       <ScreenshotField
         screenshots={screenshots}
         locked={busy}
-        label="Evidence screenshots"
-        hint="Screenshots are how we verify a report. Add one showing the block or error message."
+        label={t('reportService.evidenceLabel')}
+        hint={t('reportService.evidenceHint')}
       />
       <EmailField value={email} onChange={setEmail} />
       <FormFooter
-        label="Submit Report"
-        busyLabel="Submitting…"
+        label={t('reportService.submit')}
+        busyLabel={t('reportService.submitting')}
         busy={busy}
-        blocker={name.trim().length === 0 ? 'Enter the service name.' : null}
-        note="We review all submissions before publishing. Your report helps us keep the record accurate."
+        blocker={name.trim().length === 0 ? t('reportService.blocker') : null}
+        note={t('reportService.note')}
         error={error}
         onSubmit={() => void submit()}
       />

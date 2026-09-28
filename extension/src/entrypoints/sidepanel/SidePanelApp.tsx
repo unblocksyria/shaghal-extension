@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { applyStoredLanguage } from '../../lib/i18n';
 import { getServiceBySlug, type CatalogService, type ServiceRecord } from '../../lib/endpoints';
+import { watchSavedLanguage } from '../../lib/settings';
 import { isOwnSite, normalizeServiceUrl } from '../../lib/url';
 import { SettingsView } from './SettingsView';
 import { useActiveTab } from './hooks/useActiveTab';
@@ -19,9 +22,15 @@ type PanelView =
   | { name: 'report-service'; url: string; pageTitle: string | null };
 
 export function SidePanelApp() {
+  const { t } = useTranslation();
   const [view, setView] = useState<PanelView>({ name: 'home' });
   // Settings opens over the current view, which stays mounted so a form's draft survives.
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // The saved pick wins as soon as it changes, in this panel or any other (spec 0002, AC-1).
+  useEffect(() => {
+    void applyStoredLanguage();
+    return watchSavedLanguage(() => void applyStoredLanguage());
+  }, []);
   const activeTab = useActiveTab();
   const currentPage = useRef(activeTab.url);
   useEffect(() => {
@@ -47,7 +56,10 @@ export function SidePanelApp() {
     setOpening(false);
     if (currentPage.current !== activeTab.url) return;
     if (!result.ok) {
-      setOpenFailure({ pageUrl: activeTab.url, message: `Could not open ${service.name}: ${result.error.message}` });
+      setOpenFailure({
+        pageUrl: activeTab.url,
+        message: t('app.openFailed', { name: service.name, message: result.error.message }),
+      });
       return;
     }
     setView({ name, service: result.data, pageUrl: activeTab.url });
@@ -97,7 +109,7 @@ export function SidePanelApp() {
             }}
           >
             {openError !== null && <p style={{ ...hintStyle, color: 'var(--us-danger)' }}>{openError}</p>}
-            {opening ? <p style={hintStyle}>Opening…</p> : page()}
+            {opening ? <p style={hintStyle}>{t('app.opening')}</p> : page()}
           </div>
         </main>
       </div>

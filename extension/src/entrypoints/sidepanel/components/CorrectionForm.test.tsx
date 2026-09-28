@@ -91,4 +91,18 @@ describe('the correction form', () => {
     await user.click(submit);
     expect(api.callsTo('POST', '/corrections')).toHaveLength(0);
   });
+
+  it('says why the categories are missing when the first fetch fails', async () => {
+    const user = userEvent.setup();
+    const api = await openCorrection(user, 'https://fifth.example/page');
+    // The last answer registered wins, so this one overrides the fixture.
+    api.on('GET', '/categories', { status: 500, json: { error: 'UPSET', message: 'Categories are down' } });
+
+    await user.click(screen.getByRole('checkbox', { name: 'Categories' }));
+
+    await screen.findByText('Could not load categories: Categories are down');
+    // The form stays usable: the picker still opens, with no names to show.
+    await user.click(screen.getByRole('button', { name: /2 selected/ }));
+    expect(screen.getByText('No categories found.')).toBeDefined();
+  });
 });

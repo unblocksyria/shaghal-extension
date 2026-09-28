@@ -1,4 +1,5 @@
 import { API_BASE } from './config';
+import { i18next } from './i18n';
 import { turnstileToken, type TurnstileAction } from './turnstile';
 
 export interface ApiError {
@@ -14,9 +15,8 @@ export function formErrorMessage(error: ApiError): string {
   if (error.status !== 429) return error.message;
   const seconds = Math.max(1, Math.ceil(error.retryAfterSeconds ?? 60));
   const amount = seconds < 60 ? seconds : Math.ceil(seconds / 60);
-  const unit = seconds < 60 ? 'second' : 'minute';
-  const wait = `${amount} ${unit}${amount === 1 ? '' : 's'}`;
-  return `This shared network is busy. Try again in ${wait}. Keep this panel open to preserve your draft.`;
+  const unit = i18next.t(seconds < 60 ? 'api.cooldownSecond' : 'api.cooldownMinute', { count: amount });
+  return i18next.t('api.cooldown', { wait: `${amount} ${unit}` });
 }
 
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: ApiError };
@@ -117,10 +117,10 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       error: {
         error: timedOut ? 'TIMEOUT' : 'NETWORK_ERROR',
         message: timedOut
-          ? 'Unblock Syria took too long to answer. Your request may have arrived; check before sending again.'
+          ? i18next.t('api.timeout')
           : options.method === 'POST' || options.method === 'DELETE'
-            ? 'The request could not be confirmed. It may have arrived; check before sending again.'
-            : 'Could not reach Unblock Syria. Check your connection.',
+            ? i18next.t('api.unconfirmed')
+            : i18next.t('api.network'),
         status: 0,
       },
     };
@@ -134,14 +134,14 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   try {
     payload = await response.json();
   } catch {
-    return badResponse(response.status, 'Unblock Syria sent an answer the panel could not read.');
+    return badResponse(response.status, i18next.t('api.unreadable'));
   }
   const unwrapped = (options.unwrap ?? 'data') === 'raw' ? payload : (payload as { data?: unknown } | null)?.data;
   try {
     if (unwrapped === undefined || (options.expect !== undefined && !options.expect.check(unwrapped)))
-      return badResponse(response.status, options.expect?.message ?? 'Unblock Syria sent an incomplete answer.');
+      return badResponse(response.status, options.expect?.message ?? i18next.t('api.incomplete'));
   } catch {
-    return badResponse(response.status, 'Unblock Syria sent an invalid answer.');
+    return badResponse(response.status, i18next.t('api.invalid'));
   }
   return { ok: true, data: unwrapped as T };
 }

@@ -1,4 +1,5 @@
 import { apiRequest, type ApiResult } from './api';
+import { activeLanguage, i18next } from './i18n';
 
 const record = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -16,7 +17,7 @@ const part = (value: unknown) =>
 const listOf = (check: (value: unknown) => boolean) => (value: unknown) => Array.isArray(value) && value.every(check);
 const expectation = (check: (value: unknown) => boolean) => ({
   check,
-  message: 'Unblock Syria sent incomplete or invalid data. Try again.',
+  message: i18next.t('api.incompleteData'),
 });
 
 function isServiceRecord(value: unknown): boolean {
@@ -64,6 +65,8 @@ function isVote(value: unknown): boolean {
 export interface ServiceRecord {
   id: string;
   name: string;
+  /** The Arabic name, or null when the catalogue has none (spec 0002, AC-6). */
+  nameAr?: string | null;
   url: string | null;
   description?: string | null;
   supportEmail?: string | null;
@@ -73,7 +76,9 @@ export interface ServiceRecord {
 }
 
 export async function getServiceBySlug(slug: string): Promise<ApiResult<ServiceRecord>> {
-  return apiRequest<ServiceRecord>(`/services/${encodeURIComponent(slug)}`, { expect: expectation(isServiceRecord) });
+  return apiRequest<ServiceRecord>(`/services/${encodeURIComponent(slug)}?locale=${activeLanguage()}`, {
+    expect: expectation(isServiceRecord),
+  });
 }
 
 export interface FunctionalityItem {
@@ -87,11 +92,13 @@ export interface CategoryItem {
 }
 
 export async function getCategories(): Promise<ApiResult<CategoryItem[]>> {
-  return apiRequest<CategoryItem[]>('/categories', { expect: expectation(listOf(named)) });
+  return apiRequest<CategoryItem[]>(`/categories?locale=${activeLanguage()}`, { expect: expectation(listOf(named)) });
 }
 
 export async function getFunctionalities(): Promise<ApiResult<FunctionalityItem[]>> {
-  return apiRequest<FunctionalityItem[]>('/functionalities', { expect: expectation(listOf(part)) });
+  return apiRequest<FunctionalityItem[]>(`/functionalities?locale=${activeLanguage()}`, {
+    expect: expectation(listOf(part)),
+  });
 }
 
 interface EvidenceFilePayload {
@@ -120,7 +127,7 @@ export async function uploadEvidence(
     contentType: 'multipart',
     body: form,
     unwrap: 'raw',
-    expect: { check: isEvidenceFile, message: 'The upload answered without a file address.' },
+    expect: { check: isEvidenceFile, message: i18next.t('api.uploadNoFile') },
   });
   if (!result.ok) return result;
   return { ok: true, data: result.data.file.url };
@@ -132,6 +139,8 @@ export type Availability = 'available' | 'usable' | 'blocked' | 'unknown';
 export interface CatalogService {
   id: string;
   name: string;
+  /** The Arabic name, or null when the catalogue has none (spec 0002, AC-6). */
+  nameAr?: string | null;
   slug: string;
   logoUrl: string | null;
   availability: Availability;
@@ -156,7 +165,7 @@ export interface ServiceMatch {
 export async function matchService(url: string, signal?: AbortSignal): Promise<ApiResult<ServiceMatch>> {
   return apiRequest<ServiceMatch>('/services/match', {
     method: 'POST',
-    body: { url },
+    body: { url, locale: activeLanguage() },
     signal,
     expect: expectation(isMatch),
   });
