@@ -61,7 +61,7 @@ export const ar: Arabic<Catalog> = {
       },
       blocked: {
         label: 'محجوب',
-        meaning: 'الاستخدام الأساسي لا يعمل من سوريا.',
+        meaning: 'لا يعمل الاستخدام الأساسي أو الموقع الإلكتروني من سوريا.',
       },
       unknown: {
         label: 'غير معروف',
