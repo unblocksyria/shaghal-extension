@@ -1,6 +1,7 @@
 # Contributing
 
-Bug reports, translations and code are welcome.
+Bug reports, translations and code are welcome. Everyone taking part is expected
+to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Before you start
 
