@@ -44,8 +44,8 @@ details, [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Development
 
-You need Node.js 24 and npm, and Chrome 123 or later. Other Chromium browsers
-with the side panel API should work but aren't tested.
+You need Node.js 24 and npm, and Chrome 123 or later or Firefox 140 or later.
+Other Chromium browsers with the side panel API should work but aren't tested.
 
 ```bash
 cd extension
@@ -56,6 +56,11 @@ npm run dev
 Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**,
 and select `extension/.output/chrome-mv3-dev`. Click Shaghal's toolbar button to
 open the panel.
+
+For Firefox, `npm run dev:firefox` builds to `extension/.output/firefox-mv3-dev`
+and opens a Firefox with it loaded. To use your own Firefox instead, open
+`about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on…**, and
+select that folder's `manifest.json`.
 
 ### API
 
@@ -78,7 +83,7 @@ send test submissions. The tests need neither API; they use a fake one.
 Run from `extension/`:
 
 ```bash
-npm run check                    # lint, format check, types, unit tests, build
+npm run check                    # lint, format check, types, unit tests, builds, add-on lint
 npx playwright install chromium  # once
 npm run test:e2e                 # browser tests against the last build
 ```
@@ -90,12 +95,15 @@ report in `extension/coverage/`, and `npm run format` formats the code. CI runs
 ### Builds
 
 `npm run build` writes a production build to `extension/.output/chrome-mv3`, and
-`npm run zip` packages it for the store. Production builds use the live service.
-`WXT_API_BASE`, `WXT_SITE_BASE` and `WXT_VERIFY_BASE` override the hosts at build
-time.
+`npm run zip` packages it for the Chrome Web Store. `npm run build:firefox` and
+`npm run zip:firefox` do the same for Firefox in `extension/.output/firefox-mv3`,
+and `npm run lint:firefox` runs Mozilla's add-on linter on that build. Production
+builds use the live service. `WXT_API_BASE`, `WXT_SITE_BASE` and
+`WXT_VERIFY_BASE` override the hosts at build time.
 
-The manifest's public key gives unpacked builds the store's extension ID,
-`epmjhaoobmgfclbkelhkiakijjocjgfm`. In a development build you can open the panel
+The manifest's public key gives unpacked Chrome builds the store's extension ID,
+`epmjhaoobmgfclbkelhkiakijjocjgfm`; the Firefox build carries the add-on ID
+`shaghal@unblocksyria.com` instead. In a development build you can open the panel
 as a tab for a given page:
 `chrome-extension://epmjhaoobmgfclbkelhkiakijjocjgfm/sidepanel.html?preview=<encoded-url>`.
 

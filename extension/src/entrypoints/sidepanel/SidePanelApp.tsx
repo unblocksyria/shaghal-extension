@@ -12,6 +12,7 @@ import { ReportForm } from './components/ReportForm';
 import { CorrectionForm } from './components/CorrectionForm';
 import { ReportServiceForm } from './components/ReportServiceForm';
 import { HowItWorks } from './components/HowItWorks';
+import { HostAccessNotice } from './components/HostAccessNotice';
 import { hintStyle } from './components/FormParts';
 import { BrandHeader } from '../../components/ui/BrandHeader';
 import '../../styles/theme.css';
@@ -100,6 +101,7 @@ export function SidePanelApp() {
       <div className="us-app-content">
         <BrandHeader onOpenSettings={() => setSettingsOpen(true)} />
         <main style={{ padding: '0 16px 24px 16px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 14 }}>
+          <HostAccessNotice />
           {settingsOpen && <SettingsView onBack={() => setSettingsOpen(false)} />}
           <div
             style={{

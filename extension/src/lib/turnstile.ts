@@ -1,10 +1,9 @@
 import { IS_LOCAL_API, VERIFY_BASE } from './config';
 import { i18next } from './i18n';
+import { VERIFY_PATH, isFirefox, isRelayMessage, isVerifyFrame } from './verifyRelay';
 
 /** The Turnstile action each API endpoint expects its token to carry. */
 export type TurnstileAction = 'vote' | 'submission' | 'report' | 'correction' | 'upload';
-
-const VERIFY_PATH = '/extension/turnstile';
 
 /** Time for the verification page to load and answer before any challenge is shown. */
 const LOAD_TIMEOUT_MS = 30_000;
@@ -39,10 +38,15 @@ export function readMessage(data: unknown, nonce: string, action: TurnstileActio
  * verify.unblocksyria.com. Contract with that page:
  *
  * - URL: `${VERIFY_BASE}/extension/turnstile?action=<action>&nonce=<uuid>`.
- * - It posts `{ type: 'unblocksyria-turnstile', nonce, action, status }` to
- *   this extension's origin only. `status` is `interactive` when the tester
- *   must click, `solved` with a `token`, or `error` with a `code`.
- * - Its `frame-ancestors` allows only the store extension's origin.
+ * - It produces `{ type: 'unblocksyria-turnstile', nonce, action, status }`
+ *   messages. `status` is `interactive` when the tester must click, `solved`
+ *   with a `token`, or `error` with a `code`.
+ * - In Chrome it posts them to this extension's origin only, and its
+ *   `frame-ancestors` names the store extension's origin.
+ * - In Firefox, which gives an add-on no fixed origin, it dispatches them as
+ *   DOM events, and the content script in entrypoints/verify-relay.content.ts
+ *   sends them here. See lib/verifyRelay.ts for why only the frame carrying
+ *   this nonce is trusted.
  *
  * The frame stays invisible unless Turnstile needs a click. Rejects with a
  * displayable message on cancel, page error or timeout.
@@ -88,7 +92,8 @@ function requestTurnstileToken(action: TurnstileAction): Promise<string> {
     function finish(outcome: string | Error) {
       if (finished) return;
       finished = true;
-      window.removeEventListener('message', onMessage);
+      if (isFirefox()) chrome.runtime.onMessage.removeListener(onRelay);
+      else window.removeEventListener('message', onMessage);
       clearTimeout(timer);
       if (overlay.open) overlay.close();
       overlay.remove();
@@ -97,9 +102,25 @@ function requestTurnstileToken(action: TurnstileAction): Promise<string> {
       else reject(outcome);
     }
 
+    /** Chrome: the page posts to this origin, from the frame. */
     function onMessage(event: MessageEvent) {
       if (event.origin !== new URL(VERIFY_BASE).origin || event.source !== frame.contentWindow) return;
-      const message = readMessage(event.data, nonce, action);
+      handle(readMessage(event.data, nonce, action));
+    }
+
+    /** Firefox: the content script relays the page's event. The sender must be this frame. */
+    function onRelay(message: unknown, sender: chrome.runtime.MessageSender) {
+      if (!isRelayMessage(message) || !isVerifyFrame(sender.url, nonce, action)) return;
+      let data: unknown;
+      try {
+        data = JSON.parse(message.detail);
+      } catch {
+        return;
+      }
+      handle(readMessage(data, nonce, action));
+    }
+
+    function handle(message: ReturnType<typeof readMessage>) {
       if (message === null) return;
       if (message.status === 'solved') {
         finish(message.token);
@@ -124,7 +145,8 @@ function requestTurnstileToken(action: TurnstileAction): Promise<string> {
       finish(new Error(i18next.t('turnstile.cancelled')));
     };
     cancel.onclick = () => finish(new Error(i18next.t('turnstile.cancelled')));
-    window.addEventListener('message', onMessage);
+    if (isFirefox()) chrome.runtime.onMessage.addListener(onRelay);
+    else window.addEventListener('message', onMessage);
     overlay.append(label, frame, cancel);
     document.body.append(overlay);
   });

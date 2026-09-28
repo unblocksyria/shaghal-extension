@@ -1,8 +1,9 @@
 # Architecture
 
-Shaghal is a Manifest V3 extension built with WXT, React and TypeScript. Its side
-panel follows the active tab, matches it to an Unblock Syria service, and offers
-votes and moderated submissions. The extension has no backend or private API key.
+Shaghal is a Manifest V3 extension built with WXT, React and TypeScript, for
+Chrome and Firefox. Its side panel (Firefox's sidebar) follows the active tab,
+matches it to an Unblock Syria service, and offers votes and moderated
+submissions. The extension has no backend or private API key.
 
 ## Overview
 
@@ -18,14 +19,16 @@ flowchart LR
 ```
 
 The extension's work happens in two extension pages: the side panel and the
-screenshot editor window. The background worker only tells Chrome to open the
-panel from the toolbar button. Nothing is injected into the pages you visit.
+screenshot editor window. The background worker only makes the toolbar button
+open the panel: Chrome's side panel, or Firefox's sidebar. Nothing is injected
+into the pages you visit; the one content script runs on Firefox, on the
+verification page alone (see [Human verification](#human-verification)).
 
 ## Code map
 
 | Location                                                                                                                                                                                             | Responsibility                                                                                                                                               |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [background.ts](extension/src/entrypoints/background.ts)                                                                                                                                             | Makes the toolbar button open the side panel.                                                                                                                |
+| [background.ts](extension/src/entrypoints/background.ts)                                                                                                                                             | Makes the toolbar button open the side panel, or toggle Firefox's sidebar.                                                                                   |
 | [sidepanel](extension/src/entrypoints/sidepanel)                                                                                                                                                     | The panel page. `main.tsx` applies the theme and language before the first paint.                                                                            |
 | [SidePanelApp.tsx](extension/src/entrypoints/sidepanel/SidePanelApp.tsx)                                                                                                                             | Chooses the page card, a form or Settings. Loads a service's full record before opening its report or correction form. Settings opens over the current view. |
 | [sidepanel/hooks](extension/src/entrypoints/sidepanel/hooks)                                                                                                                                         | Following the active tab, debounced matching and the country check.                                                                                          |
@@ -38,6 +41,8 @@ panel from the toolbar button. Nothing is injected into the pages you visit.
 | [api.ts](extension/src/lib/api.ts), [endpoints.ts](extension/src/lib/endpoints.ts)                                                                                                                   | The API client, and one typed, validated function per route.                                                                                                 |
 | [submit.ts](extension/src/lib/submit.ts), [receipts.ts](extension/src/lib/receipts.ts)                                                                                                               | Form submissions and their receipts.                                                                                                                         |
 | [turnstile.ts](extension/src/lib/turnstile.ts)                                                                                                                                                       | Human verification through the verification page.                                                                                                            |
+| [verify-relay.content.ts](extension/src/entrypoints/verify-relay.content.ts), [verifyRelay.ts](extension/src/lib/verifyRelay.ts)                                                                     | Firefox only: the content script that relays the verification page's messages to the panel, and the checks the panel applies to them.                       |
+| [useHostAccess.ts](extension/src/entrypoints/sidepanel/hooks/useHostAccess.ts)                                                                                                                       | Notices when access to websites has been withdrawn, and asks for it again.                                                                                   |
 | [url.ts](extension/src/lib/url.ts), [geo.ts](extension/src/lib/geo.ts)                                                                                                                               | Which page addresses are looked up, and the country check.                                                                                                   |
 | [evidence.ts](extension/src/lib/evidence.ts), [editorWindow.ts](extension/src/lib/editorWindow.ts), [imageEdits.ts](extension/src/lib/imageEdits.ts), [imageBake.ts](extension/src/lib/imageBake.ts) | Capture, resizing and upload; the editor window's messages; crop and box geometry; drawing edits into a new JPEG.                                            |
 | [settings.ts](extension/src/lib/settings.ts), [votes.ts](extension/src/lib/votes.ts), [theme.ts](extension/src/lib/theme.ts), [i18n.ts](extension/src/lib/i18n.ts)                                   | Saved email and language, vote hints, the theme, and the active language and direction.                                                                      |
@@ -46,9 +51,11 @@ panel from the toolbar button. Nothing is injected into the pages you visit.
 | [testing](extension/src/testing)                                                                                                                                                                     | Unit test helpers: a fake API that refuses real hosts, JSON fixtures, and `openPanel`, which mounts the panel on a fake tab.                                 |
 | [e2e](extension/e2e)                                                                                                                                                                                 | Browser tests of the production bundle, with external requests stubbed.                                                                                      |
 
-There are no content scripts, injected page scripts, external messaging handlers,
-or background polling. Page content cannot invoke votes, uploads or captures
-through an extension message API. React renders API text without raw HTML.
+There are no content scripts on the pages you visit, no injected page scripts,
+external messaging handlers, or background polling. Page content cannot invoke
+votes, uploads or captures through an extension message API: the only runtime
+message the panel handles is the Firefox relay, and it takes that only from the
+frame it opened itself. React renders API text without raw HTML.
 
 ## Following the page
 
@@ -156,7 +163,7 @@ sequenceDiagram
         V-->>P: interactive
         Note over P: shows the frame in a modal<br/>(Cancel or Escape stops)
     end
-    V-->>P: solved, with a token (to the extension's origin only)
+    V-->>P: solved, with a token (to the extension's origin only;<br/>on Firefox, through the content script)
     Note over P: checks origin, frame, nonce and action,<br/>then removes the frame
     P->>A: request with X-Turnstile-Token
     A-->>P: result (the API validates the token)
@@ -170,11 +177,25 @@ origin, with the expected nonce and action. It ignores a token that is blank or
 longer than 2,048 characters. The page has 30 seconds to load and an interactive
 challenge two minutes; repeated messages don't extend either deadline.
 
+In Chrome the page posts its messages to the extension's origin, which the
+manifest key fixes and the page's `frame-ancestors` names. Firefox gives an
+add-on a random origin per install, so the page can't post to it. There, the
+page dispatches each message as a DOM event, and
+[verify-relay.content.ts](extension/src/entrypoints/verify-relay.content.ts), a
+content script registered for the verification page only, in every frame, at
+`document_start`, sends it to the panel with `runtime.sendMessage`. The panel
+takes a relayed message only when the sender's address is the exact frame it
+opened: the verification origin and path with its own nonce and action
+([verifyRelay.ts](extension/src/lib/verifyRelay.ts)). Every content script on
+that page can hear the event, so what decides who can read a token there is
+host permission for the verification page, the same access an extension already
+needs to read the token out of the widget.
+
 The client checks don't replace
 [server validation](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/)
 of the token, action and hostname. Tokens are single-use and expire after five
 minutes. The manifest key and extension ID identify the client, but they are not
-credentials.
+credentials, and the Firefox add-on has no equivalent.
 
 ## Forms and screenshots
 
@@ -298,14 +319,19 @@ its colors with `light-dark()`. The editor window is always dark.
 
 | Permission   | Why                                                                                    |
 | ------------ | -------------------------------------------------------------------------------------- |
-| `tabs`       | Read the active tab's URL and title.                                                   |
-| `sidePanel`  | Show the panel.                                                                        |
-| `storage`    | Keep settings, vote hints and pending receipts.                                        |
-| `<all_urls>` | Capture screenshots of any site the panel follows, and reach the API (or a local one). |
+| Permission   | Why                                                                                                                                              |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `tabs`       | Read the active tab's URL and title.                                                                                                             |
+| `sidePanel`  | Show the panel. Chrome only; Firefox's `sidebar_action` needs no permission.                                                                     |
+| `storage`    | Keep settings, vote hints and pending receipts.                                                                                                  |
+| `<all_urls>` | Capture screenshots of any site the panel follows, reach the API (or a local one), and on Firefox run the relay on the verification page. |
 
 `activeTab` would be narrower, but its grant ends on navigation, so every new page
 would need another toolbar click; see
 [Chrome's permission model](https://developer.chrome.com/docs/extensions/develop/concepts/activeTab).
+Firefox lets you withdraw access to websites in the add-on's settings, and
+Chrome's site-access menu can withhold it. The panel then can't look up a page or
+send anything, so it shows a notice with a button that asks for the access again.
 
 | Store                    | Keys                                                                          | Lifetime                                            |
 | ------------------------ | ----------------------------------------------------------------------------- | --------------------------------------------------- |
@@ -320,7 +346,9 @@ browsing history or screenshot is stored. Service logos load from the hosts the
 API supplies, without a referrer.
 
 Chrome 123 is the minimum, for CSS `light-dark()`. Other Chromium browsers need
-the same side panel API and aren't tested.
+the same side panel API and aren't tested. Firefox 140 is the minimum, for the
+data-collection notice addons.mozilla.org requires of new listings; the add-on's
+ID there is `shaghal@unblocksyria.com`.
 
 ## Abuse boundaries
 
@@ -331,11 +359,13 @@ moderation for every client. The extension holds no credential that bypasses the
 
 ## Validation
 
-`npm run check` runs ESLint on `src`, Prettier, TypeScript, Vitest and a production
-build. `npm run test:e2e` loads the last build into Chromium. Unit tests fail on
+`npm run check` runs ESLint on `src`, Prettier, TypeScript, Vitest, a production
+build for each browser, and Mozilla's `addons-linter` on the Firefox one.
+`npm run test:e2e` loads the last Chrome build into Chromium. Unit tests fail on
 any unstubbed fetch; browser tests stub every HTTP(S) request, including the
 verification page, and fail on unknown ones. Neither suite writes to the live
 service.
 
-The browser tests open the panel as a tab, not a native side panel. Real Turnstile
-challenges, the live API and assistive-technology checks are not covered.
+The browser tests open the panel as a tab, not a native side panel, and run in
+Chromium only. Real Turnstile challenges, the live API, Firefox and
+assistive-technology checks are not covered.
