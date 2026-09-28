@@ -39,7 +39,16 @@ jobs:
         run: npm run typecheck
 
       - name: Test
-        run: npm test
+        run: npm run test:coverage
+
+      # Branches in this repository need the CODECOV_TOKEN secret. Pull requests
+      # from forks upload without one.
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: extension/coverage/lcov.info
+          disable_search: true
 
       - name: Build
         run: npm run build
