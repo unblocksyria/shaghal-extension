@@ -1,10 +1,6 @@
 import { defineConfig } from '@playwright/test';
 
-/**
- * Drives the built extension in Playwright's own Chromium. Run `npm run build`
- * first: the specs refuse to start without `.output/chrome-mv3`.
- * The specs live in `e2e/`; traces are kept for a failed run only.
- */
+/** Runs e2e/ against the built extension. Needs `npm run build` first, for `.output/chrome-mv3`. */
 export default defineConfig({
   testDir: './e2e',
   timeout: 60_000,

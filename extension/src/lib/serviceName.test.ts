@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { i18next } from './i18n';
 import { serviceName } from './serviceName';
 
-// The name the panel shows for a service, in both languages (spec 0002, AC-6).
 describe('serviceName', () => {
   afterEach(async () => {
     await i18next.changeLanguage('en');

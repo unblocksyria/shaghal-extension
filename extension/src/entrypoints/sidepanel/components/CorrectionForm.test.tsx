@@ -9,7 +9,7 @@ import categories from '../../../testing/fixtures/categories.json';
 import match from '../../../testing/fixtures/match.json';
 import serviceRecord from '../../../testing/fixtures/service-record.json';
 
-/** The correction form, reached the way a tester reaches it: from the card. */
+/** Opens the correction form from the card, as a tester would. */
 async function openCorrection(user: UserEvent, pageUrl: string): Promise<FakeApi> {
   const api = fakeApi()
     .on('POST', '/services/match', { data: match })
@@ -24,7 +24,7 @@ async function openCorrection(user: UserEvent, pageUrl: string): Promise<FakeApi
 }
 
 describe('the correction form', () => {
-  it('sends one submission carrying every field ticked (covers AC-2)', async () => {
+  it('sends one submission carrying every field ticked', async () => {
     const user = userEvent.setup();
     const api = await openCorrection(user, 'https://first.example/page');
 
@@ -45,12 +45,12 @@ describe('the correction form', () => {
     });
   });
 
-  it('sends a category change as a JSON array of category IDs (covers AC-2)', async () => {
+  it('sends a category change as a JSON array of category IDs', async () => {
     const user = userEvent.setup();
     const api = await openCorrection(user, 'https://second.example/page');
 
     await user.click(screen.getByRole('checkbox', { name: 'Categories' }));
-    // The picker opens with the recorded categories already ticked: "2 selected: …".
+    // The recorded categories start ticked, so the button reads "2 selected: …".
     await user.click(screen.getByRole('button', { name: /Select correct categories|\d+ selected/ }));
     await user.click(screen.getByRole('checkbox', { name: 'Social' }));
 
@@ -72,7 +72,7 @@ describe('the correction form', () => {
     });
   });
 
-  it('blocks sending until something changed (covers AC-2)', async () => {
+  it('blocks sending until something changed', async () => {
     const user = userEvent.setup();
     const api = await openCorrection(user, 'https://fourth.example/page');
 
@@ -101,7 +101,7 @@ describe('the correction form', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Categories' }));
 
     await screen.findByText('Could not load categories: Categories are down');
-    // The form stays usable: the picker still opens, with no names to show.
+    // The picker still opens, with no names to show.
     await user.click(screen.getByRole('button', { name: /2 selected/ }));
     expect(screen.getByText('No categories found.')).toBeDefined();
   });

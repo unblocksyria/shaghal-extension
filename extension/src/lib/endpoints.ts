@@ -61,11 +61,11 @@ function isVote(value: unknown): boolean {
   return record(value) && Number.isSafeInteger(value.voteCount) && Number(value.voteCount) >= 0;
 }
 
-/** A service's full record, as the report and correction forms need it. */
+/** A service's full record, used by the report and correction forms. */
 export interface ServiceRecord {
   id: string;
   name: string;
-  /** The Arabic name, or null when the catalogue has none (spec 0002, AC-6). */
+  /** The Arabic name, or null when the catalogue has none. */
   nameAr?: string | null;
   url: string | null;
   description?: string | null;
@@ -111,7 +111,7 @@ function isEvidenceFile(data: unknown): data is EvidenceFilePayload {
   return typeof url === 'string' && url.length > 0;
 }
 
-/** Each upload requires its own verification token and a separate upload allowance. */
+/** Each upload needs its own Turnstile token and draws on a separate upload quota. */
 export async function uploadEvidence(
   file: Blob,
   filename: string,
@@ -124,6 +124,7 @@ export async function uploadEvidence(
   const result = await apiRequest<EvidenceFilePayload>('/uploads/evidence', {
     verify: 'upload',
     method: 'POST',
+    write: true,
     contentType: 'multipart',
     body: form,
     unwrap: 'raw',
@@ -139,7 +140,7 @@ export type Availability = 'available' | 'usable' | 'blocked' | 'unknown';
 export interface CatalogService {
   id: string;
   name: string;
-  /** The Arabic name, or null when the catalogue has none (spec 0002, AC-6). */
+  /** The Arabic name, or null when the catalogue has none. */
   nameAr?: string | null;
   slug: string;
   logoUrl: string | null;
@@ -154,13 +155,13 @@ export interface ServiceMatch {
   service: CatalogService | null;
   /** `parent_domain` when the service covers a parent of the page's host. */
   matchType: 'host' | 'parent_domain' | null;
-  /** When there is no single match: the services on this site, most voted first. */
+  /** Services on this site, most voted first, when there is no single match. */
   alternatives: CatalogService[];
 }
 
 /**
- * Which catalogue service a page belongs to. The address goes in the body so
- * it stays out of request URL logs. The caller removes credentials and fragments.
+ * Finds the catalogue service for a page. The URL goes in the body to keep it
+ * out of request logs. Callers strip credentials and fragments (see matchUrl).
  */
 export async function matchService(url: string, signal?: AbortSignal): Promise<ApiResult<ServiceMatch>> {
   return apiRequest<ServiceMatch>('/services/match', {
@@ -181,6 +182,7 @@ export async function voteForService(slug: string): Promise<ApiResult<VotePayloa
     method: 'POST',
     unwrap: 'raw',
     verify: 'vote',
+    write: true,
     expect: expectation(isVote),
   });
 }
@@ -190,6 +192,7 @@ export async function removeVoteForService(slug: string): Promise<ApiResult<Vote
     method: 'DELETE',
     unwrap: 'raw',
     verify: 'vote',
+    write: true,
     expect: expectation(isVote),
   });
 }

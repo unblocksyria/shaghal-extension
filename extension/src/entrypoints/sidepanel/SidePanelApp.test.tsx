@@ -7,16 +7,15 @@ import { openPanel, stubScreenshot } from '../../testing/panel';
 import match from '../../testing/fixtures/match.json';
 import matchNone from '../../testing/fixtures/match-none.json';
 
-// The root is mounted in every test, so a view change and the request the page
-// makes are the real ones (spec 0001, AC-3 and AC-5).
+// Each test mounts the full panel, so view changes and requests are real.
 describe('the panel home', () => {
-  it('sends the open page to the match route before offering a card (covers AC-3)', async () => {
+  it('sends the open page to the match route before offering a card', async () => {
     const api = fakeApi().on('POST', '/services/match', { data: match }).install();
 
     await openPanel('https://another.example/page');
     await screen.findByRole('button', { name: 'Report what works' }, { timeout: 3000 });
 
-    // The match body carries the active locale (spec 0002, AC-7).
+    // The match body carries the active locale.
     expect(api.callsTo('POST', '/services/match').at(0)?.json).toEqual({
       url: 'https://another.example/page',
       locale: 'en',
@@ -25,7 +24,7 @@ describe('the panel home', () => {
 });
 
 describe('opening a form', () => {
-  it('shows why the service would not open and stays on the card (covers AC-6)', async () => {
+  it('shows why the service would not open and stays on the card', async () => {
     const user = userEvent.setup();
     fakeApi()
       .on('POST', '/services/match', { data: match })
@@ -40,7 +39,7 @@ describe('opening a form', () => {
     expect(screen.queryByRole('radiogroup', { name: 'Core use' })).toBeNull();
   });
 
-  it('says it is opening while the record is in flight (covers AC-6)', async () => {
+  it('says it is opening while the record is in flight', async () => {
     const user = userEvent.setup();
     const api = fakeApi().on('POST', '/services/match', { data: match });
     api.hold('GET', '/services/netflix');
@@ -56,7 +55,7 @@ describe('opening a form', () => {
 });
 
 describe('settings over a form', () => {
-  it('keeps what was typed and what was attached while Settings is open (covers AC-5)', async () => {
+  it('keeps what was typed and what was attached while Settings is open', async () => {
     const user = userEvent.setup();
     stubScreenshot();
     fakeApi().on('POST', '/services/match', { data: matchNone }).install();
@@ -72,7 +71,7 @@ describe('settings over a form', () => {
     await user.click(screen.getByRole('button', { name: 'Settings' }));
     await screen.findByRole('heading', { name: 'Settings' });
 
-    // The form stays mounted underneath: hidden, not unmounted.
+    // The form is hidden, not unmounted.
     expect(screen.getByRole('textbox', { name: 'Service name', hidden: true })).toHaveProperty('value', 'Kept Service');
     expect(screen.queryByRole('textbox', { name: 'Service name' })).toBeNull();
 

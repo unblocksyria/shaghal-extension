@@ -1,16 +1,12 @@
 import { activeLanguage } from './i18n';
 
-/** Anything that carries both names a service record may have. */
+/** A record with a service's English name and optional Arabic name. */
 export interface NamedService {
   name: string;
   nameAr?: string | null;
 }
 
-/**
- * The name to show: the English name alone, and in Arabic the English name
- * with the Arabic one in brackets when the catalogue has one (spec 0002, AC-6).
- * A null `nameAr` never produces brackets.
- */
+/** The English name, plus the Arabic name in brackets when the panel is in Arabic and one exists. */
 export function serviceName(service: NamedService): string {
   if (activeLanguage() !== 'ar') return service.name;
   const arabic = service.nameAr;

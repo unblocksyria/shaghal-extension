@@ -1,9 +1,6 @@
 /**
- * The English catalog: the source of truth for which keys exist.
- *
- * Every key here must be present; the Arabic catalog in `ar.ts` may leave keys
- * out, and a missing one falls back to the English text rather than showing a
- * raw key name (spec 0002, AC-5).
+ * English catalog. Its keys define `Catalog`, so every key must be present here.
+ * Other catalogs may omit keys, which then fall back to English.
  */
 export const en = {
   common: {
@@ -112,6 +109,7 @@ export const en = {
     sameAsRecorded: 'Same as recorded. Add a note or a screenshot to confirm it again.',
     required: 'Required: a note or a screenshot showing this.',
     addDetailError: 'Add a note or a screenshot to every part you marked.',
+    tooMany: 'A report can include at most 30 parts and 100 screenshots. Remove some before sending.',
     catalogueFailed: 'Could not load the other parts you can add.',
     addPart: 'Add a part you tried',
     choosePart: 'Choose a part',
@@ -237,13 +235,16 @@ export const en = {
     removeTitle: 'Remove from report',
     removeAria: 'Remove evidence #{{n}}',
     viewScreenshot: 'View screenshot',
-    sizeRange: 'Screenshots must be between 1 byte and 5 MB.',
+    sizeRange: 'Screenshots must be between 1 byte and 5 MiB.',
+    cannotResize: 'This browser cannot resize the screenshot.',
+    tooLarge: 'The screenshot is too large. Capture a smaller area.',
   },
 
   api: {
     timeout: 'Unblock Syria took too long to answer. Your request may have arrived; check before sending again.',
     unconfirmed: 'The request could not be confirmed. It may have arrived; check before sending again.',
     network: 'Could not reach Unblock Syria. Check your connection.',
+    timeoutRead: 'Unblock Syria took too long to answer. Try again.',
     unreadable: 'Unblock Syria sent an answer the panel could not read.',
     incomplete: 'Unblock Syria sent an incomplete answer.',
     invalid: 'Unblock Syria sent an invalid answer.',
@@ -262,7 +263,10 @@ export const en = {
 
   receipts: {
     uncertain:
-      'An earlier send has not been confirmed. Keep the original details and screenshots, then send again to check its receipt. Do not start a replacement report yet.',
+      'An earlier send has not been confirmed. Send the original details again to check its receipt, or discard the earlier attempt if you are sure it did not arrive.',
+    expired: 'The earlier attempt can no longer be checked. Send again to submit these details.',
+    discard: 'Discard earlier attempt',
+    discarded: 'The earlier attempt was discarded. Send again to submit these details.',
     received: 'Your earlier submission was received. Check it before sending another.',
     refused: 'Your earlier attempt was refused. Review the current details, then try again.',
     storageFailed:
@@ -297,6 +301,18 @@ export const en = {
     hintCropped: 'Drag to black out more, or drag the dimmed part to move the frame. Enter saves.',
     hintBlackout: 'Drag to black out more. Press Enter or Save when you’re done.',
     gone: 'This screenshot is no longer open in the panel. Close this window and try again.',
+    openFailed: 'This screenshot could not be opened: {{error}}',
+    cannotDraw: 'This browser cannot draw the edited screenshot.',
+    precise: 'Precise crop and redaction',
+    region: 'Edit region',
+    cropFrame: 'Crop frame',
+    blackBox: 'Black box {{n}}',
+    left: 'Left (pixels)',
+    top: 'Top (pixels)',
+    width: 'Width (pixels)',
+    height: 'Height (pixels)',
+    addBox: 'Add black box',
+    removeBox: 'Remove black box',
   },
 
   turnstile: {

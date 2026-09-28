@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { formErrorMessage } from '../../../lib/api';
 import { RadioGroup } from '../../../components/ui/RadioGroup';
 import { getFunctionalities, type FunctionalityItem, type ServiceRecord } from '../../../lib/endpoints';
 import { submitFunctionalityReport } from '../../../lib/submit';
@@ -19,6 +18,7 @@ import {
   uploadScreenshots,
   useSavedEmail,
   useScreenshotLists,
+  useFormError,
 } from './FormParts';
 import { VpnWarning } from './VpnWarning';
 import { ArrowUpRight, BookOpen, X } from 'lucide-react';
@@ -27,16 +27,16 @@ type Level = 'working' | 'failing' | 'unknown';
 
 const LEVELS: Level[] = ['working', 'failing', 'unknown'];
 
-/** Every service has these two. Offered when it records no parts yet, even if the catalogue cannot be loaded. */
+/** Parts every service has. Offered when the record lists none, even if the catalogue fails to load. */
 const DEFAULT_PART_SLUGS = ['core_use', 'landing_page'] as const;
 
-/** The key naming each default part, so the fallback names follow the panel's language. */
+/** Translation keys for the default parts' fallback names. */
 const DEFAULT_PART_KEYS: Record<string, 'report.partCoreUse' | 'report.partLandingPage'> = {
   core_use: 'report.partCoreUse',
   landing_page: 'report.partLandingPage',
 };
 
-/** The site's testing guide, on the path for the active language (spec 0002, AC-9). */
+/** The site's testing guide in the active language. */
 function testingGuideUrl(): string {
   return `${SITE_BASE}${sitePathSegment(activeLanguage())}/articles/how-to-test-a-service-from-syria`;
 }
@@ -44,7 +44,7 @@ function testingGuideUrl(): string {
 interface Part {
   slug: string;
   name: string;
-  /** What the service records today; null for a part the service does not record. */
+  /** Recorded level, or null if the service does not record this part. */
   recorded: Level | null;
 }
 
@@ -75,9 +75,9 @@ function LevelPicker(props: { name: string; value: Level; onChange: (level: Leve
 }
 
 /**
- * Each part opens at the level the service records. A part is sent when it
- * says something new, or when it repeats the record with a note or a
- * screenshot. A part that contradicts the record needs a note or a screenshot.
+ * Each part starts at its recorded level. A part is sent when it differs from
+ * the record, or repeats it with a note or screenshot. A part that contradicts
+ * the record needs a note or screenshot.
  */
 export function ReportForm(props: { service: ServiceRecord; pageUrl: string | null; onBack: () => void }) {
   const { t, i18n } = useTranslation();
@@ -95,18 +95,17 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
   const [showMissing, setShowMissing] = useState(false);
   const [email, setEmail] = useSavedEmail();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { error, setError, showApiError, onDiscard } = useFormError();
   const [sent, setSent] = useState(false);
 
   const screenshots = useScreenshotLists(props.pageUrl);
 
-  // The language the part names on screen are in. The catalogue arrives in the
-  // active locale, so a switch only has to rename once a fetch has answered.
+  // Language of the displayed part names. The catalogue arrives in the active
+  // locale, so this advances only when a fetch succeeds.
   const namesLanguage = useRef(language);
 
   useEffect(() => {
-    // The extension owned fallback names, read here so a language switch can
-    // rename the two default parts without touching what was typed.
+    // Fallback names for the default parts, from the extension's own translations.
     const defaultNames: Record<string, string> = {
       core_use: t('report.partCoreUse'),
       landing_page: t('report.partLandingPage'),
@@ -117,21 +116,20 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
       const catalogueNames = new Map(result.ok ? result.data.map((item) => [item.slug, item.name]) : []);
       const nameOf = (slug: string): string => catalogueNames.get(slug) ?? defaultNames[slug] ?? slug;
       if (!result.ok) {
-        // The form still works: the default parts need no catalogue.
+        // The default parts need no catalogue, so the form still works.
         setCatalogueFailed(true);
       } else {
         setCatalogueFailed(false);
         setCatalogue(result.data);
       }
-      // Read now: the updater runs after the line below has already advanced it.
+      // Read here. The updater runs after `namesLanguage` is advanced below.
       const rename = namesLanguage.current !== language;
       setParts((current) => {
         if (current.length === 0) {
           return DEFAULT_PART_SLUGS.map((slug) => ({ slug, name: nameOf(slug), recorded: null }));
         }
-        // A switch takes every part's name from the catalogue just fetched in
-        // the new language, not only the two the form owns; typed notes, levels
-        // and screenshots stay exactly as they are (spec 0002, AC-11).
+        // On a language switch, rename every part, not only the defaults.
+        // Notes, levels and screenshots are kept.
         if (!rename) return current;
         return current.map((part) =>
           part.slug in DEFAULT_PART_KEYS
@@ -139,8 +137,8 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
             : { ...part, name: catalogueNames.get(part.slug) ?? part.name },
         );
       });
-      // Only a loaded catalogue settles the names. A failed one leaves the new
-      // language owed, so "Try again" still finishes the rename.
+      // Only a successful fetch marks the names current, so "Try again" after a
+      // failure still renames.
       if (result.ok) namesLanguage.current = language;
     });
     return () => {
@@ -194,7 +192,7 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
       answered.length > 30 ||
       answered.reduce((total, part) => total + screenshots.list(part.slug).items.length, 0) > 100
     ) {
-      setError('A report can include at most 30 parts and 100 screenshots. Remove some before sending.');
+      setError(t('report.tooMany'));
       return;
     }
     setBusy(true);
@@ -222,7 +220,7 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
     });
     setBusy(false);
     if (!result.ok) {
-      setError(formErrorMessage(result.error));
+      showApiError(result.error);
       return;
     }
     setSent(true);
@@ -385,6 +383,7 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
         blocker={answered.length === 0 ? t('report.blocker') : null}
         note={t('report.note')}
         error={error}
+        onDiscard={onDiscard}
         onSubmit={() => void submit()}
       />
     </FormShell>

@@ -10,9 +10,8 @@ export function RadioGroup(props: HTMLAttributes<HTMLDivElement>) {
     const current = buttons.indexOf(event.target as HTMLButtonElement);
     if (current < 0 || buttons.length === 0) return;
     event.preventDefault();
-    // A mirrored row runs the buttons the other way, so a horizontal step points the
-    // opposite way too: under rtl ArrowLeft steps on to the next button in the DOM.
-    // Up and down keep their meaning in both directions, and so do Home and End.
+    // An RTL row is mirrored, so ArrowLeft moves to the next button in DOM order.
+    // Up, Down, Home and End behave the same in both directions.
     const rtl = (event.currentTarget.closest('[dir]')?.getAttribute('dir') ?? document.documentElement.dir) === 'rtl';
     const horizontal = event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowRight' ? 1 : 0;
     const step = horizontal === 0 ? (event.key === 'ArrowUp' ? -1 : 1) : rtl ? -horizontal : horizontal;

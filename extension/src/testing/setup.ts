@@ -1,13 +1,11 @@
 import { afterEach, beforeEach, vi } from 'vitest';
-// Sets up the i18next instance every component's `useTranslation` reads, the
-// way each entrypoint does when the panel or the editor window opens.
+// Initializes i18next for `useTranslation`, as each entrypoint does.
 import '../lib/i18n';
 import { clearRefusedRequests, refuseRequest, refusedRequests } from './fakeApi';
 import { closeEditorWindow } from '../lib/editorWindow';
 import { closeEditorWindows } from './editorWindows';
 
-// Every test starts with a fetch that refuses everything, so a request can only
-// leave through fakeApi, which records what answered it (spec 0001, AC-9).
+// The default fetch refuses everything. A test installs fakeApi to answer requests.
 beforeEach(() => {
   vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
@@ -16,8 +14,7 @@ beforeEach(() => {
   });
 });
 
-// Spec 0001 AC-9: a request nothing stubbed, or one aimed at a real host, fails the
-// test that made it. Nothing may fall through to the network.
+// Fail any test that made an unstubbed request or aimed one at a real host.
 afterEach(() => {
   const refused = refusedRequests();
   clearRefusedRequests();
@@ -26,7 +23,7 @@ afterEach(() => {
   throw new Error(`Requests no fake answered:\n${lines.join('\n')}`);
 });
 
-// A capture opens the screenshot editor; one left open must not carry into the next test.
+// A capture opens the screenshot editor. Close it so it does not leak into the next test.
 afterEach(async () => {
   closeEditorWindow();
   await closeEditorWindows();

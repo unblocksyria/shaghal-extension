@@ -6,7 +6,7 @@ import { SidePanelApp } from './SidePanelApp';
 
 applyThemePreference(readThemePreference());
 
-// The language decides the direction, so it lands before the first paint.
+// The language sets the text direction, so apply it before first paint.
 await applyStoredLanguage();
 
 createRoot(document.getElementById('root') as HTMLElement).render(

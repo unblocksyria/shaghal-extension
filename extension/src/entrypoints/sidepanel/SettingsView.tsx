@@ -15,7 +15,7 @@ const THEME_ICONS: Record<ThemePreference, typeof Sun> = { system: Monitor, ligh
 export function SettingsView(props: { onBack: () => void }) {
   const { t } = useTranslation();
   const [theme, setTheme] = useState<ThemePreference>(readThemePreference);
-  // Shown as saved, not as guessed: the row reads the stored pick (spec 0002, AC-1).
+  // Reflects the stored preference, not the language it resolves to.
   const [language, setLanguage] = useState<LanguagePreference>('system');
   const [email, setEmail] = useSavedEmail();
   const [saved, setSaved] = useState(false);
@@ -36,7 +36,7 @@ export function SettingsView(props: { onBack: () => void }) {
     saveThemePreference(value);
   };
 
-  // The pick applies at once, across the panel, without closing it (spec 0002, AC-1).
+  // Takes effect immediately across the panel.
   const chooseLanguage = (value: LanguagePreference) => {
     setLanguage(value);
     void setLanguagePreference(value);

@@ -9,7 +9,7 @@ import { applyLanguage } from '../../lib/i18n';
 import { ar } from '../../locales/ar';
 import { EditorApp } from './EditorApp';
 
-// The panel's side of the handover, played by the test.
+// Stands in for the panel's side of the handover.
 const panel = vi.hoisted(() => ({
   sessions: [] as string[],
   open: null as ((request: EditRequest) => void) | null,
@@ -42,7 +42,7 @@ function openAt(search: string) {
   return render(<EditorApp />);
 }
 
-// A test that switches the language leaves the shared i18next instance behind it, so the next one starts in English.
+// The i18next instance is shared across tests, so reset it to English.
 afterEach(() => {
   applyLanguage('en');
 });
@@ -127,7 +127,7 @@ describe('the editor window page', () => {
     expect(closing()).toBe(true);
 
     act(() => panel.dismiss?.());
-    // The warning is lifted before the window closes, so nothing holds it open.
+    // The unsaved-edits guard is removed before the window closes.
     expect(closing()).toBe(false);
     expect(close).toHaveBeenCalledOnce();
     expect(panel.saved).toEqual([]);
@@ -141,7 +141,7 @@ describe('the editor window page', () => {
     await screen.findByRole('button', { name: 'Cancel' });
     expect(document.documentElement.dir).toBe('ltr');
 
-    // The tester picks Arabic in Settings, in the panel that stays open behind this window.
+    // As if Arabic were picked in the panel's Settings.
     await fakeBrowser.storage.local.set({ language: 'ar' });
 
     const cancel = ar.editor?.cancel;

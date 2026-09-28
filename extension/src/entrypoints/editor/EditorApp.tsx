@@ -8,18 +8,17 @@ import { watchSavedLanguage } from '../../lib/settings';
 /** How long to wait for the panel to hand over the screenshot. */
 const HANDOVER_TIMEOUT_MS = 3000;
 
-/** The editor window: gets its screenshot from the panel that opened it, and sends the result back. */
+/** Editor window. Receives the screenshot from the panel that opened it and sends the edit back. */
 export function EditorApp() {
   const { t } = useTranslation();
   const [session] = useState(() => new URLSearchParams(location.search).get('session'));
   const [request, setRequest] = useState<EditRequest | null>(null);
   const [lost, setLost] = useState(session === null);
-  // The panel let this screenshot go, as when it was removed from the form.
+  // Set when the panel drops this screenshot, e.g. it was removed from the form.
   const [dismissed, setDismissed] = useState(false);
   const panel = useRef<ReturnType<typeof connectToPanel> | null>(null);
 
-  // The panel stays open behind this window, so a language picked there reaches an
-  // editor that is already open instead of waiting for the window to be reopened.
+  // Follow language changes made in the panel while this window is open.
   useEffect(() => {
     if (typeof chrome === 'undefined' || chrome.storage === undefined) return;
     void applyStoredLanguage();
@@ -41,8 +40,8 @@ export function EditorApp() {
     if (request !== null) document.title = t('editor.dialog', { label: request.label });
   }, [request, t]);
 
-  // Runs after the editor has lifted its warning about unsaved edits (its effects
-  // run first), so nothing stands in the way of closing.
+  // Child effects run first, so the editor has already dropped its unsaved-edits
+  // guard by the time this closes the window.
   useEffect(() => {
     if (dismissed) window.close();
   }, [dismissed]);

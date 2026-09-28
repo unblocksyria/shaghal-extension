@@ -24,14 +24,12 @@ import {
 } from '../../lib/imageEdits';
 
 /**
- * An editor for one screenshot, filling the window it is in. There are no
- * modes: the crop frame is always on the image, and dragging inside it draws
- * a black box over names, emails or numbers. Saving draws a new image, so
- * nothing hidden survives in what is uploaded.
+ * Full-window editor for one screenshot. It has no modes. The crop frame is
+ * always shown, and dragging inside it draws a black box over names, emails or
+ * numbers. Saving renders a new image, so hidden pixels never reach the upload.
  *
- * `onSave` gets the edited image, or null when the edits were all taken back.
- * With `guardClose`, as in its own window, closing the window with unsaved
- * edits asks first.
+ * `onSave` receives the edited image, or null if every edit was undone. With
+ * `guardClose` (the editor window), closing with unsaved edits asks first.
  */
 export function ScreenshotEditor(props: {
   source: Blob;
@@ -46,7 +44,7 @@ export function ScreenshotEditor(props: {
   const [image, setImage] = useState<EditableImage | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
 
-  // A modal dialog keeps the form behind it out of reach, focus included.
+  // showModal makes the form behind inert, focus included.
   useEffect(() => {
     const element = dialog.current;
     if (element === null) return;
@@ -69,7 +67,7 @@ export function ScreenshotEditor(props: {
         }
       },
       (error: unknown) => {
-        if (!cancelled) setFailed(`This screenshot could not be opened: ${String(error)}`);
+        if (!cancelled) setFailed(error instanceof Error ? error.message : String(error));
       },
     );
     return () => {
@@ -83,8 +81,8 @@ export function ScreenshotEditor(props: {
       ref={dialog}
       className="us-editor"
       aria-label={t('editor.dialog', { label: props.label })}
-      // Once the image is open, Escape is handled below, where it first clears a
-      // selection and asks before throwing edits away. Until then it just closes.
+      // Once the image is open, Workspace handles Escape so it can clear a
+      // selection or confirm discarding edits. Before that, Escape closes.
       onCancel={(event) => {
         event.preventDefault();
         if (image === null) props.onCancel();
@@ -99,7 +97,9 @@ export function ScreenshotEditor(props: {
             </button>
           </div>
           <div className="us-editor-stage us-editor-message" role="status">
-            {failed ?? (
+            {failed !== null ? (
+              t('editor.openFailed', { error: failed })
+            ) : (
               <>
                 <LoaderCircle size={22} style={{ animation: 'spin 1s linear infinite' }} aria-hidden />
                 <span className="us-editor-visually-hidden">{t('editor.opening')}</span>
@@ -129,14 +129,14 @@ type Gesture =
 /** What a drag is doing, for the cursor and the hint. `frame` moves the crop frame. */
 type Dragging = 'draw' | 'box' | 'crop' | 'frame';
 
-/** Where the image sits on the stage: at what scale, and its offset. */
+/** Image scale and offset on the stage. */
 interface Frame {
   scale: number;
   left: number;
   top: number;
 }
 
-/** Used before the stage has a size, as in tests: about a side panel's. */
+/** Stage size until measured, and in tests. Roughly a side panel. */
 const FALLBACK_STAGE: Size = { width: 360, height: 480 };
 
 /** Room around the image for the crop handles, which sit mostly outside it. */
@@ -148,7 +148,7 @@ const MIN_DRAWN = 6;
 function frameFor(stage: Size, image: Size): Frame {
   const width = Math.max(stage.width - STAGE_PADDING * 2, 1);
   const height = Math.max(stage.height - STAGE_PADDING * 2, 1);
-  // Never enlarged past one image pixel per screen pixel.
+  // Never upscale past one image pixel per screen pixel.
   const scale = Math.min(width / image.width, height / image.height, 1);
   return {
     scale,
@@ -158,8 +158,8 @@ function frameFor(stage: Size, image: Size): Frame {
 }
 
 /**
- * The stage's size, measured before the first paint so the image appears at
- * its real size rather than growing into it, and kept current on resize.
+ * Stage size, measured before first paint so the image doesn't visibly grow
+ * into place, and updated on resize.
  */
 function useStageSize(stage: React.RefObject<HTMLDivElement | null>): Size {
   const [size, setSize] = useState<Size>(FALLBACK_STAGE);
@@ -204,14 +204,14 @@ function Workspace(props: {
   const [history, setHistory] = useState(() => startHistory(props.initial));
   const [draft, setDraft] = useState<ImageEdits | null>(null);
   const [dragging, setDragging] = useState<Dragging | null>(null);
-  // The handle being dragged, so its resize cursor stays while the pointer strays off it.
+  // The dragged handle, so its resize cursor persists when the pointer leaves it.
   const [resizing, setResizing] = useState<Handle | null>(null);
-  // Over the dimmed part of a cropped image, where a drag moves the frame.
+  // Pointer is over the dimmed area outside the crop, where a drag moves the frame.
   const [overOutside, setOverOutside] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [leaving, setLeaving] = useState(false);
-  // Set for a moment when the editor itself moves things (undo, redo, Reset
-  // crop), so they glide there. Never on first layout or a resize.
+  // Briefly true after undo, redo or Reset crop, to animate the change. Never
+  // set on first layout or resize.
   const [gliding, setGliding] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -223,8 +223,8 @@ function Workspace(props: {
   const glideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const stageSize = useStageSize(stage);
 
-  // Focus rests on the stage, from the start and after the discard question, so
-  // Enter saves rather than pressing whichever button had focus.
+  // Keep focus on the stage, initially and after the discard prompt, so Enter
+  // saves instead of activating whichever button had focus.
   useEffect(() => {
     if (!confirming) stage.current?.focus({ preventScroll: true });
   }, [confirming]);
@@ -237,8 +237,8 @@ function Workspace(props: {
   const dirty = !sameEdits(history.present, props.initial);
 
   /**
-   * In its own window the editor fades out before the window closes, so it
-   * doesn't vanish mid-frame. Inside the panel it closes at once.
+   * In the editor window, fade out before closing so it doesn't vanish
+   * mid-frame. In the panel, close immediately.
    */
   const leave = (then: () => void) => {
     if (!props.guardClose) return then();
@@ -249,13 +249,13 @@ function Workspace(props: {
 
   const cancel = () => leave(props.onCancel);
 
-  /** Cancel, asking first when there are edits to lose. */
+  /** Cancels, confirming first if there are unsaved edits. */
   const requestCancel = () => {
     if (dirty) setConfirming(true);
     else cancel();
   };
 
-  // Closing the editor's window with the browser's own button asks too.
+  // Also confirm when the window is closed with the browser's close button.
   useEffect(() => {
     if (!props.guardClose || !dirty || leaving) return;
     const ask = (event: BeforeUnloadEvent) => event.preventDefault();
@@ -311,7 +311,7 @@ function Workspace(props: {
       setSelectedId(null);
       gesture.current = { kind: 'draw', start: point, id: newBoxId() };
     } else if (onImage(point)) {
-      // The dimmed part is outside what is kept: dragging it moves the frame.
+      // Dragging the dimmed area outside the crop moves the crop frame.
       setSelectedId(null);
       gesture.current = { kind: 'crop', handle: null, start: point, rect: base.crop };
     } else {
@@ -326,13 +326,13 @@ function Workspace(props: {
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
-      // Not every environment captures pointers; the drag still works inside the stage.
+      // Some environments lack pointer capture. The drag still works within the stage.
     }
   };
 
-  /** The edits as a drag leaves them with the pointer at `point`. */
+  /** The edits a drag produces with the pointer at `point`. */
   const draftFor = (current: Gesture, point: Point): ImageEdits => {
-    // Whole pixels: committed edges are whole, so a move or resize keeps a box's size exactly.
+    // Whole-pixel deltas match the committed edges, so moving a box keeps its size exact.
     const dx = Math.round(point.x - current.start.x);
     const dy = Math.round(point.y - current.start.y);
     const base = history.present;
@@ -372,7 +372,7 @@ function Workspace(props: {
     setDraft(null);
   };
 
-  // The release point decides the result, not the last rendered move, which a quick release can outrun.
+  // Use the release point, not the last rendered move. A quick release can outrun rendering.
   const onPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
     const current = gesture.current;
     if (current === null) return;
@@ -405,14 +405,14 @@ function Workspace(props: {
       leave(() => props.onSave(edited));
     } catch (bakeError) {
       setSaving(false);
-      setError(t('editor.saveFailed', { error: String(bakeError) }));
+      setError(t('editor.saveFailed', { error: bakeError instanceof Error ? bakeError.message : String(bakeError) }));
     }
   };
 
   const onKeyDown = (event: KeyboardEvent) => {
     if (saving || leaving) return;
     if (gesture.current !== null) {
-      // Mid-drag, keys wait; Escape drops the drag.
+      // Mid-drag, ignore keys except Escape, which cancels the drag.
       if (event.key === 'Escape') {
         event.preventDefault();
         endGesture();
@@ -420,7 +420,7 @@ function Workspace(props: {
       return;
     }
     if (confirming) {
-      // The question's own buttons answer Enter; Escape goes back to editing.
+      // The prompt's buttons handle Enter. Escape returns to editing.
       if (event.key === 'Escape') {
         event.preventDefault();
         setConfirming(false);
@@ -449,8 +449,8 @@ function Workspace(props: {
     }
   };
 
-  // On the window, not the layout: a button that disables itself (Redo at the
-  // last step) drops focus to the page, and the editor is modal anyway.
+  // Listen on window, not the layout. A button that disables itself (Redo at the
+  // last step) drops focus to the body, and the editor is modal anyway.
   const keyHandler = useRef(onKeyDown);
   useEffect(() => {
     keyHandler.current = onKeyDown;
@@ -484,7 +484,7 @@ function Workspace(props: {
 
   return (
     <div className="us-editor-layout" data-leaving={leaving}>
-      {/* While the discard question is open, everything behind it is out of reach, Tab included. */}
+      {/* Inert while the discard prompt is open, so Tab can't reach it. */}
       <div className="us-editor-bar" inert={confirming}>
         <button type="button" className="us-editor-text-btn" onClick={requestCancel} disabled={saving || leaving}>
           {t('editor.cancel')}
@@ -571,18 +571,18 @@ function Workspace(props: {
 
       <div className="us-editor-footer" inert={confirming}>
         <details style={{ marginBottom: 8 }}>
-          <summary>Precise crop and redaction</summary>
+          <summary>{t('editor.precise')}</summary>
           <fieldset disabled={saving || leaving} style={{ border: 0, padding: '8px 0', margin: 0 }}>
             <label style={{ display: 'grid', gap: 4 }}>
-              Edit region
+              {t('editor.region')}
               <select
                 value={selected?.id ?? 'crop'}
                 onChange={(event) => setSelectedId(event.target.value === 'crop' ? null : event.target.value)}
               >
-                <option value="crop">Crop frame</option>
+                <option value="crop">{t('editor.cropFrame')}</option>
                 {edits.boxes.map((box, index) => (
                   <option key={box.id} value={box.id}>
-                    Black box {index + 1}
+                    {t('editor.blackBox', { n: index + 1 })}
                   </option>
                 ))}
               </select>
@@ -601,7 +601,7 @@ function Workspace(props: {
                 const min = field === 'x' || field === 'y' ? 0 : 1;
                 return (
                   <label key={field} style={{ display: 'grid', gap: 3, fontSize: 12 }}>
-                    {{ x: 'Left', y: 'Top', width: 'Width', height: 'Height' }[field]} (pixels)
+                    {t(`editor.${({ x: 'left', y: 'top', width: 'width', height: 'height' } as const)[field]}`)}
                     <input
                       type="number"
                       min={min}
@@ -654,11 +654,11 @@ function Workspace(props: {
                   setSelectedId(id);
                 }}
               >
-                Add black box
+                {t('editor.addBox')}
               </button>
               {selected !== null && (
                 <button type="button" className="us-editor-text-btn" onClick={removeSelected}>
-                  Remove black box
+                  {t('editor.removeBox')}
                 </button>
               )}
             </div>
@@ -727,8 +727,9 @@ interface Box {
 }
 
 /**
- * Crop handles sit mostly outside the frame (OUT pixels out, IN pixels in), so
- * a box drawn near the image's edge is not taken for a crop.
+ * Crop handles extend CROP_OUT px outside the frame and CROP_IN px inside, so a
+ * box drawn near the image edge isn't mistaken for a crop drag. CROP_SIDE is
+ * the thickness of the edge handles.
  */
 const CROP_OUT = 20;
 const CROP_IN = 8;
@@ -772,23 +773,23 @@ function CropFrame(props: { box: Box; active: boolean }) {
 }
 
 /**
- * The selected box's corner dots and side grips. On a small box, such as one
- * line of text, the grips shrink and its sides lose theirs, so the middle of
- * the box is always left to move it by.
+ * Corner and side grips for the selected box. On small boxes, such as one line
+ * of text, grips shrink and side grips are dropped so the middle stays free for
+ * moving.
  */
 function BoxHandles(props: { id: string; box: Box; canvasTop: number; moving: boolean; onDelete: () => void }) {
   const { t } = useTranslation();
   const { box } = props;
   const grip = Math.max(10, Math.min(24, Math.min(box.width, box.height) / 2));
-  // A side grip runs between the corner grips, so it needs room there, and a box
-  // tall (or wide) enough that it leaves the middle free.
+  // Side grips span between the corner grips. Show them only when they fit and
+  // still leave the middle free.
   const handles = HANDLES.filter(
     (handle) =>
       handle.length === 2 ||
       ((handle === 'n' || handle === 's') && box.height >= 40 && box.width >= grip * 2 + 8) ||
       ((handle === 'e' || handle === 'w') && box.width >= 40 && box.height >= grip * 2 + 8),
   );
-  // The delete button floats above the box, or below it when there is no room above.
+  // Delete button goes above the box, or below it if there is no room.
   const above = box.top - 44 >= props.canvasTop + 4;
   return (
     <>

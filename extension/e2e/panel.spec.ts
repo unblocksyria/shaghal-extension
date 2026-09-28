@@ -2,18 +2,14 @@ import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 import { TEST_PAGE_ORIGIN, VERIFICATION_TOKEN } from './stubs';
 
-/** The tester's page in front, the panel following it from its own background tab. */
+/** Brings the test page to the front and waits for the panel, in a background tab, to pick it up. */
 async function browseToTestPage(page: Page, panel: Page): Promise<void> {
   await page.goto(`${TEST_PAGE_ORIGIN}/`);
   await page.bringToFront();
   await expect(panel.getByRole('button', { name: 'Report what works' })).toBeVisible({ timeout: 15_000 });
 }
 
-test('loads the built extension and sends a vote against the stubbed API (covers AC-7)', async ({
-  page,
-  panel,
-  api,
-}) => {
+test('loads the built extension and sends a vote against the stubbed API', async ({ page, panel, api }) => {
   await browseToTestPage(page, panel);
 
   const vote = panel.getByRole('button', { name: /I need this/ });
@@ -29,7 +25,7 @@ test('loads the built extension and sends a vote against the stubbed API (covers
   expect(api.unstubbed).toEqual([]);
 });
 
-test('sends a report from the panel against the stubbed API (covers AC-7)', async ({ page, panel, api }) => {
+test('sends a report from the panel against the stubbed API', async ({ page, panel, api }) => {
   await browseToTestPage(page, panel);
 
   await panel.getByRole('button', { name: 'Report what works' }).click();
@@ -66,7 +62,7 @@ test('fits a narrow panel in both themes and keeps Settings labels attached to v
   await panel.getByRole('button', { name: 'Settings' }).click();
   await panel.locator('label:visible').filter({ hasText: 'Your email' }).click();
   await expect(panel.getByRole('textbox', { name: 'Your email' })).toBeFocused();
-  // Scoped to Appearance: the Language row below it has a System radio too.
+  // Scoped because Language also has a System radio.
   await panel
     .getByRole('radiogroup', { name: 'Appearance' })
     .getByRole('radio', { name: 'System', exact: true })
@@ -134,7 +130,7 @@ test('keeps a report intact after a shared-network 429 and lets the user retry',
   await expect(panel.getByPlaceholder('What happened?')).toHaveValue('Worked from Syria without a VPN.');
   await expect(choice).toHaveAttribute('aria-checked', 'true');
   expect(attempts).toBe(1);
-  // An explicit retry obtains a fresh verification token; no automatic resend.
+  // Nothing resends on its own. The retry click sends again with a fresh verification token.
   await panel.getByRole('button', { name: 'Send report' }).click();
   await expect(panel.getByRole('heading', { name: 'Report sent' })).toBeVisible();
   expect(attempts).toBe(2);

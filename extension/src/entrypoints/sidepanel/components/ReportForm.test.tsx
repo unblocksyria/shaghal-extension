@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it } from 'vitest';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
-import { screen, within } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import { API_BASE } from '../../../lib/config';
 import { fakeApi, type FakeApi } from '../../../testing/fakeApi';
 import { openPanel } from '../../../testing/panel';
@@ -9,7 +9,7 @@ import functionalities from '../../../testing/fixtures/functionalities.json';
 import match from '../../../testing/fixtures/match.json';
 import serviceRecord from '../../../testing/fixtures/service-record.json';
 
-/** The report form, reached the way a tester reaches it: from the card. */
+/** Opens the report form from the card, as a tester would. */
 async function openReport(user: UserEvent, pageUrl: string): Promise<FakeApi> {
   const api = fakeApi()
     .on('POST', '/services/match', { data: match })
@@ -24,7 +24,7 @@ async function openReport(user: UserEvent, pageUrl: string): Promise<FakeApi> {
 }
 
 describe('the report form', () => {
-  it('sends what the tester marked, in the body the API expects (covers AC-2)', async () => {
+  it('sends what the tester marked, in the body the API expects', async () => {
     const user = userEvent.setup();
     const api = await openReport(user, 'https://watch.example/films');
 
@@ -49,7 +49,7 @@ describe('the report form', () => {
     });
   });
 
-  it('blocks sending until a part is marked, and until a contradiction carries detail (covers AC-2)', async () => {
+  it('blocks sending until a part is marked, and until a contradiction carries detail', async () => {
     const user = userEvent.setup();
     const api = await openReport(user, 'https://third.example/page');
 
@@ -82,5 +82,34 @@ describe('the report form', () => {
 
     await screen.findByText(/browsing from Germany, not Syria/);
     expect(screen.getByText(/Turn off your VPN\./)).toBeDefined();
+  });
+
+  it('refuses more than 30 parts in the panel language', async () => {
+    const user = userEvent.setup();
+    const parts = Array.from({ length: 31 }, (_, index) => ({
+      slug: `part_${index}`,
+      name: `Part ${index}`,
+      level: 'unknown',
+    }));
+    const api = fakeApi()
+      .on('POST', '/services/match', { data: match })
+      .on('GET', '/services/netflix', { data: { ...serviceRecord, functionalities: parts } })
+      .on('GET', '/functionalities', { data: [] })
+      .install();
+    await openPanel('https://many.example/', { language: 'ar' });
+    await user.click(await screen.findByRole('button', { name: 'أبلغ عمّا يعمل' }, { timeout: 3000 }));
+
+    for (const part of parts) {
+      await user.click(
+        within(screen.getByRole('radiogroup', { name: part.name })).getByRole('radio', { name: 'يعمل' }),
+      );
+      fireEvent.change(screen.getByRole('textbox', { name: `ملاحظات ${part.name}` }), { target: { value: 'Opens.' } });
+    }
+    await user.click(screen.getByRole('button', { name: 'إرسال البلاغ' }));
+
+    expect(
+      await screen.findByText('يمكن أن يتضمن البلاغ 30 جزءاً و100 لقطة شاشة كحدّ أقصى. أزل بعضها قبل الإرسال.'),
+    ).toBeDefined();
+    expect(api.callsTo('POST', '/functionality-reports')).toHaveLength(0);
   });
 });

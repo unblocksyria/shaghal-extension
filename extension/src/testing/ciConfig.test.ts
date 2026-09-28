@@ -18,7 +18,7 @@ const jobsStart = workflow.indexOf('\njobs:');
 if (jobsStart < 0) throw new Error('The CI workflow defines no jobs section.');
 const jobs = workflow.slice(jobsStart);
 
-/** One job's text, from its own key to the next job key at the same indent. */
+/** The text of one job, up to the next job key. */
 function job(name: string): string {
   const start = jobs.indexOf(`\n  ${name}:`);
   if (start < 0) throw new Error(`The CI workflow has no \`${name}\` job.`);
@@ -27,28 +27,27 @@ function job(name: string): string {
   return next < 0 ? rest : rest.slice(0, next);
 }
 
-// The pipeline half of the spec's contract: the component tests ride the job
-// that already exists, and the browser run keeps its own job (spec 0001, AC-1, AC-8).
+// Vitest runs in the `verify` job. The browser suite has its own `e2e` job.
 describe('the pull request pipeline', () => {
-  it('keeps the component tests in the run npm test makes (covers AC-1)', () => {
+  it('keeps the component tests in the run npm test makes', () => {
     expect(vitestConfig.test?.include).toContain('src/**/*.test.{ts,tsx}');
     expect(vitestConfig.test?.setupFiles).toContain('src/testing/setup.ts');
   });
 
-  it('runs that suite in the existing verify job (covers AC-1)', () => {
+  it('runs that suite in the existing verify job', () => {
     const verify = job('verify');
     expect(verify).toContain('run: npm test');
     expect(verify).toContain('run: npm run typecheck');
     expect(verify).not.toContain('test:e2e');
   });
 
-  it('runs the end to end suite as its own job (covers AC-8)', () => {
+  it('runs the end to end suite as its own job', () => {
     const e2e = job('e2e');
     expect(e2e).toContain('run: npm run build');
     expect(e2e).toContain('run: npm run test:e2e');
   });
 
-  it('uploads the trace of a failed end to end run (covers AC-8)', () => {
+  it('uploads the trace of a failed end to end run', () => {
     const e2e = job('e2e');
     expect(e2e).toContain('if: failure()');
     expect(e2e).toContain('actions/upload-artifact');

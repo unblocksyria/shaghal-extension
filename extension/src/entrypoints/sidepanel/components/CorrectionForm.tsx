@@ -1,4 +1,3 @@
-import { formErrorMessage } from '../../../lib/api';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getCategories, type CategoryItem, type ServiceRecord } from '../../../lib/endpoints';
@@ -17,9 +16,10 @@ import {
   uploadScreenshots,
   useSavedEmail,
   useScreenshots,
+  useFormError,
 } from './FormParts';
 
-/** The six fields, keyed by the type the API records each correction against. */
+/** Correctable fields, as the API's correction types, in display order. */
 const FIELD_TYPES: CorrectionType[] = ['url', 'description', 'category', 'support_email', 'support_url', 'other'];
 
 function recorded(service: ServiceRecord, type: CorrectionType, options: CategoryItem[] = []): string {
@@ -29,8 +29,8 @@ function recorded(service: ServiceRecord, type: CorrectionType, options: Categor
     case 'description':
       return service.description ?? '';
     case 'category': {
-      // The options arrive in the active locale, so their names follow a switch
-      // while the record itself still holds the language the form opened in.
+      // Prefer option names. They follow a language switch, while the record
+      // stays in the language the form opened in.
       const names = new Map(options.map((option) => [option.id, option.name]));
       return (service.categories ?? []).map((category) => names.get(category.id) ?? category.name).join(', ');
     }
@@ -54,7 +54,7 @@ function sameSet(a: Set<string>, b: Set<string>): boolean {
   return a.size === b.size && [...a].every((value) => b.has(value));
 }
 
-/** Everything ticked goes in one submission; the review queue splits it into one item per field. */
+/** Sends every ticked field in one submission. The review queue splits it into one item per field. */
 export function CorrectionForm(props: { service: ServiceRecord; onBack: () => void }) {
   const { t, i18n } = useTranslation();
   const labels: Record<CorrectionType, string> = {
@@ -80,13 +80,12 @@ export function CorrectionForm(props: { service: ServiceRecord; onBack: () => vo
   const screenshots = useScreenshots();
   const [email, setEmail] = useSavedEmail();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { error, setError, showApiError, onDiscard } = useFormError();
   const [sent, setSent] = useState(false);
 
   const language = i18n.language;
-  // The language the options on screen are in, or null while the picker has
-  // none loaded. A switch relabels what is there and leaves the ticked IDs
-  // alone, because only the names change (spec 0002, AC-7).
+  // Language of the loaded options, or null before any load. A language switch
+  // refetches them for the new names and keeps the ticked IDs.
   const optionsLanguage = useRef<string | null>(null);
   const wantedLanguage = useRef(language);
 
@@ -94,7 +93,7 @@ export function CorrectionForm(props: { service: ServiceRecord; onBack: () => vo
     wantedLanguage.current = language;
     if (categoryOptions.length === 0 || optionsLanguage.current === language) return;
     void getCategories().then((result) => {
-      // A later switch wins: only the response for the language still wanted lands.
+      // Drop the response if the language changed again meanwhile.
       if (!result.ok || wantedLanguage.current !== language) return;
       setCategoryOptions(result.data);
       optionsLanguage.current = language;
@@ -109,7 +108,7 @@ export function CorrectionForm(props: { service: ServiceRecord; onBack: () => vo
       else next.add(type);
       return next;
     });
-    // Categories start from the recorded set, so adding one is one tick.
+    // Start from the recorded categories, so adding one takes a single tick.
     if (adding && type === 'category') {
       setCategories(recordedCategoryIds(props.service));
       if (categoryOptions.length === 0) {
@@ -124,7 +123,7 @@ export function CorrectionForm(props: { service: ServiceRecord; onBack: () => vo
     }
   };
 
-  // In catalogue order, so the form does not reshuffle as boxes are ticked.
+  // FIELD_TYPES order, so fields don't reshuffle as boxes are ticked.
   const chosen = FIELD_TYPES.filter((type) => selected.has(type));
   // The API takes a category change as a JSON array of category IDs.
   const proposedOf = (type: CorrectionType) =>
@@ -171,7 +170,7 @@ export function CorrectionForm(props: { service: ServiceRecord; onBack: () => vo
     });
     setBusy(false);
     if (!result.ok) {
-      setError(formErrorMessage(result.error));
+      showApiError(result.error);
       return;
     }
     setSent(true);
@@ -280,6 +279,7 @@ export function CorrectionForm(props: { service: ServiceRecord; onBack: () => vo
         blocker={blocker}
         note={t('correction.note')}
         error={error}
+        onDiscard={onDiscard}
         onSubmit={() => void submit()}
       />
     </FormShell>

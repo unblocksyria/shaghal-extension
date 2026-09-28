@@ -8,7 +8,7 @@ export function hostOf(rawUrl: string): string {
   }
 }
 
-/** A page's site for comparing two pages: its hostname, lowercased, without `www.`; '' when it has none. */
+/** Lowercased hostname without `www.`, for comparing pages. '' when unparseable. */
 export function siteOf(rawUrl: string | null | undefined): string {
   if (rawUrl === null || rawUrl === undefined) return '';
   try {
@@ -30,13 +30,12 @@ export function normalizeServiceUrl(rawUrl: string): string | null {
   return `${parsed.protocol}//${host}`;
 }
 
-/** Hosts that are Unblock Syria itself: the site, its subdomains and the ubsyr.com short domain. */
+/** Unblock Syria's own domains, subdomains included. ubsyr.com is the short-link domain. */
 const OWN_DOMAINS = ['unblocksyria.com', 'ubsyr.com'];
 
 /**
- * Whether the page is Unblock Syria's own site, or the site this build talks
- * to (localhost in development). There is no service to show for it, so the
- * panel explains itself instead.
+ * True for Unblock Syria's own domains and for SITE_BASE (localhost in
+ * development). These pages have no service to show.
  */
 export function isOwnSite(rawUrl: string | null): boolean {
   if (rawUrl === null) return false;
@@ -52,7 +51,10 @@ export function isOwnSite(rawUrl: string | null): boolean {
   return parsed.origin === new URL(SITE_BASE).origin;
 }
 
-/** Preserve path/query matching, but never disclose embedded credentials or fragments. */
+/**
+ * The page URL to send for matching, with path and query kept but credentials
+ * and fragment removed. Null for non-web, local or over-long URLs.
+ */
 export function matchUrl(rawUrl: string | null): string | null {
   if (rawUrl === null) return null;
   try {

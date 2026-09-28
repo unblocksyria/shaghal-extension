@@ -1,10 +1,7 @@
 /**
- * Light, dark, or the system's choice.
- *
- * `system` leaves <html> without a data-theme, so theme.css follows the
- * operating system through `color-scheme: light dark`. `light` and `dark` pin
- * it. Kept in localStorage, which the panel reads synchronously before its
- * first render, so a pinned theme applies without a flash.
+ * `system` leaves <html> without `data-theme`, so theme.css follows the OS
+ * through `color-scheme: light dark`. The choice is kept in localStorage, which
+ * the panel reads synchronously before first render to avoid a theme flash.
  */
 export type ThemePreference = 'system' | 'light' | 'dark';
 
@@ -29,7 +26,7 @@ export function saveThemePreference(preference: ThemePreference): void {
     if (preference === 'system') localStorage.removeItem(STORAGE_KEY);
     else localStorage.setItem(STORAGE_KEY, preference);
   } catch {
-    // Storage unavailable: the choice still applies for this session.
+    // Storage is unavailable. The theme still applies until the panel closes.
   }
   applyThemePreference(preference);
 }

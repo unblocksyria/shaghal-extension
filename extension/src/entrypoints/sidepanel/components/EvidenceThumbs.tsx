@@ -6,7 +6,7 @@ export function EvidenceThumbs(props: {
   evidence: PendingEvidence[];
   onRemove?: (id: string) => void;
   onEdit?: (item: PendingEvidence, label: string) => void;
-  /** The screenshot open in the editor window, marked so it can be found again. */
+  /** Screenshot open in the editor window. Its thumbnail is marked. */
   editingId?: string | null;
 }) {
   const { t } = useTranslation();
@@ -39,7 +39,7 @@ export function EvidenceThumbs(props: {
                 aria-label={t('evidence.editAria', { n })}
                 onClick={() => props.onEdit?.(item, t('evidence.item', { n }))}
               >
-                {/* Keyed by the preview, so an edited screenshot fades in rather than jumping. */}
+                {/* Keyed by preview URL so an edited screenshot remounts and fades in. */}
                 <img key={item.previewUrl} src={item.previewUrl} alt={t('evidence.alt', { n })} />
                 {item.id === props.editingId ? (
                   <span className="us-thumb-editing">{t('evidence.editing')}</span>
@@ -96,7 +96,7 @@ export function EvidenceThumbs(props: {
             >
               {item.uploadedUrl !== undefined && (
                 <a
-                  // Preview locally: the API can hide unclaimed uploads.
+                  // Link the local copy, since the API can hide unclaimed uploads.
                   href={item.previewUrl}
                   target="_blank"
                   rel="noreferrer"

@@ -8,7 +8,7 @@ export type MatchState =
   | { status: 'ready'; match: ServiceMatch }
   | { status: 'error'; message: string };
 
-/** Bounded, short-lived answers; no browsing history is persisted. */
+/** In memory, bounded and short-lived, so no browsing history is persisted. */
 const cache = new Map<string, { match: ServiceMatch; expires: number }>();
 const CACHE_LIMIT = 100;
 const CACHE_TTL_MS = 5 * 60_000;
@@ -17,15 +17,14 @@ const CACHE_TTL_MS = 5 * 60_000;
 const DEBOUNCE_MS = 350;
 
 /**
- * Which catalogue service the active page belongs to, following the tab as
- * the tester browses. `reload` forgets the cached answer for this page and
- * asks again.
+ * Matches the active page to a catalogue service. `reload` drops the cached
+ * answer for this page and asks again.
  */
 export function useServiceMatch(pageUrl: string | null): { state: MatchState; reload: () => void } {
   const key = matchUrl(pageUrl);
-  // The last failure, for the page it belongs to. Successes live in `cache`.
+  // Last failure and the page it belongs to. Successes live in `cache`.
   const [failure, setFailure] = useState<{ key: string; message: string } | null>(null);
-  // Bumped when an answer lands or a reload is asked for, to re-render.
+  // Bumped on each answer and on reload to force a re-render.
   const [generation, setGeneration] = useState(0);
 
   // A failed page is not asked again until `reload` clears the failure.

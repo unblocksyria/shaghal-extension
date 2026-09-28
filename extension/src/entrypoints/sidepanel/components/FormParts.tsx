@@ -1,4 +1,4 @@
-import { formErrorMessage } from '../../../lib/api';
+import { formErrorMessage, type ApiError } from '../../../lib/api';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { captureScreenshot, uploadPendingEvidence, withEdits, type PendingEvidence } from '../../../lib/evidence';
@@ -72,7 +72,7 @@ export function FormShell(props: {
     window.addEventListener('beforeunload', guard);
     return () => window.removeEventListener('beforeunload', guard);
   }, [dirty, trackDraft]);
-  // The back arrow points the way the text runs (spec 0002, AC-3).
+  // Back points left in LTR and right in RTL.
   const Back = directionOf(activeLanguage()) === 'rtl' ? ArrowRight : ArrowLeft;
   const { t } = useTranslation();
   return (
@@ -133,38 +133,39 @@ export function FormShell(props: {
   );
 }
 
-// Covers capture and the inline fallback editor as well as the separate window.
+// Shared across forms. Together with isEditorOpen(), these block new captures
+// and uploads while a capture or an inline editor is in progress.
 let pendingCaptures = 0;
 const inlineEditors = new Set<symbol>();
 
 export interface ScreenshotList {
   items: PendingEvidence[];
   error: string | null;
-  /** Capture the tab; resolves to the new screenshot, or null when none was added. */
+  /** Captures the active tab. Resolves to the new screenshot, or null if none was added. */
   take: () => Promise<PendingEvidence | null>;
   remove: (id: string) => void;
-  /** Note where a screenshot was uploaded, so a retry does not upload it again. */
+  /** Records a screenshot's upload URL so a retry does not upload it again. */
   replace: (item: PendingEvidence) => void;
-  /** Put a screenshot's new edits in place, or take them all off with null. */
+  /** Applies new edits to a screenshot. `null` removes all edits. */
   edit: (id: string, edited: EditedScreenshot | null) => void;
   clear: () => void;
 }
 
 /**
- * Screenshots kept in separate lists by key, such as one per part of a report.
+ * Screenshot lists by key, e.g. one per report part.
  *
- * With `pageUrl`, a capture on a different site needs a second press: the panel
- * stays open across tabs, but a service can also send you through another site
- * (sign-in, payment) on purpose.
+ * With `pageUrl`, capturing a different site needs a second press. The panel
+ * stays open across tabs, so a capture can hit the wrong site, but services
+ * also route through other sites (sign-in, payment) on purpose.
  */
 export function useScreenshotLists(pageUrl?: string | null): { list: (key: string) => ScreenshotList } {
   const { t } = useTranslation();
   const [byKey, setByKey] = useState<Record<string, PendingEvidence[]>>({});
   const [failure, setFailure] = useState<{ key: string; message: string } | null>(null);
-  // `${key} ${site}` of the last capture held back; pressing again for it captures.
+  // `${key} ${site}` of the last held-back capture. A second press for it captures.
   const [heldFor, setHeldFor] = useState<string | null>(null);
 
-  // Previews are object URLs, which live until revoked.
+  // Previews are object URLs, so revoke them all on unmount.
   const current = useRef(byKey);
   useEffect(() => {
     current.current = byKey;
@@ -218,7 +219,12 @@ export function useScreenshotLists(pageUrl?: string | null): { list: (key: strin
         setByKey((lists) => ({ ...lists, [key]: [...(lists[key] ?? []), item] }));
         return item;
       } catch (captureError) {
-        setFailure({ key, message: t('form.captureFailed', { error: String(captureError) }) });
+        setFailure({
+          key,
+          message: t('form.captureFailed', {
+            error: captureError instanceof Error ? captureError.message : String(captureError),
+          }),
+        });
         return null;
       } finally {
         pendingCaptures -= 1;
@@ -233,8 +239,8 @@ export function useScreenshotLists(pageUrl?: string | null): { list: (key: strin
       for (const item of byKey[key] ?? []) URL.revokeObjectURL(item.previewUrl);
       setByKey((lists) => ({ ...lists, [key]: [] }));
     },
-    // Only the upload's address is taken, and only while the screenshot is still
-    // the one uploaded: an edit made meanwhile is kept and uploaded afresh.
+    // Copies only the upload URL, and only if the blob is unchanged. An edit made
+    // during the upload is kept and uploaded on the next send.
     replace: (next: PendingEvidence) =>
       setByKey((lists) => ({
         ...lists,
@@ -245,7 +251,7 @@ export function useScreenshotLists(pageUrl?: string | null): { list: (key: strin
         ),
       })),
     edit: (id: string, edited: EditedScreenshot | null) => {
-      // The latest list: an edit comes back from its window long after the click.
+      // Read the latest list. The edit returns from its window long after the click.
       const item = (current.current[key] ?? []).find((candidate) => candidate.id === id);
       if (item === undefined) return;
       const next = withEdits(item, edited);
@@ -265,8 +271,8 @@ export function useScreenshots(pageUrl?: string | null): ScreenshotList {
 }
 
 /**
- * Uploaded screenshots stay in the list, so sending again after a refusal reuses them.
- * Nothing is sent while a screenshot is open in the editor: it would go unedited.
+ * Upload URLs are kept in the list, so a resend after a refusal reuses them.
+ * Refuses while a capture or editor is open, since that screenshot would go unedited.
  */
 export async function uploadScreenshots(
   screenshots: ScreenshotList,
@@ -290,14 +296,14 @@ export async function uploadScreenshots(
   return { ok: true, urls };
 }
 
-/** Whether any screenshot editor window is open, following it as it opens and closes. */
+/** Whether the editor window is open. Re-renders when it opens or closes. */
 function useEditorOpen(): boolean {
   return useSyncExternalStore(watchEditor, isEditorOpen);
 }
 
 /**
- * A form's screenshots. Each new one opens in the editor. `locked` holds the
- * list still while the form is sending, so what is sent is what is shown.
+ * A form's screenshot list. Each new capture opens in the editor. `locked`
+ * freezes the list while sending, so what is sent matches what is shown.
  */
 export function ScreenshotField(props: {
   screenshots: ScreenshotList;
@@ -311,7 +317,7 @@ export function ScreenshotField(props: {
   const locked = props.locked ?? false;
   const full = items.length >= (props.max ?? 10);
   const editorOpen = useEditorOpen();
-  // Where a screenshot is being edited: its own window, or the panel when no window can open.
+  // The screenshot being edited and where. 'panel' is the fallback when no window can open.
   const [editing, setEditing] = useState<{ item: PendingEvidence; label: string; where: 'window' | 'panel' } | null>(
     null,
   );
@@ -328,7 +334,7 @@ export function ScreenshotField(props: {
   }, []);
   const inWindow = editing?.where === 'window';
 
-  // The form going away takes its editor window with it.
+  // Close this form's editor window on unmount.
   const ownsWindow = useRef(false);
   useEffect(() => {
     ownsWindow.current = inWindow;
@@ -341,7 +347,7 @@ export function ScreenshotField(props: {
   );
 
   const openEditor = async (item: PendingEvidence, label: string) => {
-    // One editor at a time: with one open, it comes to the front instead.
+    // Only one editor at a time. If one is open, focus it instead.
     if (isEditorOpen()) {
       focusEditorWindow();
       return;
@@ -362,7 +368,7 @@ export function ScreenshotField(props: {
     }
   };
 
-  // Every new screenshot opens straight in the editor, so hiding what is private is the natural next step.
+  // Open each capture in the editor right away so private details can be hidden.
   const capture = async () => {
     if (capturing || locked || full) return;
     setCapturing(true);
@@ -450,7 +456,7 @@ export function useSavedEmail(): [string, (value: string) => void] {
     void getSavedEmail().then((value) => {
       if (active && !changed.current) setEmail(value);
     });
-    // A form stays open under Settings, so an email saved there fills it in.
+    // Forms stay mounted under Settings, so pick up an email saved there.
     const stop = watchSavedEmail(setEmail);
     return () => {
       active = false;
@@ -485,18 +491,26 @@ export function FormFooter(props: {
   label: string;
   busyLabel: string;
   busy: boolean;
-  /** Why it cannot be sent yet, or null when it can. */
+  /** Why the form can't be sent yet, or null if it can. */
   blocker: string | null;
   note: string;
   error: string | null;
+  /** Shown with the error when an earlier send could not be confirmed. */
+  onDiscard?: (() => void) | null;
   onSubmit: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div style={{ display: 'grid', gap: 10 }}>
       {props.error !== null && (
         <p style={{ ...hintStyle, color: 'var(--us-danger)', fontSize: 13 }} role="alert">
           {props.error}
         </p>
+      )}
+      {props.onDiscard != null && (
+        <Button size="md" fullWidth disabled={props.busy} onClick={props.onDiscard}>
+          {t('receipts.discard')}
+        </Button>
       )}
       <Button
         variant="primary"
@@ -510,6 +524,34 @@ export function FormFooter(props: {
       <p style={{ ...hintStyle, textAlign: 'center' }}>{props.blocker ?? props.note}</p>
     </div>
   );
+}
+
+/**
+ * A form's error line. `showApiError` also offers to discard an earlier send the
+ * API could not confirm; discarding risks a duplicate if that send did arrive.
+ */
+export function useFormError() {
+  const [error, setMessage] = useState<string | null>(null);
+  const [discard, setDiscard] = useState<(() => Promise<void>) | null>(null);
+  const setError = (message: string | null) => {
+    setMessage(message);
+    setDiscard(null);
+  };
+  const showApiError = (apiError: ApiError) => {
+    setMessage(formErrorMessage(apiError));
+    setDiscard(apiError.discard === undefined ? null : () => apiError.discard!);
+  };
+  const onDiscard =
+    discard === null
+      ? null
+      : () => {
+          setDiscard(null);
+          discard().then(
+            () => setMessage(i18next.t('receipts.discarded')),
+            () => setMessage(i18next.t('receipts.storageFailed')),
+          );
+        };
+  return { error, setError, showApiError, onDiscard };
 }
 
 export function SentState(props: { title: string; message: string; actionLabel: string; onAction: () => void }) {

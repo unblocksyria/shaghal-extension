@@ -3,10 +3,11 @@ import { describe, expect, it, vi } from 'vitest';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { EditedScreenshot, ImageEdits } from '../../lib/imageEdits';
+import { i18next } from '../../lib/i18n';
 import { ScreenshotEditor } from './ScreenshotEditor';
 
-// jsdom cannot decode or draw images, so opening one gives a fixed size and
-// saving gives marked bytes. The geometry and the flow are what is under test.
+// jsdom can't decode or draw images. Opening returns a fixed size and saving
+// returns marker bytes, so these tests cover geometry and flow.
 const bakes = vi.hoisted(() => [] as ImageEdits[]);
 vi.mock('../../lib/imageBake', () => ({
   openEditableImage: () =>
@@ -18,8 +19,8 @@ vi.mock('../../lib/imageBake', () => ({
 }));
 
 /**
- * Without layout the stage keeps its fallback size (360 × 480, less 28 of
- * padding a side), so a 1000 × 600 image is shown at 0.304.
+ * jsdom has no layout, so the stage keeps its 360 × 480 fallback. With 28 px of
+ * padding per side, a 1000 × 600 image renders at 0.304.
  */
 const SCALE = 0.304;
 
@@ -48,7 +49,7 @@ async function openEditor(edits?: ImageEdits, options: { guardClose?: boolean } 
   return { user, saved, cancelled: () => cancels };
 }
 
-/** The image on the stage; a drag that starts on it bubbles up to the stage. */
+/** The image canvas. Pointer events on it bubble up to the stage. */
 function stage(): HTMLElement {
   const element = document.querySelector<HTMLElement>('.us-editor-canvas');
   if (element === null) throw new Error('The editor shows no image');
@@ -67,7 +68,7 @@ function cropHandle(handle: string): HTMLElement {
   return element;
 }
 
-/** A drag in image pixels, turned into screen pixels at the fallback scale. */
+/** Drags between two points given in image pixels, converted at the fallback scale. */
 async function drag(user: UserEvent, from: [number, number], to: [number, number], target = stage()) {
   await user.pointer([
     { keys: '[MouseLeft>]', target, coords: { clientX: from[0] * SCALE, clientY: from[1] * SCALE } },
@@ -110,7 +111,7 @@ describe('the screenshot editor', () => {
     await user.click(screen.getByRole('button', { name: 'Redo' }));
     expect(boxes()).toHaveLength(2);
 
-    // Redo has just disabled itself and dropped focus: the shortcuts must still work.
+    // Redo has disabled itself and dropped focus. Shortcuts must still work.
     await user.keyboard('{Control>}z{/Control}');
     expect(boxes()).toHaveLength(1);
     await user.keyboard('{Meta>}z{/Meta}');
@@ -168,7 +169,7 @@ describe('the screenshot editor', () => {
     expect(screen.queryByRole('button', { name: 'Reset crop' })).toBeNull();
 
     await drag(user, [1000, 600], [600, 400], cropHandle('se'));
-    // Straight after cropping, a drag inside the frame draws, kept to the frame.
+    // Right after cropping, a drag inside the frame draws a box clamped to the frame.
     await drag(user, [500, 100], [900, 200]);
     await drag(user, [50, 50], [120, 90]);
     expect(boxes()).toHaveLength(2);
@@ -187,7 +188,7 @@ describe('the screenshot editor', () => {
     await drag(user, [1000, 600], [600, 400], cropHandle('se'));
     await drag(user, [800, 500], [900, 600]);
     expect(boxes()).toHaveLength(0);
-    // Far past the corner: the frame stops at the image's edge.
+    // Dragged far past the corner, the frame stops at the image edge.
     await drag(user, [750, 550], [2000, 2000]);
 
     await user.click(screen.getByRole('button', { name: 'Save' }));
@@ -217,7 +218,7 @@ describe('the screenshot editor', () => {
     const grips = () =>
       [...document.querySelectorAll<HTMLElement>('[data-box][data-handle]')].map((grip) => grip.dataset.handle).sort();
 
-    // One line of text: about 24 image pixels, 7 on screen. Only its corners have grips.
+    // One line of text is about 24 image px, 7 on screen. Only corner grips show.
     await drag(user, [100, 100], [600, 124]);
     expect(grips()).toEqual(['ne', 'nw', 'se', 'sw']);
     await drag(user, [300, 112], [320, 132], boxes()[0]);
@@ -239,7 +240,7 @@ describe('the screenshot editor', () => {
   it('takes a drag from where the pointer is let go, however few moves were seen', async () => {
     const { user, saved } = await openEditor();
     const target = stage();
-    // Pressed, then released far away with no move in between.
+    // Press, then release far away with no move event in between.
     await user.pointer([
       { keys: '[MouseLeft>]', target, coords: { clientX: 100 * SCALE, clientY: 100 * SCALE } },
       { keys: '[/MouseLeft]', target, coords: { clientX: 300 * SCALE, clientY: 200 * SCALE } },
@@ -278,7 +279,7 @@ describe('the screenshot editor', () => {
     await drag(user, [100, 100], [300, 200]);
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
 
-    // jsdom has no inert of its own; the browser test checks that Tab stays in the question.
+    // jsdom doesn't implement inert. The browser test checks that Tab stays in the prompt.
     const behind = ['.us-editor-bar', '.us-editor-layout .us-editor-stage', '.us-editor-footer'];
     for (const part of behind) expect(document.querySelector(part)?.hasAttribute('inert')).toBe(true);
 
@@ -358,7 +359,7 @@ describe('the screenshot editor', () => {
     await drag(user, [100, 100], [300, 200]);
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     const question = screen.getByRole('alertdialog', { name: 'Discard your changes?' });
-    // Discard has focus, so Enter answers it; Escape goes back.
+    // Discard has focus, so Enter confirms.
     expect(document.activeElement).toBe(within(question).getByRole('button', { name: 'Discard' }));
 
     await user.click(within(question).getByRole('button', { name: 'Keep editing' }));
@@ -366,13 +367,13 @@ describe('the screenshot editor', () => {
     expect(boxes()).toHaveLength(1);
     expect(cancelled()).toBe(0);
 
-    // Escape first lets go of the box, then asks, then goes back to editing.
+    // Escape deselects the box, then opens the prompt, then returns to editing.
     await drag(user, [500, 300], [700, 400]);
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('alertdialog')).toBeNull();
     await user.keyboard('{Escape}');
     expect(screen.getByRole('alertdialog')).toBeDefined();
-    // Shortcuts wait while the question is open.
+    // Shortcuts are ignored while the prompt is open.
     await user.keyboard('{Control>}z{/Control}');
     expect(boxes()).toHaveLength(2);
     await user.keyboard('{Escape}');
@@ -427,7 +428,7 @@ describe('the screenshot editor', () => {
     await user.click(screen.getByRole('button', { name: 'Undo' }));
     expect(closing()).toBe(false);
 
-    // Once the edits are discarded the window closes without a second question.
+    // After Discard, closing the window doesn't prompt again.
     await user.click(screen.getByRole('button', { name: 'Redo' }));
     expect(closing()).toBe(true);
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
@@ -454,7 +455,7 @@ describe('the screenshot editor', () => {
     await drag(user, [100, 100], [300, 200]);
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(document.querySelector('.us-editor-layout')?.getAttribute('data-leaving')).toBe('true');
-    // Nothing more can be done once it is leaving.
+    // Controls are disabled while it fades out.
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Saving…' }).disabled).toBe(true);
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Cancel' }).disabled).toBe(true);
     await waitFor(() => expect(saved).toHaveLength(1));
@@ -528,4 +529,24 @@ it('supports creating, resizing and removing redactions and cropping with keyboa
   await waitFor(() => expect(saved).toHaveLength(1));
   expect(saved[0]?.edits.crop).toEqual({ x: 100, y: 0, width: 800, height: 600 });
   expect(saved[0]?.edits.boxes[0]).toMatchObject({ x: 150, width: 200 });
+});
+
+it('labels the precise controls in the panel language', async () => {
+  await i18next.changeLanguage('ar');
+  try {
+    render(
+      <ScreenshotEditor
+        source={new Blob(['capture'])}
+        label="الدليل رقم 1"
+        onCancel={() => undefined}
+        onSave={() => undefined}
+      />,
+    );
+    await screen.findByRole('button', { name: 'تراجع' });
+    expect(screen.getByText('قصّ وإخفاء دقيق')).toBeDefined();
+    expect(screen.getByRole('spinbutton', { name: 'اليسار (بكسل)' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'أضف صندوقاً أسود' })).toBeDefined();
+  } finally {
+    await i18next.changeLanguage('en');
+  }
 });

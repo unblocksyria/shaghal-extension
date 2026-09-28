@@ -1,9 +1,9 @@
 /*
-  Every colour is written once with light-dark(), which follows the used
-  `color-scheme`. The panel follows the system by default; the Appearance
-  setting pins one by setting data-theme on <html> (see lib/theme.ts). The
-  system preference applies from the first paint, so dark users never see a
-  light flash while the script loads.
+  Each colour is defined once with light-dark(), which follows the used
+  `color-scheme`. The panel follows the system by default. The Appearance
+  setting pins a theme with data-theme on <html> (see lib/theme.ts). The
+  system preference applies from first paint, so dark mode shows no light
+  flash while scripts load.
 */
 :root {
   color-scheme: light dark;
@@ -17,7 +17,7 @@
   --us-border-hover: rgba(185, 168, 123, 0.5);
   --us-hover-tint: rgba(185, 168, 123, 0.1);
   --us-muted: light-dark(#f6f5f3, #232326);
-  /* Foreground at 3% and 5%, for chip hover and ticked. */
+  /* Foreground at 3% and 5%, for chip hover and checked states. */
   --us-faint-tint: light-dark(rgba(9, 39, 36, 0.03), rgba(245, 243, 239, 0.03));
   --us-faint-tint-strong: light-dark(rgba(9, 39, 36, 0.05), rgba(245, 243, 239, 0.05));
 
@@ -25,8 +25,8 @@
   --us-text-primary: light-dark(#092724, #f5f3ef);
   --us-text-muted: light-dark(#6a6457, #b3aa98);
   --us-text-dim: light-dark(#7a7466, #8f8878);
-  /* Accent text: links, hints that ask for something. Gold is too light to
-     read on white, so light mode uses gold-dark. */
+  /* Accent text for links and prompting hints. Gold is too light to read on
+     white, so light mode uses gold-dark. */
   --us-accent-text: light-dark(#6d6340, #b9a87b);
   --us-link: light-dark(#092724, #b9a87b);
   --us-danger: light-dark(#6b1f2a, #e2667a);
@@ -271,9 +271,8 @@ textarea.us-field {
   box-shadow: 0 1px 2px var(--us-shadow-color);
 }
 
-/* The level picker in "Report what works": three equal choices on a
-   muted track, 40px tall. Works and Fails take their status fill; Not
-   checked is the neutral raised chip. */
+/* Level picker in "Report what works". Three equal options on a 40px muted
+   track. Works and Fails use their status fill, Not checked a neutral chip. */
 .us-level-picker {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -300,7 +299,7 @@ textarea.us-field {
     color 0.2s ease;
 }
 
-/* A narrow panel: "Not checked" stays on one line. */
+/* Keep "Not checked" on one line in a narrow panel. */
 @media (max-width: 380px) {
   .us-level-picker > button {
     font-size: 13px;
@@ -334,8 +333,8 @@ textarea.us-field {
   box-shadow: 0 1px 2px var(--us-shadow-color);
 }
 
-/* A toggle in a checklist, as the correction form's "What needs to be
-   corrected?": gold border and a faint tint when ticked. */
+/* Checklist toggle, e.g. the correction form's field chips. Gold border and a
+   faint tint when checked. */
 .us-chip {
   min-height: 36px;
   padding: 0 12px;
@@ -371,7 +370,7 @@ textarea.us-field {
   white-space: nowrap;
 }
 
-/* What the site records today, above a correction's field. */
+/* The currently recorded value, shown above a correction field. */
 .us-current {
   margin: 0;
   display: flex;
@@ -424,14 +423,12 @@ textarea.us-field {
 }
 
 /*
-  The screenshot editor, in a window of its own over the browser (or inside
-  the panel when that window cannot open). It is always dark, like a photo
-  editor, whatever the panel's theme: `color-scheme: dark` makes every token
-  inside it take its dark value.
+  Screenshot editor, shown in its own window, or inside the panel when that
+  window can't open. Always dark regardless of the panel theme.
+  `color-scheme: dark` makes every token inside resolve to its dark value.
 
-  Motion: what follows the pointer follows it exactly, and what the editor
-  moves by itself (undo, redo, Reset crop) glides there. Nothing scales;
-  things fade in and out.
+  Motion: whatever follows the pointer tracks it exactly. Changes the editor
+  makes itself (undo, redo, Reset crop) animate. Nothing scales, only fades.
 */
 .us-editor {
   color-scheme: dark;
@@ -473,7 +470,7 @@ textarea.us-field {
   transition: opacity 0.14s ease-in;
 }
 
-/* Saved or cancelled: the editor fades before its window closes. */
+/* Fade out on save or cancel, before the window closes. */
 .us-editor-layout[data-leaving='true'] {
   opacity: 0;
 }
@@ -486,7 +483,7 @@ textarea.us-field {
   padding: 8px 10px;
 }
 
-/* Buttons: they brighten on hover and dim while pressed. */
+/* Buttons brighten on hover and dim while pressed. */
 .us-editor-text-btn,
 .us-editor-icon-btn,
 .us-editor-save,
@@ -596,14 +593,14 @@ textarea.us-field {
   white-space: nowrap;
 }
 
-/* The image: a crosshair inside the frame, where a drag draws a box. */
+/* Crosshair over the image, where a drag draws a box. */
 .us-editor-canvas {
   position: absolute;
   cursor: crosshair;
   animation: usEditorFade 0.32s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* The dimmed part is outside what is kept: a drag there moves the frame. */
+/* Over the dimmed area outside the crop, a drag moves the frame. */
 .us-editor-canvas[data-over='outside'] {
   cursor: grab;
 }
@@ -643,8 +640,8 @@ textarea.us-field {
   animation: usEditorFade 0.12s ease-out;
 }
 
-/* The crop frame dims what will be left out, like the photo editors do. It
-   never catches the pointer: the kept area is for drawing boxes. */
+/* The crop frame dims the area outside it. It ignores the pointer so drags
+   inside it draw boxes. */
 .us-editor-crop {
   position: absolute;
   border: 1px solid rgba(255, 255, 255, 0.85);
@@ -688,9 +685,9 @@ textarea.us-field {
   opacity: 1;
 }
 
-/* Crop handles: a 28px corner target that reaches 8px into the frame, and
-   16px side strips that reach 4px in. Corners are thick white brackets drawn
-   on the frame's corner; sides get a short bar on the frame's edge. */
+/* Crop handles. Corners are 28px targets reaching 8px into the frame, drawn
+   as thick white brackets. Sides are 16px strips reaching 4px in, drawn as a
+   short bar on the edge. */
 .us-editor-crop-handle {
   position: absolute;
   touch-action: none;
@@ -848,7 +845,7 @@ textarea.us-field {
   animation: usEditorFade 0.12s ease-out;
 }
 
-/* Delete, floating by the selected box so it is where the pointer already is. */
+/* Delete button beside the selected box, close to the pointer. */
 .us-editor-float-delete {
   position: absolute;
   transform: translateX(-50%);
@@ -871,7 +868,7 @@ textarea.us-field {
   color: var(--us-on-color);
 }
 
-/* During a drag the cursor keeps its shape wherever the pointer strays. */
+/* Keep the drag cursor while the pointer passes over other elements. */
 .us-editor-stage[data-dragging='draw'],
 .us-editor-stage[data-dragging='draw'] * {
   cursor: crosshair !important;
@@ -931,7 +928,7 @@ textarea.us-field {
   background-color: #0b0b0d;
 }
 
-/* In a full window the footer stays a comfortable width, centred. */
+/* Cap the footer content width in a full window. */
 .us-editor-footer > * {
   width: 100%;
   max-width: 560px;
@@ -959,7 +956,7 @@ textarea.us-field {
   color: var(--us-danger);
 }
 
-/* Asking before edits are thrown away. */
+/* Discard-changes prompt. */
 .us-editor-confirm-backdrop {
   position: absolute;
   inset: 0;
@@ -1017,8 +1014,8 @@ textarea.us-field {
 }
 
 /*
-  A screenshot's thumbnail in a form: clicking it opens the editor. A new one
-  fades into the list, and an edited one fades into its new image.
+  Screenshot thumbnail in a form. Clicking opens the editor. New thumbnails
+  fade in, and an edited one fades to its new image.
 */
 .us-thumb {
   animation: usEditorFade 0.3s cubic-bezier(0.16, 1, 0.3, 1);

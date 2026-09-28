@@ -72,7 +72,7 @@ describe('the edit geometry', () => {
     expect(hasEdits({ ...noEdits(image), crop: { x: 0, y: 0, width: 999, height: 600 } }, image)).toBe(true);
     const box = { id: 'a', x: 10, y: 10, width: 20, height: 20 };
     expect(hasEdits({ ...noEdits(image), boxes: [box] }, image)).toBe(true);
-    // A box drawn with nothing under it, as one dragged off the image, changes nothing.
+    // A box entirely outside the crop hides nothing.
     expect(hasEdits({ ...noEdits(image), boxes: [{ ...box, x: 2000 }] }, image)).toBe(false);
   });
 });

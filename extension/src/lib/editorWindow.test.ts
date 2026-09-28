@@ -11,14 +11,13 @@ import {
 } from './editorWindow';
 import type { ImageEdits } from './imageEdits';
 
-// The real BroadcastChannel carries the messages, Blobs included, as it does
-// between the panel and the editor window. Only chrome.windows is faked.
+// Uses the real BroadcastChannel, Blobs included. Only the chrome APIs are faked.
 
 interface FakeWindows {
   created: chrome.windows.CreateData[];
   removed: number[];
   focused: number[];
-  /** The user closing a window with its own button. */
+  /** Simulates the user closing a window. */
   closeByUser: (id: number) => void;
 }
 
@@ -63,7 +62,7 @@ function fakeChrome(
   return windows;
 }
 
-/** The fake windows of the running test, closed after it. */
+/** The current test's fake windows, closed in afterEach. */
 let active: FakeWindows | null = null;
 
 const request: EditRequest = { source: new Blob(['capture']), label: 'evidence #1' };
@@ -75,7 +74,7 @@ function sessionOf(data: chrome.windows.CreateData | undefined): string {
   return session;
 }
 
-/** The editor window's side, as the editor page runs it. */
+/** Connects as the editor page would and waits for the screenshot. */
 async function editorFor(windows: FakeWindows, index = 0) {
   await vi.waitFor(() => expect(windows.created[index]).toBeDefined());
   const received: EditRequest[] = [];
@@ -84,8 +83,7 @@ async function editorFor(windows: FakeWindows, index = 0) {
   return { panel, received: received[0] as EditRequest };
 }
 
-// A dismissed editor stays tracked until its window is gone, so each test ends
-// by closing its windows, as a user would.
+// A dismissed editor stays tracked until its window closes, so close every window after each test.
 afterEach(() => {
   closeEditorWindow();
   for (let id = 100; id < 100 + (active?.created.length ?? 0); id += 1) active?.closeByUser(id);
@@ -164,7 +162,7 @@ describe('the editor window', () => {
   it('keeps one editor at a time: while one is open, another is refused', async () => {
     const windows = fakeChrome();
     const first = editInWindow(request);
-    // Refused at once, before the first window has even opened, as a double click would.
+    // Refused before the first window opens, as with a double click.
     await expect(editInWindow({ ...request, label: 'evidence #2' })).rejects.toBeInstanceOf(EditorBusyError);
     await vi.waitFor(() => expect(windows.created).toHaveLength(1));
     expect(focusEditorWindow()).toBe(true);
@@ -211,9 +209,9 @@ describe('the editor window', () => {
     closeEditorWindow();
     expect(await result).toBeUndefined();
     await vi.waitFor(() => expect(dismissed).toEqual(['dismissed']));
-    // Only the editor can lift its warning about unsaved edits, so the panel does not force it...
+    // Not force-closed, since only the editor can clear its unsaved-edits warning.
     expect(windows.removed).toEqual([]);
-    // ...and nothing else opens or is sent until it is gone.
+    // Still tracked, so no other editor opens until it is gone.
     expect(isEditorOpen()).toBe(true);
     await expect(editInWindow(request)).rejects.toBeInstanceOf(EditorBusyError);
 
@@ -243,7 +241,7 @@ describe('the editor window', () => {
     const windows = fakeChrome({ slowCreate: new Promise((resolve) => (open = resolve)) });
     const result = editInWindow(request);
 
-    // Its screenshot was removed before Chrome had opened the window.
+    // Dismissed before Chrome has opened the window.
     expect(focusEditorWindow()).toBe(true);
     closeEditorWindow();
     expect(await result).toBeUndefined();
@@ -265,10 +263,9 @@ describe('the editor window', () => {
     const result = editInWindow(request);
     const { panel } = await editorFor(windows);
 
-    // Another editor cancels, and this one takes its edits off. The panel must
-    // hear only its own: null, not the stranger's undefined. (No Blob travels
-    // once three channels are open: Node's BroadcastChannel cannot carry one
-    // to three listeners, though Chrome can.)
+    // Another session cancels (undefined) and this one saves null. The panel
+    // must resolve with its own null. No Blob is sent here because Node's
+    // BroadcastChannel cannot deliver one to three listeners, though Chrome can.
     const stranger = connectToPanel('another-session', () => undefined);
     stranger.cancel();
     panel.save(null);
@@ -295,7 +292,7 @@ describe('the editor window', () => {
   it('asks again until the panel answers, and takes the screenshot once', async () => {
     vi.stubGlobal('window', { close: () => undefined });
     const windows = fakeChrome();
-    // The editor asks before the panel is listening: its first "ready" goes unheard.
+    // The editor connects before the panel listens, so its first "ready" is lost.
     const received: EditRequest[] = [];
     const editor = connectToPanel('early', (opened) => received.push(opened));
     const panel = new BroadcastChannel('shaghal-screenshot-editor');
@@ -303,7 +300,7 @@ describe('the editor window', () => {
     panel.onmessage = (event: MessageEvent<{ type: string }>) => {
       if (event.data.type !== 'ready') return;
       readies.push(event.data);
-      // Answered twice, as a slow panel answering two "ready"s would.
+      // Answer twice, as a slow panel replying to two "ready"s would.
       if (readies.length === 1) {
         panel.postMessage({ type: 'open', session: 'early', source: null, label: 'evidence #1' });
         panel.postMessage({ type: 'open', session: 'early', source: null, label: 'evidence #9' });
@@ -312,7 +309,7 @@ describe('the editor window', () => {
     await vi.waitFor(() => expect(received).toHaveLength(1), { timeout: 2000 });
     expect(received[0]?.label).toBe('evidence #1');
     await new Promise((resolve) => setTimeout(resolve, 700));
-    // Once answered it stops asking and takes nothing more.
+    // After the first answer it stops sending "ready" and ignores later opens.
     expect(readies).toHaveLength(1);
     expect(received).toHaveLength(1);
     panel.close();
