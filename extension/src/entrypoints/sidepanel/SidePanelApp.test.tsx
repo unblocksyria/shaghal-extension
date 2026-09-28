@@ -86,8 +86,8 @@ describe('settings over a form', () => {
   });
 });
 
-/** The page URL a match request was made for. */
-const requestedUrl = (json: unknown) => (json as { url?: string }).url ?? '';
+/** The host of the page a match request was made for. */
+const requestedHost = (json: unknown) => new URL((json as { url?: string }).url ?? 'about:blank').hostname;
 
 /** Navigates the fake browser's active tab, as the tester would. */
 async function navigateTo(url: string): Promise<void> {
@@ -120,7 +120,7 @@ describe('leaving a page while its form opens', () => {
   it('does not open the form for the page that was left', async () => {
     const user = userEvent.setup();
     const api = fakeApi().on('POST', '/services/match', (call) => ({
-      data: requestedUrl(call.json).startsWith('https://left.example') ? match : matchNone,
+      data: requestedHost(call.json) === 'left.example' ? match : matchNone,
     }));
     const release = api.hold('GET', '/services/netflix', { data: serviceRecord });
     api.install();
@@ -147,7 +147,7 @@ describe('picking from a list', () => {
     const user = userEvent.setup();
     fakeApi()
       .on('POST', '/services/match', (call) => ({
-        data: requestedUrl(call.json).startsWith('https://many.example') ? matchMany : matchNone,
+        data: requestedHost(call.json) === 'many.example' ? matchMany : matchNone,
       }))
       .install();
 
