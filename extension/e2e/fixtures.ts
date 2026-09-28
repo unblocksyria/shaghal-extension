@@ -8,7 +8,7 @@ import { stubFor, TEST_PAGE_HTML, TEST_PAGE_ORIGIN } from './stubs';
 
 const extensionDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.output', 'chrome-mv3');
 
-/** The ID Chrome gives this extension: the first 16 bytes of the manifest key's sha256, mapped a-p. */
+/** Chrome's extension ID: the first 16 bytes of sha256(manifest key), each hex digit mapped to a-p. */
 export function extensionId(): string {
   const manifest = JSON.parse(readFileSync(path.join(extensionDir, 'manifest.json'), 'utf8')) as { key?: string };
   if (manifest.key === undefined) throw new Error('The built manifest carries no key, so its ID cannot be derived.');
@@ -26,13 +26,13 @@ export interface RecordedCall {
 export interface ApiStub {
   /** Requests no stub answered; the fixture fails the test when any appear. */
   readonly unstubbed: string[];
-  /** Every stubbed request, in the order it arrived. */
+  /** Stubbed requests, in arrival order. */
   readonly calls: RecordedCall[];
 }
 
 /**
- * A real Chrome with the built extension loaded, the panel open on its own tab,
- * and every request answered from a stub. Nothing reaches a real host (spec 0001, AC-9).
+ * Chromium with the built extension loaded and the panel open in its own tab.
+ * Every http(s) request is answered by a stub, so nothing reaches a real host.
  */
 export const test = base.extend<{ context: BrowserContext; page: Page; panel: Page; api: ApiStub }>({
   context: async ({}, use) => {
@@ -41,14 +41,14 @@ export const test = base.extend<{ context: BrowserContext; page: Page; panel: Pa
     }
     const profile = mkdtempSync(path.join(tmpdir(), 'shaghal-e2e-'));
     const context = await chromium.launchPersistentContext(profile, {
-      // The full Chromium build: branded Google Chrome refuses --load-extension, and
-      // Playwright's headless shell cannot host extensions either.
+      // Full Chromium. Branded Chrome refuses --load-extension, and Playwright's
+      // headless shell cannot host extensions.
       channel: 'chromium',
       ignoreDefaultArgs: ['--disable-extensions'],
       args: [
         `--disable-extensions-except=${extensionDir}`,
         `--load-extension=${extensionDir}`,
-        // Recent Chrome refuses --load-extension without it, which reads as ERR_BLOCKED_BY_CLIENT.
+        // Recent Chromium ignores --load-extension without this, and the panel fails with ERR_BLOCKED_BY_CLIENT.
         '--enable-unsafe-extension-testing',
       ],
     });
@@ -59,11 +59,11 @@ export const test = base.extend<{ context: BrowserContext; page: Page; panel: Pa
       rmSync(profile, { recursive: true, force: true });
     }
   },
-  // Both pages wait for the stubs, so no request can slip through before they are installed.
+  // `page` and `panel` depend on `api`, so the routes exist before any request.
   api: async ({ context }, use) => {
     const calls: RecordedCall[] = [];
     const unstubbed: string[] = [];
-    // Only http(s): intercepting an extension's own pages blocks them, so they stay untouched.
+    // http(s) only. Routing chrome-extension:// pages blocks them.
     await context.route(
       (url) => url.protocol === 'http:' || url.protocol === 'https:',
       async (route) => {

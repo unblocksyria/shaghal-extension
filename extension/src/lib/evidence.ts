@@ -5,24 +5,21 @@ import type { ImageEdits } from './imageEdits';
 
 export interface PendingEvidence {
   id: string;
-  /** What gets uploaded: the capture, or the edited copy once it has been edited. */
+  /** The file to upload: the capture, or its edited copy. */
   blob: Blob;
   previewUrl: string;
   filename: string;
   uploadedUrl?: string;
   uploadedAt?: number;
-  /**
-   * The capture as taken and the edits on it, so the edits can be changed
-   * again. Both stay in the panel; only `blob` is ever uploaded.
-   */
+  /** The unedited capture and its edits, kept so the edits can be changed. Never uploaded. */
   original?: Blob;
   edits?: ImageEdits;
 }
 
-/** The API refuses evidence files over 5 MB. */
+/** The API refuses evidence files over 5 MiB. */
 const MAX_EVIDENCE_BYTES = 5 * 1024 * 1024;
 
-/** A JPEG of the visible page, scaled down if still over the upload cap. */
+/** A JPEG of the visible tab, downscaled if over the upload limit. */
 async function captureVisibleScreenshot(windowId: number): Promise<Blob> {
   const dataUrl = await chrome.tabs.captureVisibleTab(windowId, { format: 'jpeg', quality: 90 });
   const blob = dataUrlToBlob(dataUrl);
@@ -48,12 +45,12 @@ export async function shrinkToFit(blob: Blob): Promise<Blob> {
         Math.max(1, Math.round(bitmap.height * scale)),
       );
       const context = canvas.getContext('2d');
-      if (context === null) throw new Error('This browser cannot resize the screenshot.');
+      if (context === null) throw new Error(i18next.t('evidence.cannotResize'));
       context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
       smaller = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.85 });
       scale *= 0.75;
     }
-    if (smaller.size > MAX_EVIDENCE_BYTES) throw new Error('The screenshot is too large. Capture a smaller area.');
+    if (smaller.size > MAX_EVIDENCE_BYTES) throw new Error(i18next.t('evidence.tooLarge'));
     return smaller;
   } finally {
     bitmap.close();
@@ -71,8 +68,8 @@ export async function captureScreenshot(windowId: number): Promise<PendingEviden
 }
 
 /**
- * The screenshot with new edits, or back to the capture when `edited` is null.
- * It needs uploading again, and its old preview is the caller's to revoke.
+ * The item with new edits, or restored to the capture when `edited` is null.
+ * The result has no upload URL. The caller revokes the old `previewUrl`.
  */
 export function withEdits(item: PendingEvidence, edited: { blob: Blob; edits: ImageEdits } | null): PendingEvidence {
   const original = item.original ?? item.blob;
@@ -90,7 +87,7 @@ export async function uploadPendingEvidence(
   item: PendingEvidence,
   reportType: 'submission' | 'correction' | 'functionality_report',
 ): Promise<ApiResult<PendingEvidence>> {
-  // Claims expire after an hour. Leave five minutes for verification and submission.
+  // Upload claims expire after an hour. Reuse one only with 5+ minutes left to verify and submit.
   if (item.uploadedUrl !== undefined && item.uploadedAt !== undefined && Date.now() - item.uploadedAt < 55 * 60_000)
     return { ok: true, data: item };
   if (item.blob.size === 0 || item.blob.size > MAX_EVIDENCE_BYTES)

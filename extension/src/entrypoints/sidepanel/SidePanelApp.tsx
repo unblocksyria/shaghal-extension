@@ -26,7 +26,7 @@ export function SidePanelApp() {
   const [view, setView] = useState<PanelView>({ name: 'home' });
   // Settings opens over the current view, which stays mounted so a form's draft survives.
   const [settingsOpen, setSettingsOpen] = useState(false);
-  // The saved pick wins as soon as it changes, in this panel or any other (spec 0002, AC-1).
+  // Apply the saved language and follow changes made in this or any other panel.
   useEffect(() => {
     void applyStoredLanguage();
     return watchSavedLanguage(() => void applyStoredLanguage());
@@ -39,13 +39,13 @@ export function SidePanelApp() {
   const onOwnSite = isOwnSite(activeTab.url);
   const { state: matchState, reload } = useServiceMatch(onOwnSite ? null : activeTab.url);
 
-  // A service picked from the list, only for the page it was picked on.
+  // A service picked from the candidate list. Applies only to the page it was picked on.
   const [pickedFor, setPickedFor] = useState<{ pageUrl: string; service: CatalogService } | null>(null);
   const picked = pickedFor !== null && pickedFor.pageUrl === activeTab.url ? pickedFor.service : null;
 
-  // The report and correction forms need the full record: its parts and details.
+  // The report and correction forms need the full service record, fetched on open.
   const [opening, setOpening] = useState(false);
-  // Shown only on the page it happened on.
+  // Shown only on the page where the fetch failed.
   const [openFailure, setOpenFailure] = useState<{ pageUrl: string | null; message: string } | null>(null);
   const openError = openFailure !== null && openFailure.pageUrl === activeTab.url ? openFailure.message : null;
   const open = async (service: CatalogService, name: 'report' | 'correction') => {

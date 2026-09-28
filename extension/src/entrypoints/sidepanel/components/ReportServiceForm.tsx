@@ -1,4 +1,3 @@
-import { formErrorMessage } from '../../../lib/api';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { submitService } from '../../../lib/submit';
@@ -14,10 +13,11 @@ import {
   uploadScreenshots,
   useSavedEmail,
   useScreenshots,
+  useFormError,
 } from './FormParts';
 import { VpnWarning } from './VpnWarning';
 
-/** A page title trimmed to the part that usually names the site. */
+/** First segment of the page title, which usually names the site. At most 80 characters. */
 function nameFromTitle(title: string | null): string {
   if (title === null) return '';
   const first = title.split(/\s[|–—-]\s/)[0] ?? title;
@@ -31,7 +31,7 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
   const screenshots = useScreenshots(props.url);
   const [email, setEmail] = useSavedEmail();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { error, setError, showApiError, onDiscard } = useFormError();
   const [sent, setSent] = useState(false);
 
   const submit = async () => {
@@ -59,7 +59,7 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
     });
     setBusy(false);
     if (!result.ok) {
-      setError(formErrorMessage(result.error));
+      showApiError(result.error);
       return;
     }
     setSent(true);
@@ -115,6 +115,7 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
         blocker={name.trim().length === 0 ? t('reportService.blocker') : null}
         note={t('reportService.note')}
         error={error}
+        onDiscard={onDiscard}
         onSubmit={() => void submit()}
       />
     </FormShell>

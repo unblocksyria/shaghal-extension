@@ -4,10 +4,27 @@ import type { TurnstileAction } from './turnstile';
 
 type PendingReceipt = { key: string; fingerprint: string };
 
-/** Read when it is shown, so it follows the panel's language. */
+/** A function so the message is translated at call time. */
 const uncertainMessage = () => i18next.t('receipts.uncertain');
 
-/** Session storage keeps uncertain delivery markers across panel closures, without storing form contents. */
+/** The API keeps receipts for 24 hours, so an older key can no longer be checked or reused. */
+const RECEIPT_LIFETIME_MS = 24 * 60 * 60 * 1000;
+
+/** Keys start with their creation time in milliseconds. A key without one is treated as expired. */
+function isExpired(key: string): boolean {
+  const created = Number(key.slice(0, key.indexOf('.')));
+  return !Number.isFinite(created) || Date.now() - created > RECEIPT_LIFETIME_MS;
+}
+
+/**
+ * POSTs a form with an Idempotency-Key kept in session storage until delivery
+ * is certain, so a retry after a lost response cannot create a duplicate. The
+ * receipt survives the panel closing and holds only the key and a SHA-256 of
+ * the body, never the form contents. If the body changed since an uncertain
+ * attempt, the old receipt is looked up instead of sending. A receipt the API
+ * no longer knows (expired, or older than 24 hours) is dropped. One it can't
+ * confirm stays until the user discards it.
+ */
 export async function submitWithReceipt(
   path: string,
   body: Record<string, unknown>,
@@ -19,8 +36,11 @@ export async function submitWithReceipt(
   let receipt: PendingReceipt;
   let retained: boolean;
   try {
-    const stored = (await chrome.storage.session.get(slot))[slot] as PendingReceipt | undefined;
-    retained = stored !== undefined;
+    let stored = (await chrome.storage.session.get(slot))[slot] as PendingReceipt | undefined;
+    if (stored !== undefined && isExpired(stored.key)) {
+      await chrome.storage.session.remove(slot);
+      stored = undefined;
+    }
     if (stored && stored.fingerprint !== fingerprint) {
       const prior = await apiRequest<{ state: string; status?: number }>('/submission-receipts', {
         method: 'POST',
@@ -34,7 +54,10 @@ export async function submitWithReceipt(
           message: uncertainMessage(),
         },
       });
-      if (
+      if (prior.ok && prior.data.state === 'expired') {
+        await chrome.storage.session.remove(slot);
+        stored = undefined;
+      } else if (
         prior.ok &&
         prior.data.state === 'completed' &&
         typeof prior.data.status === 'number' &&
@@ -54,9 +77,19 @@ export async function submitWithReceipt(
                 : i18next.t('receipts.refused'),
           },
         };
+      } else {
+        return {
+          ok: false,
+          error: {
+            error: 'DELIVERY_UNCONFIRMED',
+            message: uncertainMessage(),
+            status: 409,
+            discard: () => chrome.storage.session.remove(slot),
+          },
+        };
       }
-      return { ok: false, error: { error: 'DELIVERY_UNCONFIRMED', message: uncertainMessage(), status: 409 } };
     }
+    retained = stored !== undefined;
     receipt = stored ?? { key: `${Date.now()}.${crypto.randomUUID()}`, fingerprint };
     await chrome.storage.session.set({ [slot]: receipt });
   } catch {
@@ -71,6 +104,7 @@ export async function submitWithReceipt(
   }
   const result = await apiRequest<unknown>(path, {
     method: 'POST',
+    write: true,
     unwrap: 'raw',
     verify,
     body,
@@ -84,8 +118,8 @@ export async function submitWithReceipt(
       message: i18next.t('receipts.unconfirmed'),
     },
   });
-  // An unreadable success or server/network failure may follow a completed write.
-  // Keep its key; a retry can only retrieve that receipt, never repeat the write.
+  // A network error, 5xx or unreadable success may follow a completed write, so
+  // the key is kept and a retry gets that receipt back instead of writing again.
   const definiteFailure =
     !result.ok &&
     !retained &&
@@ -94,5 +128,10 @@ export async function submitWithReceipt(
         result.error.status < 500 &&
         !['DELIVERY_UNCONFIRMED', 'IDEMPOTENCY_CONFLICT', 'IDEMPOTENCY_KEY_EXPIRED'].includes(result.error.error)));
   if (result.ok || definiteFailure) await chrome.storage.session.remove(slot).catch(() => undefined);
+  // The API no longer knows this key, so no retry can reuse it.
+  if (!result.ok && result.error.error === 'IDEMPOTENCY_KEY_EXPIRED') {
+    await chrome.storage.session.remove(slot).catch(() => undefined);
+    return { ok: false, error: { ...result.error, message: i18next.t('receipts.expired') } };
+  }
   return result;
 }

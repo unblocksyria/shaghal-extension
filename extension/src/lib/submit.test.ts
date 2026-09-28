@@ -11,7 +11,7 @@ beforeEach(async () => {
   vi.stubGlobal('chrome', fakeBrowser);
 });
 
-// The language of one test must not tag the submissions of the next.
+// Reset the language so it does not leak into the next test.
 afterEach(async () => {
   await i18next.changeLanguage('en');
 });
@@ -85,7 +85,6 @@ it.each(forms)('keeps a confirmed $name submission successful if remembering the
   expect(fetcher).toHaveBeenCalledTimes(1);
 });
 
-// Every write route carries the language it was written in, not just the reads (spec 0002, AC-7).
 it.each(forms)('tags a $name submission with the language the panel is in', async ({ send }) => {
   await i18next.changeLanguage('ar');
   const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ id: 'receipt' }));

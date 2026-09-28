@@ -8,9 +8,14 @@ export interface ApiError {
   requestId?: string;
   status: number;
   retryAfterSeconds?: number;
+  /** Set on DELIVERY_UNCONFIRMED: forgets the earlier attempt so the next send starts fresh. */
+  discard?: () => Promise<void>;
 }
 
-/** Keep the draft open and make a shared-network cooldown actionable. */
+/**
+ * The message to show on a form. A 429 becomes a cooldown notice with the wait
+ * from Retry-After, or 60 s when absent.
+ */
 export function formErrorMessage(error: ApiError): string {
   if (error.status !== 429) return error.message;
   const seconds = Math.max(1, Math.ceil(error.retryAfterSeconds ?? 60));
@@ -31,11 +36,15 @@ interface RequestOptions {
   /** Attach a Turnstile token solved for this action (see lib/turnstile.ts). */
   verify?: TurnstileAction;
   /**
-   * What a successful answer must look like. One that doesn't pass `check` is
-   * a BAD_RESPONSE with this `message`, as an unreadable answer is, so a
-   * caller never reads fields that are not there.
+   * Validates a successful body. One that fails `check` becomes a BAD_RESPONSE
+   * with `message`, so callers never read missing fields.
    */
   expect?: { check: (data: unknown) => boolean; message: string };
+  /**
+   * The request changes something on the server. A lost response then warns that
+   * it may have arrived; a read, even a POST one, just reports the failure.
+   */
+  write?: boolean;
 }
 
 function badResponse(status: number, message: string): { ok: false; error: ApiError } {
@@ -76,7 +85,7 @@ function buildError(response: Response, parsed: { error: string; message: string
 /** Long enough for a screenshot upload on a slow connection. */
 const TIMEOUT_MS = 60_000;
 
-/** Never throws and never retries: a 429 comes back with `retryAfterSeconds`. */
+/** Never throws or retries. A 429 returns with `retryAfterSeconds` set. */
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<ApiResult<T>> {
   const headers: Record<string, string> = { ...options.headers };
   if (options.verify !== undefined) {
@@ -116,11 +125,10 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       ok: false,
       error: {
         error: timedOut ? 'TIMEOUT' : 'NETWORK_ERROR',
-        message: timedOut
-          ? i18next.t('api.timeout')
-          : options.method === 'POST' || options.method === 'DELETE'
-            ? i18next.t('api.unconfirmed')
-            : i18next.t('api.network'),
+        message:
+          options.write === true
+            ? i18next.t(timedOut ? 'api.timeout' : 'api.unconfirmed')
+            : i18next.t(timedOut ? 'api.timeoutRead' : 'api.network'),
         status: 0,
       },
     };

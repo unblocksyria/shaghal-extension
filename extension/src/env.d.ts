@@ -1,4 +1,4 @@
-/** Build-time settings read by `lib/config.ts`. All are optional. */
+/** Optional build-time settings read by `lib/config.ts`. */
 interface ImportMetaEnv {
   readonly WXT_API_BASE?: string;
   readonly WXT_SITE_BASE?: string;

@@ -3,7 +3,10 @@ import { submitWithReceipt } from './receipts';
 import { saveEmail } from './settings';
 import type { TurnstileAction } from './turnstile';
 
-/** Remember only confirmed submissions; a preference failure must not invite resending. */
+/**
+ * Saves the submitter's email only after a confirmed submission. A failed save
+ * never turns the result into an error, which would invite a resend.
+ */
 async function submitPublicForm(path: string, body: Record<string, unknown>, verify: TurnstileAction) {
   const result = await submitWithReceipt(path, body, verify);
   const email = body.submitterEmail;
@@ -38,7 +41,7 @@ export async function submitService(input: SubmitServiceInput) {
 
 export interface SubmitFunctionalityReportInput {
   serviceId: string;
-  /** Each part carries its own note or screenshots; the API refuses one with neither. */
+  /** The API rejects an item with neither a description nor evidence. */
   items: {
     slug: string;
     level: 'working' | 'failing';

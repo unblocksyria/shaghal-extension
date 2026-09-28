@@ -1,16 +1,8 @@
 import type { Catalog } from './en';
 
-/**
- * The Arabic catalog. It may leave any key out: a key with no Arabic entry
- * falls back to the English text, never a raw key name (spec 0002, AC-5).
- *
- * Every entry here is a draft awaiting review by a native reader before
- * release (spec 0002, Follow-up).
- */
-/**
- * English is the key set, but Arabic has six plural forms where English has
- * two, so `_two`, `_few` and `_many` siblings are allowed alongside any key.
- */
+// Arabic catalog. Missing keys fall back to English. A native reader reviews every entry.
+
+/** Arabic has six plural forms to English's two, so any key may have extra plural siblings. */
 type PluralSuffix = `${string}_${'zero' | 'one' | 'two' | 'few' | 'many' | 'other'}`;
 
 type Arabic<T> = { [K in keyof T]?: T[K] extends string ? string : Arabic<T[K]> } & {
@@ -127,6 +119,7 @@ export const ar: Arabic<Catalog> = {
     sameAsRecorded: 'مطابق لما هو مسجّل. أضف ملاحظة أو لقطة شاشة لتأكيده من جديد.',
     required: 'مطلوب: ملاحظة أو لقطة شاشة توضّح ذلك.',
     addDetailError: 'أضف ملاحظة أو لقطة شاشة لكل جزء حدّدته.',
+    tooMany: 'يمكن أن يتضمن البلاغ 30 جزءاً و100 لقطة شاشة كحدّ أقصى. أزل بعضها قبل الإرسال.',
     catalogueFailed: 'تعذّر تحميل الأجزاء الأخرى التي يمكنك إضافتها.',
     addPart: 'أضف جزءاً جرّبته',
     choosePart: 'اختر جزءاً',
@@ -249,13 +242,16 @@ export const ar: Arabic<Catalog> = {
     removeTitle: 'إزالة من البلاغ',
     removeAria: 'إزالة الدليل رقم {{n}}',
     viewScreenshot: 'اعرض لقطة الشاشة',
-    sizeRange: 'يجب أن تكون لقطات الشاشة بين 1 بايت و5 ميغابايت.',
+    sizeRange: 'يجب أن تكون لقطات الشاشة بين 1 بايت و5 ميبيبايت.',
+    cannotResize: 'لا يستطيع هذا المتصفح تصغير لقطة الشاشة.',
+    tooLarge: 'لقطة الشاشة كبيرة جداً. التقط مساحة أصغر.',
   },
 
   api: {
     timeout: 'استغرقت سوريا بدون قيود وقتاً طويلاً في الرد. ربما وصل طلبك؛ تحقق قبل أن ترسل مجدداً.',
     unconfirmed: 'تعذّر تأكيد الطلب. ربما وصل؛ تحقق قبل أن ترسل مجدداً.',
     network: 'تعذّر الوصول إلى سوريا بدون قيود. تحقق من اتصالك.',
+    timeoutRead: 'استغرقت سوريا بدون قيود وقتاً طويلاً في الرد. حاول مجدداً.',
     unreadable: 'أرسلت سوريا بدون قيود إجابة لم تستطع اللوحة قراءتها.',
     incomplete: 'أرسلت سوريا بدون قيود إجابة غير مكتملة.',
     invalid: 'أرسلت سوريا بدون قيود إجابة غير صالحة.',
@@ -278,7 +274,10 @@ export const ar: Arabic<Catalog> = {
 
   receipts: {
     uncertain:
-      'لم يُؤكَّد إرسال سابق. احتفظ بالبيانات واللقطات الأصلية ثم أعد الإرسال للتحقق من إيصاله. لا تبدأ بلاغاً بديلاً بعد.',
+      'لم يُؤكَّد إرسال سابق. أعد إرسال البيانات الأصلية للتحقق من إيصاله، أو تجاهل المحاولة السابقة إن كنت متأكداً أنها لم تصل.',
+    expired: 'لم يعد بالإمكان التحقق من المحاولة السابقة. أعد الإرسال لإرسال هذه البيانات.',
+    discard: 'تجاهل المحاولة السابقة',
+    discarded: 'تم تجاهل المحاولة السابقة. أعد الإرسال لإرسال هذه البيانات.',
     received: 'وصل بلاغك السابق. تحقّق منه قبل إرسال بلاغ آخر.',
     refused: 'رُفض محاولتك السابقة. راجع البيانات الحالية ثم حاول مجدداً.',
     storageFailed: 'تعذّر حفظ إيصال التسليم في هذا المتصفح. لم يُرسَل شيء. أعد فتح اللوحة ثم حاول مجدداً.',
@@ -312,6 +311,18 @@ export const ar: Arabic<Catalog> = {
     hintCropped: 'اسحب لتغطية المزيد، أو اسحب الجزء المعتم لتحريك الإطار. Enter يحفظ.',
     hintBlackout: 'اسحب لتغطية المزيد. اضغط Enter أو حفظ عندما تنتهي.',
     gone: 'لم تعد لقطة الشاشة مفتوحة في اللوحة. أغلق هذه النافذة وحاول مجدداً.',
+    openFailed: 'تعذّر فتح لقطة الشاشة: {{error}}',
+    cannotDraw: 'لا يستطيع هذا المتصفح رسم لقطة الشاشة المعدّلة.',
+    precise: 'قصّ وإخفاء دقيق',
+    region: 'المنطقة المراد تحريرها',
+    cropFrame: 'إطار القص',
+    blackBox: 'الصندوق الأسود {{n}}',
+    left: 'اليسار (بكسل)',
+    top: 'الأعلى (بكسل)',
+    width: 'العرض (بكسل)',
+    height: 'الارتفاع (بكسل)',
+    addBox: 'أضف صندوقاً أسود',
+    removeBox: 'احذف الصندوق الأسود',
   },
 
   turnstile: {

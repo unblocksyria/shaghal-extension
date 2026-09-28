@@ -88,6 +88,23 @@ describe('apiRequest', () => {
     expect(offline.ok === false && offline.error).toMatchObject({ error: 'NETWORK_ERROR', status: 0 });
     expect(slow.ok === false && slow.error).toMatchObject({ error: 'TIMEOUT', status: 0 });
   });
+
+  it('warns that a lost write may have arrived, but not a lost read sent as POST', async () => {
+    stubFetch(
+      new TypeError('Failed to fetch'),
+      new TypeError('Failed to fetch'),
+      new DOMException('timed out', 'TimeoutError'),
+      new DOMException('timed out', 'TimeoutError'),
+    );
+    const read = await apiRequest('/services/match', { method: 'POST', body: {} });
+    const write = await apiRequest('/services/x/vote', { method: 'POST', write: true });
+    const slowRead = await apiRequest('/services/match', { method: 'POST', body: {} });
+    const slowWrite = await apiRequest('/services/x/vote', { method: 'POST', write: true });
+    expect(read.ok === false && read.error.message).toBe('Could not reach Unblock Syria. Check your connection.');
+    expect(write.ok === false && write.error.message).toMatch(/may have arrived/);
+    expect(slowRead.ok === false && slowRead.error.message).toBe('Unblock Syria took too long to answer. Try again.');
+    expect(slowWrite.ok === false && slowWrite.error.message).toMatch(/may have arrived/);
+  });
 });
 
 describe('request safety', () => {

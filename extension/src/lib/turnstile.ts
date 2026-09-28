@@ -6,7 +6,7 @@ export type TurnstileAction = 'vote' | 'submission' | 'report' | 'correction' | 
 
 const VERIFY_PATH = '/extension/turnstile';
 
-/** How long the page has to load and answer before a click is ever needed. */
+/** Time for the verification page to load and answer before any challenge is shown. */
 const LOAD_TIMEOUT_MS = 30_000;
 /** How long the tester has to finish a challenge once one is shown. */
 const INTERACTIVE_TIMEOUT_MS = 120_000;
@@ -14,7 +14,7 @@ const INTERACTIVE_TIMEOUT_MS = 120_000;
 type BridgeMessage =
   { status: 'interactive' } | { status: 'solved'; token: string } | { status: 'error'; code: string };
 
-/** A message from the page for this request, or null for anything else. */
+/** Parses a verification-page message. Null unless well formed and for this nonce and action. */
 export function readMessage(data: unknown, nonce: string, action: TurnstileAction): BridgeMessage | null {
   if (typeof data !== 'object' || data === null) return null;
   const fields = data as Record<string, unknown>;
@@ -32,21 +32,20 @@ export function readMessage(data: unknown, nonce: string, action: TurnstileActio
 }
 
 /**
- * A Turnstile token for `action`, solved on the verification page.
+ * Solves a Turnstile challenge for `action` on the verification page.
  *
  * The API accepts only tokens solved on a hostname it trusts, and an extension
  * cannot load Turnstile's script, so the panel frames a page on
- * verify.unblocksyria.com that can. The contract:
+ * verify.unblocksyria.com. Contract with that page:
  *
  * - URL: `${VERIFY_BASE}/extension/turnstile?action=<action>&nonce=<uuid>`.
  * - It posts `{ type: 'unblocksyria-turnstile', nonce, action, status }` to
- *   this extension's origin only: `interactive` when the tester must click,
- *   `solved` with a `token`, or `error` with a `code`.
- * - Its `frame-ancestors` admits only the store extension's origin.
+ *   this extension's origin only. `status` is `interactive` when the tester
+ *   must click, `solved` with a `token`, or `error` with a `code`.
+ * - Its `frame-ancestors` allows only the store extension's origin.
  *
- * The frame stays invisible unless Turnstile asks for a click, which most
- * testers never see. Rejects with a message fit to show when the tester
- * cancels, the page fails or never answers.
+ * The frame stays invisible unless Turnstile needs a click. Rejects with a
+ * displayable message on cancel, page error or timeout.
  */
 function requestTurnstileToken(action: TurnstileAction): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -105,7 +104,7 @@ function requestTurnstileToken(action: TurnstileAction): Promise<string> {
       if (message.status === 'solved') {
         finish(message.token);
       } else if (message.status === 'error') {
-        // Turnstile's own error code, so a tester's report can be traced.
+        // Include Turnstile's error code so a tester's report can be traced.
         finish(new Error(i18next.t('turnstile.failed', { code: message.code })));
       } else if (!interactive) {
         interactive = true;
@@ -131,11 +130,7 @@ function requestTurnstileToken(action: TurnstileAction): Promise<string> {
   });
 }
 
-/**
- * The token for a request, '' when none is needed, or why there is none.
- *
- * A local development API skips verification, so nothing is fetched for it.
- */
+/** A token for `action`, '' when IS_LOCAL_API, or a message to show on failure. */
 export async function turnstileToken(
   action: TurnstileAction,
 ): Promise<{ ok: true; token: string } | { ok: false; message: string }> {

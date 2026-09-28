@@ -12,9 +12,8 @@ import type { PendingEvidence } from '../../../lib/evidence';
 import matchNone from '../../../testing/fixtures/match-none.json';
 import upload from '../../../testing/fixtures/upload.json';
 
-// The editor window is a real browser window, driven in e2e; here each edit
-// waits for the test to answer it the way that window would. Like the real one,
-// only one editor is open at a time.
+// Fake editor window. The real one is covered in e2e. Each edit waits for the
+// test to answer it, and only one editor can be open at a time, as in the real one.
 const windows = vi.hoisted(() => {
   const state = {
     requests: [] as EditRequest[],
@@ -94,7 +93,7 @@ async function openForm(user: UserEvent, pageUrl = 'https://edits.example/accoun
   return api;
 }
 
-/** A screenshot taken, its editor opened by the capture and closed again without changes. */
+/** Opens the form with one screenshot whose editor was closed without changes. */
 async function withScreenshot(user: UserEvent): Promise<FakeApi> {
   const api = await openForm(user);
   await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
@@ -106,7 +105,7 @@ async function withScreenshot(user: UserEvent): Promise<FakeApi> {
   return api;
 }
 
-/** What the report uploaded as its screenshot. */
+/** Submits the form and returns the uploaded screenshot's contents. */
 async function sentScreenshot(user: UserEvent, api: FakeApi): Promise<string> {
   await user.click(screen.getByRole('button', { name: 'Submit Report' }));
   await screen.findByRole('heading', { name: 'Report received' });
@@ -292,7 +291,7 @@ describe('editing a screenshot from a form', () => {
   });
 });
 
-// The list itself, for a send that races an edit.
+// The list hook directly, for an upload that races an edit.
 describe('a screenshot list', () => {
   it('takes an upload’s address only for the image that was uploaded', async () => {
     stubScreenshot();
@@ -310,7 +309,7 @@ describe('a screenshot list', () => {
     if (captured === null) throw new Error('Nothing was captured');
     const uploaded = { ...captured, uploadedUrl: 'https://files.example.invalid/capture.jpg' };
 
-    // An edit lands while the capture is uploading: the late upload must not undo it.
+    // An edit made during the upload must survive the late upload result.
     act(() => list().edit(captured.id, { blob: new Blob(['edited']), edits }));
     act(() => list().replace(uploaded));
     expect(await list().items[0]?.blob.text()).toBe('edited');

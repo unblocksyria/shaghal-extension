@@ -11,7 +11,7 @@ const OPTIONS = [
   { value: 'arabic', label: 'Arabic' },
 ];
 
-/** A row the shape of the Settings ones: `dir` decides which way the buttons run. */
+/** Same shape as the Settings rows. `dir` sets which way the buttons run. */
 function Row(props: { dir?: 'ltr' | 'rtl' }) {
   const [picked, setPicked] = useState('system');
   return (
@@ -60,7 +60,7 @@ describe('arrow keys in a radio group', () => {
   it('steps in the direction the arrow points when the text runs right to left', async () => {
     const user = userEvent.setup();
     render(<Row dir="rtl" />);
-    // The row reads System, English, Arabic from the right edge, so left goes on to English.
+    // Buttons read System, English, Arabic from the right, so ArrowLeft moves to English.
     radio('System').focus();
 
     await user.keyboard('{ArrowLeft}');

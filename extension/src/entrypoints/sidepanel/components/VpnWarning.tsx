@@ -5,8 +5,8 @@ import { useBrowsingCountry } from '../hooks/useBrowsingCountry';
 import { WifiOff } from 'lucide-react';
 
 /**
- * Shown when the connection comes out outside Syria. It warns and never blocks:
- * the check can be wrong, and every report is reviewed anyway.
+ * Shown when the connection appears to be outside Syria. It warns but never
+ * blocks, because the check can be wrong and every report is reviewed.
  */
 export function VpnWarning() {
   const { t } = useTranslation();

@@ -25,7 +25,7 @@ import {
   Star,
 } from 'lucide-react';
 
-/** Fills and icons per status; the words come from the catalog (spec 0002, AC-4). */
+/** Badge colour and icon per status. Labels come from the locale catalog. */
 const STATUS: Record<Availability, { fill: string; icon: typeof Ban }> = {
   available: { fill: 'var(--us-status-available)', icon: Star },
   usable: { fill: 'var(--us-status-available)', icon: CircleCheckBig },
@@ -33,16 +33,16 @@ const STATUS: Record<Availability, { fill: string; icon: typeof Ban }> = {
   unknown: { fill: 'var(--us-status-unknown)', icon: CircleHelp },
 };
 
-/** The API may add a status this build does not know yet; it reads as unknown. */
-function statusOf(availability: Availability) {
-  return Object.hasOwn(STATUS, availability) ? STATUS[availability] : STATUS.unknown;
+/** A status this build doesn't know renders as unknown. */
+function knownStatus(availability: Availability): Availability {
+  return Object.hasOwn(STATUS, availability) ? availability : 'unknown';
 }
 
 function formatCount(count: number): string {
   return count.toLocaleString(intlLocale(activeLanguage()));
 }
 
-/** "Checked 1 Sep 2026", in the active locale (spec 0002, AC-8). */
+/** "Checked 1 Sep 2026", in the active locale. */
 function checkedText(iso: string | null): string | null {
   if (iso === null || !Number.isFinite(Date.parse(iso))) return null;
   const date = new Date(iso).toLocaleDateString(intlLocale(activeLanguage()), {
@@ -55,8 +55,9 @@ function checkedText(iso: string | null): string | null {
 
 function StatusBadge(props: { availability: Availability; small?: boolean }) {
   const { t } = useTranslation();
-  const { fill, icon: Icon } = statusOf(props.availability);
-  const label = t(`card.status.${props.availability}.label` as const);
+  const status = knownStatus(props.availability);
+  const { fill, icon: Icon } = STATUS[status];
+  const label = t(`card.status.${status}.label` as const);
   return (
     <span
       style={{
@@ -117,7 +118,7 @@ function ServiceLogo(props: { service: CatalogService; size: number }) {
 }
 
 const countChip: React.CSSProperties = {
-  // Logical, so the chip still sits at the end of the row in a right to left layout.
+  // Logical property, so the chip stays at the end of the row in RTL.
   marginInlineStart: 'auto',
   borderRadius: 6,
   padding: '1px 8px',
@@ -129,7 +130,7 @@ const countChip: React.CSSProperties = {
 /** How long "Remove vote" waits for the confirming second click. */
 const CONFIRM_MS = 3000;
 
-/** Counts from this panel's own votes, newer than the cached lookups they would otherwise show. */
+/** Counts returned by this panel's votes. They override the older counts in cached lookups. */
 const latestVoteCounts = new Map<string, number>();
 
 function VoteButton(props: { service: CatalogService }) {
@@ -294,7 +295,7 @@ function ServiceView(props: {
   const { t } = useTranslation();
   const { service } = props;
   const checked = checkedText(service.statusCheckedAt);
-  // "Netflix · Netflix" says nothing: the company shows only when it differs.
+  // Show the company only when it differs from the service name.
   const company = service.company !== null && service.company.name !== service.name ? service.company.name : null;
   const siteLanguage = sitePathSegment(activeLanguage());
   return (
@@ -314,7 +315,7 @@ function ServiceView(props: {
       <div style={{ display: 'grid', gap: 8, justifyItems: 'start' }}>
         <StatusBadge availability={service.availability} />
         <p style={{ ...hintStyle, fontSize: 13 }}>
-          {t(`card.status.${service.availability}.meaning` as const)}
+          {t(`card.status.${knownStatus(service.availability)}.meaning` as const)}
           {props.parentDomain && ` ${t('card.subdomain', { name: service.name })}`}
         </p>
       </div>
@@ -415,7 +416,7 @@ function MessageView(props: { icon: React.ReactNode; title: string; detail: stri
 export function PageCard(props: {
   pageUrl: string | null;
   state: MatchState;
-  /** A service picked from the list, which wins over the match. */
+  /** A service picked from the candidate list. Overrides the match. */
   picked: CatalogService | null;
   onPick: (service: CatalogService) => void;
   onRetry: () => void;

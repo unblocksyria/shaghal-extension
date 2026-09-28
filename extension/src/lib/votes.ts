@@ -4,17 +4,17 @@ import { i18next } from './i18n';
 const VOTED_KEY = 'votedServiceSlugs';
 
 /**
- * Services this browser has voted for, remembered locally.
+ * Local record of this browser's votes, one key per service.
  *
- * The API counts one vote per network address and offers no way to ask
- * whether one exists, so this is a hint for the button, not the truth. The
- * API's `ALREADY_VOTED` and `NO_VOTE_FOUND` answers correct it: someone else
- * on the same network may have voted, or the vote was cast from the website.
+ * The API counts one vote per network address and cannot be asked whether one
+ * exists, so this is only a hint for the button. `ALREADY_VOTED` and
+ * `NO_VOTE_FOUND` correct it when someone else on the network, or the website,
+ * cast or withdrew the vote.
  */
 const hintKey = (slug: string) => `voteHint:${slug}`;
 
 async function writeVoted(slug: string, voted: boolean): Promise<void> {
-  // Independent keys avoid losing another window's vote during read/modify/write.
+  // One key per service avoids a read-modify-write that could drop another window's vote.
   await chrome.storage.local.set({ [hintKey(slug)]: voted }).catch(() => undefined);
 }
 
@@ -22,7 +22,7 @@ export async function hasVoted(slug: string): Promise<boolean> {
   const key = hintKey(slug);
   const stored: Record<string, unknown> = await chrome.storage.local.get([key, VOTED_KEY]).catch(() => ({}));
   if (typeof stored[key] === 'boolean') return stored[key];
-  // Read legacy hints without a migration that could overwrite a concurrent vote.
+  // Legacy list of slugs. Read without migrating, since a migration could overwrite a concurrent vote.
   return Array.isArray(stored[VOTED_KEY]) && stored[VOTED_KEY].includes(slug);
 }
 
@@ -37,9 +37,8 @@ export function watchVote(slug: string, changed: (voted: boolean) => void): () =
 export type VoteOutcome = { ok: true; voted: boolean; voteCount: number | null } | { ok: false; message: string };
 
 /**
- * Cast or withdraw a vote, returning the state to show afterwards. An answer
- * that says the vote was already in the wanted state is a success, not an
- * error: the button simply catches up with the server.
+ * Casts or withdraws a vote and returns the state to show. `ALREADY_VOTED` and
+ * `NO_VOTE_FOUND` count as success, since the server is already in that state.
  */
 export async function setVote(slug: string, wantVoted: boolean): Promise<VoteOutcome> {
   const result = wantVoted ? await voteForService(slug) : await removeVoteForService(slug);

@@ -44,7 +44,7 @@ jobs:
       - name: Build
         run: npm run build
 
-  # The end to end run is its own job, so a slow browser never slows lint.
+  # Separate job, so the slow browser run does not hold up the checks in verify.
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 15

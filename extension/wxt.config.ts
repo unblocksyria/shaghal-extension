@@ -2,13 +2,11 @@ import { defineConfig } from 'wxt';
 
 export default defineConfig({
   srcDir: 'src',
-  // Off 3000, which the website uses in development, so both can run side by side.
+  // Not 3000, so it can run beside the website's dev server.
   dev: { server: { port: 3010 } },
-  // No modulepreload hint. Chrome declines the crossorigin link it would emit
-  // inside an extension page, calls it a cross world resource mismatch, then
-  // reports the same resource as preloaded but never used. Those two messages
-  // are the panel's only console noise. The shared chunk sits next to the
-  // page, so there is no network to warm up by hinting at it.
+  // Chrome rejects the crossorigin modulepreload link in extension pages and
+  // logs two console warnings for it. The chunks load from the extension
+  // package, so the hint gains nothing.
   vite: () => ({ build: { modulePreload: false } }),
   manifest: {
     // Localized in public/_locales: شغّال in Arabic, Shaghal everywhere else.
@@ -16,12 +14,11 @@ export default defineConfig({
     description: '__MSG_extDescription__',
     default_locale: 'en',
     version: '0.1.0',
-    // Chromium browsers only (Chrome, Edge, Brave, Opera). 123 is the first
-    // with CSS light-dark(), which the theme is built on.
+    // Chromium only. 123 is the first version with CSS light-dark(), which the theme uses.
     minimum_chrome_version: '123',
-    // tabs: read the shown tab's address to look it up.
-    // <all_urls>: screenshot any site as evidence (captureVisibleTab) and reach
-    // the API, the country check and, in development, a local API.
+    // tabs: read the active tab's URL.
+    // <all_urls>: captureVisibleTab on any site, and fetch the API, the country
+    // check and a local API in development.
     permissions: ['storage', 'sidePanel', 'tabs'],
     host_permissions: ['<all_urls>'],
     action: { default_title: '__MSG_actionTitle__' },
@@ -31,8 +28,8 @@ export default defineConfig({
       48: 'icons/icon-48.png',
       128: 'icons/icon-128.png',
     },
-    // The Chrome Web Store item's public key. It fixes the extension ID at
-    // epmjhaoobmgfclbkelhkiakijjocjgfm for unpacked builds too, which the
+    // Chrome Web Store public key. It fixes the extension ID at
+    // epmjhaoobmgfclbkelhkiakijjocjgfm, unpacked builds included, which the
     // verification page (verify.unblocksyria.com) requires of its parent.
     // Public by design: the store ships it in every installed manifest.
     key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvEJ8/2SS81prnoFOy8XMC+v3NbFAFn7CDoUOVoLA3xKGU1sziLH+dPRMaBfRyACY0xzDwrN2zMqE/WP8c3tUAFPovDicbVwhqT3WhtHapfOFGnJaApXfh+kcY0AgYSw2Ph7gb3wExWVPIdLilhi1Y/Y0LCJBlGrFYPKuJAaDA8sY617u6xxHQAlfw2M/7+weRw8Hq4v29jjx0QCOhptogeuVq6y38T5nPALs/GD+epRrkDY3Kqfyu6dWGUwy3LZ6MTpEHA7JCj58+Xs3PjJnen/5XvGABPwdUOc+LrJ42EBb/4D5V17ykJehOC8viC9WNvvZrVrF4B/l5WSPO47JtQIDAQAB',

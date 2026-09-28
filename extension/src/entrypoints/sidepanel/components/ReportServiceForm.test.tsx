@@ -7,7 +7,7 @@ import { fakeApi, type FakeApi } from '../../../testing/fakeApi';
 import { openPanel } from '../../../testing/panel';
 import matchNone from '../../../testing/fixtures/match-none.json';
 
-/** The report a service form: the card offers it for a site nothing tracks yet. */
+/** Opens the report-a-service form, which the card offers for an untracked site. */
 async function openReportService(user: UserEvent, pageUrl: string): Promise<FakeApi> {
   const api = fakeApi()
     .on('POST', '/services/match', { data: matchNone })
@@ -20,7 +20,7 @@ async function openReportService(user: UserEvent, pageUrl: string): Promise<Fake
 }
 
 describe('the report a service form', () => {
-  it('sends the service with the page address it was opened on (covers AC-2)', async () => {
+  it('sends the service with the page address it was opened on', async () => {
     const user = userEvent.setup();
     const api = await openReportService(user, 'https://untracked.example/download');
 
@@ -41,7 +41,7 @@ describe('the report a service form', () => {
     });
   });
 
-  it('blocks sending while the service has no name (covers AC-2)', async () => {
+  it('blocks sending while the service has no name', async () => {
     const user = userEvent.setup();
     const api = await openReportService(user, 'https://another-untracked.example/');
 
@@ -53,7 +53,7 @@ describe('the report a service form', () => {
     expect(api.callsTo('POST', '/submissions')).toHaveLength(0);
   });
 
-  it('shows the API message and keeps what was typed when the send fails (covers AC-6)', async () => {
+  it('shows the API message and keeps what was typed when the send fails', async () => {
     const user = userEvent.setup();
     const api = fakeApi()
       .on('POST', '/services/match', { data: matchNone })
@@ -94,4 +94,38 @@ it('prefills the next form and Settings with the email from a successful report'
   await screen.findByText('Saved');
   await user.click(screen.getByRole('button', { name: 'Back' }));
   await waitFor(() => expect(screen.getByRole('textbox', { name: 'Your email' })).toHaveProperty('value', ''));
+});
+
+it('offers to discard an earlier send that could not be confirmed, then sends the new details', async () => {
+  const user = userEvent.setup();
+  let sends = 0;
+  const api = fakeApi()
+    .on('POST', '/services/match', { data: matchNone })
+    .on('POST', '/submissions', () =>
+      (sends += 1) === 1
+        ? { status: 503, json: { error: 'UNAVAILABLE', message: 'Try later' } }
+        : { status: 201, json: { id: 'receipt' } },
+    )
+    .on('POST', '/submission-receipts', { json: { state: 'unconfirmed' } })
+    .install();
+  await openPanel('https://unconfirmed.example/');
+  await user.click(await screen.findByRole('button', { name: 'Report a Service' }, { timeout: 3000 }));
+
+  const name = await screen.findByRole('textbox', { name: 'Service name' });
+  await user.clear(name);
+  await user.type(name, 'First');
+  await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+  await screen.findByText('Try later');
+  expect(screen.queryByRole('button', { name: 'Discard earlier attempt' })).toBeNull();
+
+  await user.type(name, ' edited');
+  await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+  await user.click(await screen.findByRole('button', { name: 'Discard earlier attempt' }));
+  await screen.findByText('The earlier attempt was discarded. Send again to submit these details.');
+
+  await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+  await screen.findByRole('heading', { name: 'Report received' });
+  const [first, second] = api.callsTo('POST', '/submissions');
+  expect(second?.json).toMatchObject({ name: 'First edited' });
+  expect(second?.headers['Idempotency-Key']).not.toBe(first?.headers['Idempotency-Key']);
 });

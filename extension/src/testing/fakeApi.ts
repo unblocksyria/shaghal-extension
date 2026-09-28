@@ -1,27 +1,27 @@
 import { vi } from 'vitest';
 import { API_BASE, GEO_TRACE_URL } from '../lib/config';
 
-/** One request the panel made while a test was running. */
+/** A request the panel made during a test. */
 export interface FakeCall {
   method: string;
-  /** The path alone, so a test matches on it without repeating the host. */
+  /** Pathname only, without the host. */
   path: string;
   url: string;
-  /** The body as the browser sent it: a JSON string, FormData for uploads, or null. */
+  /** Raw body. A JSON string, FormData for uploads, or null. */
   body: string | FormData | null;
-  /** The parsed JSON body, or null when the request carried none. */
+  /** Parsed JSON body, or null if there is none or it does not parse. */
   json: unknown;
-  /** The request headers exactly as the panel set them. */
+  /** Headers as the panel set them. */
   headers: Record<string, string>;
 }
 
 export interface FakeAnswer {
   status?: number;
-  /** Served inside the API's `{ data }` envelope, which every read endpoint expects. */
+  /** Wrapped in the `{ data }` envelope that read endpoints use. */
   data?: unknown;
-  /** The exact body to send, for the endpoints that answer with the body itself. */
+  /** Sent as is, for endpoints that return an unwrapped body. */
   json?: unknown;
-  /** A plain text body, for the country trace. */
+  /** Plain text body, for the country trace. */
   text?: string;
 }
 
@@ -31,7 +31,7 @@ interface Route {
   method: string;
   path: string | RegExp;
   answer: FakeAnswer | FakeResponder;
-  /** When set, the request waits on it, which is how a test holds a state open. */
+  /** The response waits on this, so a test can hold a pending state open. */
   gate?: Promise<void>;
 }
 
@@ -44,7 +44,7 @@ export interface RefusedRequest {
 
 const refused: RefusedRequest[] = [];
 
-/** Every request the stub has refused since the last check; setup.ts fails the test on it. */
+/** Requests refused since the last clear. setup.ts fails the test if there are any. */
 export function refusedRequests(): RefusedRequest[] {
   return refused;
 }
@@ -53,37 +53,36 @@ export function clearRefusedRequests(): void {
   refused.length = 0;
 }
 
-/** Record a request nothing answered, so the test that made it fails (spec 0001, AC-9). */
+/** Records a refused request so the test that made it fails. */
 export function refuseRequest(method: string, url: string, reason: string): void {
   refused.push({ method, url, reason });
 }
 
 export interface FakeApi {
-  /** Every request seen, oldest first. */
+  /** All requests, oldest first. */
   readonly calls: FakeCall[];
-  /** Answer `METHOD path` from now on; `path` is a pathname or a pattern over one. */
+  /** Answers `METHOD path`. `path` is a pathname or a RegExp over one. The latest match wins. */
   on(method: string, path: string | RegExp, answer: FakeAnswer | FakeResponder): FakeApi;
-  /** Hold the answer for `METHOD path` until the returned function is called. */
+  /** Holds `METHOD path` until the returned function is called, then answers with a null body. */
   hold(method: string, path: string | RegExp): () => void;
-  /** The calls that matched, oldest first. */
+  /** Calls with this method and exact path, oldest first. */
   callsTo(method: string, path: string): FakeCall[];
-  /** Replace global fetch for this test. Vitest puts the real one back afterwards. */
+  /** Stubs global fetch for this test. `unstubGlobals` restores it afterwards. */
   install(): FakeApi;
 }
 
 /**
- * A fetch stand-in that answers from fixtures and refuses everything else, so no
- * test can reach a real host or write to the live review queues (spec 0001, AC-9).
+ * A fetch stub that answers only the routes a test registers. Everything else is
+ * refused, so no test can reach a real host or write to the live review queues.
  */
 export function fakeApi(): FakeApi {
   const calls: FakeCall[] = [];
   const routes: Route[] = [
-    // The country check reads plain text off the trace host: Syria unless a test overrides it.
+    // Country check answer: Syria, unless a test overrides it.
     { method: 'GET', path: new URL(GEO_TRACE_URL).pathname, answer: { text: 'fl=v8\nloc=SY\nts=1758000000\n' } },
   ];
 
   const findRoute = (call: FakeCall): Route | undefined =>
-    // The last answer registered wins, so a test can override a built in one.
     routes.findLast(
       (candidate) =>
         candidate.method === call.method &&
@@ -145,7 +144,6 @@ export function fakeApi(): FakeApi {
       const gate = new Promise<void>((resolve) => {
         release = () => resolve();
       });
-      // The last answer registered wins, so a held answer covers any other.
       routes.push({ method: method.toUpperCase(), path, answer: { json: null }, gate });
       return () => release();
     },

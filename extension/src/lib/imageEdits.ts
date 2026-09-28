@@ -1,7 +1,6 @@
 /**
- * The edits a screenshot carries before it is sent: a crop, and black boxes over
- * what should not be seen. Everything is in the image's own pixels, so the edits
- * do not depend on how large the editor shows it. Nothing here touches the DOM.
+ * Screenshot edits: a crop and black boxes. Coordinates are in image pixels,
+ * independent of the editor's display size. No DOM access.
  */
 
 export interface Point {
@@ -16,7 +15,7 @@ export interface Rect {
   height: number;
 }
 
-/** Solid black, not a blur: a blur can sometimes be reversed on text. */
+/** Filled solid black. A blur can sometimes be reversed on text. */
 export interface HideBox extends Rect {
   id: string;
 }
@@ -26,7 +25,7 @@ export interface ImageEdits {
   boxes: HideBox[];
 }
 
-/** A saved edit: the new image, and the edits it was drawn from so they can be changed again. */
+/** The rendered image and the edits it came from, kept so they can be changed. */
 export interface EditedScreenshot {
   blob: Blob;
   edits: ImageEdits;
@@ -46,7 +45,7 @@ export function noEdits(image: Size): ImageEdits {
   return { crop: { x: 0, y: 0, width: image.width, height: image.height }, boxes: [] };
 }
 
-/** Whether the edits change the image at all. */
+/** True if the crop is smaller than the image or a box overlaps the crop. */
 export function hasEdits(edits: ImageEdits, image: Size): boolean {
   const { crop } = edits;
   const cropped = crop.x > 0 || crop.y > 0 || crop.width < image.width || crop.height < image.height;
@@ -61,7 +60,7 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-/** The rectangle two points span, whichever way the drag went, kept inside `bounds`. */
+/** The rectangle between two drag points, in either direction, clamped to `bounds`. */
 export function spanRect(from: Point, to: Point, bounds: Rect): Rect {
   const x1 = clamp(Math.min(from.x, to.x), bounds.x, bounds.x + bounds.width);
   const y1 = clamp(Math.min(from.y, to.y), bounds.y, bounds.y + bounds.height);
@@ -70,7 +69,7 @@ export function spanRect(from: Point, to: Point, bounds: Rect): Rect {
   return { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
 }
 
-/** Slide a rectangle by (dx, dy) without letting any of it leave `bounds`. */
+/** Moves `rect` by (dx, dy), keeping it fully inside `bounds`. */
 export function moveRect(rect: Rect, dx: number, dy: number, bounds: Rect): Rect {
   return {
     ...rect,
@@ -80,8 +79,8 @@ export function moveRect(rect: Rect, dx: number, dy: number, bounds: Rect): Rect
 }
 
 /**
- * Drag one handle by (dx, dy). The opposite side stays put, the rectangle stays
- * inside `bounds`, and it never gets smaller than `minSize` either way.
+ * Moves one handle by (dx, dy). Opposite edges stay fixed, the result stays in
+ * `bounds`, and neither side shrinks below `minSize` (capped at the bounds).
  */
 export function resizeRect(rect: Rect, handle: Handle, dx: number, dy: number, bounds: Rect, minSize: number): Rect {
   let left = rect.x;
@@ -108,7 +107,7 @@ export function intersect(a: Rect, b: Rect): Rect | null {
   return { x, y, width: right - x, height: bottom - y };
 }
 
-/** Whole pixels, so the saved image has no half-covered edge that leaks a line of text. */
+/** Rounds outward to whole pixels, so a partly covered edge cannot leak a line of text. */
 export function roundRect<T extends Rect>(rect: T): T {
   const x = Math.floor(rect.x);
   const y = Math.floor(rect.y);
@@ -121,7 +120,7 @@ export function roundRect<T extends Rect>(rect: T): T {
   };
 }
 
-/** Undo and redo over whole edit states: each finished gesture is one step. */
+/** Undo history of whole edit states. Each finished gesture is one step. */
 export interface EditHistory {
   past: ImageEdits[];
   present: ImageEdits;

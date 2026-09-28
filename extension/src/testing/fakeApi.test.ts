@@ -5,9 +5,9 @@ import { describe, expect, it } from 'vitest';
 import { API_BASE } from '../lib/config';
 import { clearRefusedRequests, fakeApi, refusedRequests } from './fakeApi';
 
-// The guard behind spec 0001 AC-9: nothing a test sends may reach a real host.
+// No request from a test may reach a real host.
 describe('fakeApi', () => {
-  it('refuses a request outside the local API (covers AC-9)', async () => {
+  it('refuses a request outside the local API', async () => {
     fakeApi().install();
 
     await expect(fetch('https://api.unblocksyria.com/services/match')).rejects.toThrow(/outside the local API/);
@@ -15,7 +15,7 @@ describe('fakeApi', () => {
     clearRefusedRequests();
   });
 
-  it('fails a request no stub answered (covers AC-9)', async () => {
+  it('fails a request no stub answered', async () => {
     fakeApi().install();
 
     const response = await fetch(`${API_BASE}/nothing-here`);
@@ -33,7 +33,7 @@ describe('fakeApi', () => {
     expect(await response.json()).toEqual({ data: { a: 1 } });
   });
 
-  it('keeps email addresses out of every fixture (covers AC-9)', () => {
+  it('keeps email addresses out of every fixture', () => {
     const fixtures = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
     const contents = readdirSync(fixtures)
       .map((file) => readFileSync(path.join(fixtures, file), 'utf8'))

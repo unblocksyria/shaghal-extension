@@ -1,22 +1,50 @@
-# شغّال (Shaghal): Unblock Syria for your browser
+# Shaghal (شغّال)
 
-See whether the site you're visiting works from Syria, and help keep the record
-accurate. Shaghal opens beside your page and lets you:
+[![CI](https://github.com/unblocksyria/shaghal-extension/actions/workflows/ci.yml/badge.svg)](https://github.com/unblocksyria/shaghal-extension/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+A browser extension from [Unblock Syria](https://unblocksyria.com) that shows
+whether the site you're on works from Syria, and lets you help keep that record
+accurate.
+
+**[Install from the Chrome Web Store](https://chromewebstore.google.com/detail/shaghal/epmjhaoobmgfclbkelhkiakijjocjgfm)**
+· [Learn more](https://unblocksyria.com/shaghal)
+
+## Features
+
+Shaghal opens in the browser's side panel, next to the page. From there you can:
 
 - **Vote** for services you need.
-- **Report what works** with a note or screenshot for each part you tested.
+- **Report what works**, with a note or screenshot for each part you tested.
 - **Suggest a correction** to a service's details.
 - **Report a service** that isn't tracked yet.
 
-Reports and corrections go to Unblock Syria's review queues. They do not change
-public listings automatically. The panel reads in English or Arabic, right to
-left, with the language chosen in Settings; the extension's name and store
-description also have Arabic translations.
+Reports and corrections go to Unblock Syria's review queue; they don't change
+public listings directly. The panel is available in English and Arabic.
 
-## Try it locally
+## Privacy
 
-Use Node.js 24 and npm. The extension targets Chrome 123+ and Chromium browsers
-with the side panel API; automated browser tests run in Chromium.
+- **Page addresses.** While the panel is open, it sends the active page's URL,
+  including path and query, to the Unblock Syria API to find the matching service.
+  Credentials and fragments are removed, and browser and local pages are skipped.
+  Close the panel to stop lookups.
+- **Screenshots.** Taken only when you ask, kept in memory, and uploaded only when
+  you press Send. The editor crops and covers details with solid black boxes; the
+  upload is a new image without the removed pixels. Anyone with a submitted
+  screenshot's address can open it, so remove personal details first.
+- **Email.** Optional. It's saved in the browser for later forms and can be
+  changed or cleared in Settings.
+- **Other requests.** Report forms check your connection's country to warn when
+  you appear to be outside Syria; the warning never blocks a report. Sends are
+  verified with Cloudflare Turnstile.
+
+See Unblock Syria's [privacy policy](https://unblocksyria.com/privacy) and, for the
+details, [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Development
+
+You need Node.js 24 and npm, and Chrome 123 or later. Other Chromium browsers
+with the side panel API should work but aren't tested.
 
 ```bash
 cd extension
@@ -24,80 +52,57 @@ npm ci
 npm run dev
 ```
 
-Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**,
-and select `extension/.output/chrome-mv3-dev`. Click Shaghal's toolbar icon to open
-the panel.
+Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**,
+and select `extension/.output/chrome-mv3-dev`. Click Shaghal's toolbar button to
+open the panel.
 
-Development uses an API at `http://localhost:8787`. Start the Unblock Syria API
-separately with `ENVIRONMENT=development` and no Turnstile secret for local writes.
-This repository does not include that server. Without it, the panel shows a
-connection error; the automated tests still work with their own fake API.
+### API
 
-For a production build, run `npm run build` and load `extension/.output/chrome-mv3`.
-**Production builds send votes and forms to the live service.** `npm run zip`
-creates the distribution archive.
-
-## Screenshots and privacy
-
-A screenshot captures the visible page. It opens in an editor where you can crop
-it and cover private details with solid black boxes. Click a thumbnail to edit it
-again. Review every screenshot before sending: cancelling an edit keeps the
-previous image, including the original capture if you have not saved any edits.
-
-- While the panel is open, lookups send the active page's URL to the API, including
-  its **path and query parameters**. Credentials and fragments are removed. This
-  preserves matching for services that share a domain, but paths and queries can
-  still contain private information. Close the panel when you do not want lookups.
-- Browser pages, IP addresses, single-label hosts and common local domains are
-  excluded. This is not a complete detector for private sites on public domains.
-- Screenshots are held in memory and uploaded only after you press Send. Uploads
-  require verification, followed by separate verification for the form. A failed
-  or cancelled send can leave an unclaimed upload. The API expires abandoned
-  uploads and hides unclaimed files once upload protection is enforced. During
-  the compatibility rollout, unclaimed URLs remain readable. Submitted evidence
-  remains accessible to anyone with its address; remove personal details first.
-- Edited images are flattened into new JPEGs; cropped-out pixels and pixels fully
-  covered by black boxes are absent from the upload. Originals remain in memory
-  while the draft is open. Cover the entire sensitive area, including its edges.
-- Email is optional. A successful submission remembers the email locally for
-  future forms; Settings can change or clear it. Leaving a form blank sends it
-  anonymously without erasing the saved address. Back asks before discarding an
-  edited draft. Keep the panel open: closing it can still lose unsent text and
-  screenshots.
-- Report forms check your connection's country on the live API host, even in
-  development. Verification uses Cloudflare Turnstile through our verification
-  page. Service logos may load from their supplied image hosts.
-
-The report forms warn when the connection appears to be outside Syria. This is a
-hint, not proof that a VPN is on or off, and it does not block a report.
-
-If a send is not confirmed, keep the original details and try again to check its
-receipt. The panel does not automatically repeat writes. Receipt protection needs
-server receipt support on submissions, corrections and functionality reports.
-The editor's **Precise crop and redaction** controls also work with a keyboard.
-
-## Development and checks
+Development builds expect the Unblock Syria API at `http://localhost:8787`, which
+isn't part of this repository. Without it the panel shows a connection error. To
+use the live service instead:
 
 ```bash
-npm test                    # unit and component tests; network is stubbed
-npm run check               # lint, formatting, TypeScript, tests, production build
-npx playwright install chromium
-npm run test:e2e             # built extension in Chromium; HTTP(S) requests stubbed
-npm run format              # format extension files
+WXT_API_BASE=https://api.unblocksyria.com \
+WXT_SITE_BASE=https://unblocksyria.com \
+WXT_VERIFY_BASE=https://verify.unblocksyria.com \
+npm run dev
 ```
 
-Run `npm run build` before browser tests. CI runs `check`'s stages and a separate
-browser test job; `npm run check` alone does not run the browser tests.
+**Votes and submissions from this build are real**, so browse freely but don't
+send test submissions. The tests need neither API; they use a fake one.
 
-Build-time overrides are `WXT_API_BASE`, `WXT_SITE_BASE` and `WXT_VERIFY_BASE`.
-Defaults and verification details are in [ARCHITECTURE.md](ARCHITECTURE.md).
-Overriding development to use the live API makes writes real, too.
+### Tests
 
-The public manifest key fixes unpacked builds to the store ID
-`epmjhaoobmgfclbkelhkiakijjocjgfm`. Development builds support a panel preview:
+Run from `extension/`:
+
+```bash
+npm run check                    # lint, format check, types, unit tests, build
+npx playwright install chromium  # once
+npm run test:e2e                 # browser tests against the last build
+```
+
+`npm test` runs the unit tests alone, and `npm run format` formats the code. CI
+runs both `check` and the browser tests.
+
+### Builds
+
+`npm run build` writes a production build to `extension/.output/chrome-mv3`, and
+`npm run zip` packages it for the store. Production builds use the live service.
+`WXT_API_BASE`, `WXT_SITE_BASE` and `WXT_VERIFY_BASE` override the hosts at build
+time.
+
+The manifest's public key gives unpacked builds the store's extension ID,
+`epmjhaoobmgfclbkelhkiakijjocjgfm`. In a development build you can open the panel
+as a tab for a given page:
 `chrome-extension://epmjhaoobmgfclbkelhkiakijjocjgfm/sidepanel.html?preview=<encoded-url>`.
-The preview captures its own tab, not the page named in the parameter.
 
-Use focused branches and scoped Conventional Commits. Keep credentials, `.env`
-files and build output out of Git. See [ARCHITECTURE.md](ARCHITECTURE.md) for the
-code map and client/server boundaries.
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md), and [ARCHITECTURE.md](ARCHITECTURE.md) for
+how the extension works. Report security problems privately, as described in
+[SECURITY.md](SECURITY.md).
+
+## License
+
+[MIT](LICENSE) © Unblock Syria

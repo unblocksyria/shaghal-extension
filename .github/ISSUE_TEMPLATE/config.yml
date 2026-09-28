@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security problem
+    url: https://github.com/unblocksyria/shaghal-extension/security/advisories/new
+    about: Please report security problems privately, not in a public issue.
+  - name: A service's listing or status is wrong
+    url: https://unblocksyria.com
+    about: Use "Suggest a correction" in the extension or on unblocksyria.com.

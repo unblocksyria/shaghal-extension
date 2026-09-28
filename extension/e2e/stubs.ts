@@ -8,16 +8,15 @@ export interface StubAnswer {
   body: string;
 }
 
-/** The page the tester reads while the panel follows it; nothing real sits behind it. */
+/** Origin of the page the panel reads. The `api` fixture serves it, and `.test` never resolves. */
 export const TEST_PAGE_ORIGIN = 'https://stream.test';
 
-/** The token the stubbed verification page solves, asserted on every write. */
+/** Token the stubbed verification page returns. Specs assert it on writes. */
 export const VERIFICATION_TOKEN = 'e2e-verification-token';
 
 export const TEST_PAGE_HTML = '<!doctype html><meta charset="utf-8"><title>Stream</title><h1>Stream</h1>';
 
-// Serves the same contract as the real verification page: it posts the solved
-// token back to the panel's frame (lib/turnstile.ts reads exactly this message).
+// Posts a solved token to the parent frame in the message shape lib/turnstile.ts expects.
 const VERIFY_PAGE = `<!doctype html><meta charset="utf-8"><script>
 const params = new URLSearchParams(location.search);
 parent.postMessage(
@@ -32,7 +31,7 @@ parent.postMessage(
 );
 </script>`;
 
-/** The same fixture files the component tests read, loaded for the browser. */
+/** Reads a JSON fixture shared with the component tests. */
 function fixture<T>(name: string): T {
   const url = new URL(`../src/testing/fixtures/${name}.json`, import.meta.url);
   return JSON.parse(readFileSync(url, 'utf8')) as T;
@@ -53,7 +52,7 @@ const answers = new Map<string, StubAnswer>([
   ['GET /extension/turnstile', { contentType: 'text/html', body: VERIFY_PAGE }],
 ]);
 
-/** The answer for a request, or undefined when nothing stubbed it, which fails the test. */
+/** Undefined for an unstubbed request, which the `api` fixture turns into a test failure. */
 export function stubFor(method: string, pathname: string): StubAnswer | undefined {
   return answers.get(`${method} ${pathname}`);
 }

@@ -18,7 +18,7 @@ describe('uploadEvidence', () => {
     expect(await uploadEvidence(screenshot, 'shot.jpg', 'submission')).toEqual({ ok: true, data: upload.file.url });
   });
 
-  // A 200 without a file address used to throw, which left the form sending forever.
+  // A 200 without a file address must fail cleanly, or the form stays stuck sending.
   it.each([
     ['nothing', null],
     ['no file', {}],

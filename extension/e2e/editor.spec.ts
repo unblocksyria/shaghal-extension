@@ -4,10 +4,7 @@ import { TEST_PAGE_ORIGIN } from './stubs';
 
 const IDLE_HINT = 'Click a screenshot to crop it or hide personal details.';
 
-/**
- * The report form open on the test page, and one screenshot of it taken for
- * "Core use". Taking it opens the editor window, which this returns.
- */
+/** Opens the report form on the test page, adds a "Core use" screenshot and returns the editor window it opens. */
 async function captureIntoEditor(context: BrowserContext, page: Page, panel: Page): Promise<Page> {
   await page.goto(`${TEST_PAGE_ORIGIN}/`);
   await page.bringToFront();
@@ -23,7 +20,7 @@ async function captureIntoEditor(context: BrowserContext, page: Page, panel: Pag
   return editor;
 }
 
-/** The thumbnail's image size, and the colour at points given as fractions of it. */
+/** The thumbnail's size and its RGB colour at each point, given as fractions of width and height. */
 function readThumbnail(panel: Page, points: [number, number][] = []) {
   return panel.getByAltText('Evidence #1').evaluate(async (img: HTMLImageElement, at) => {
     await img.decode();
@@ -42,7 +39,7 @@ function readThumbnail(panel: Page, points: [number, number][] = []) {
   }, points);
 }
 
-/** A drag across the editor's image, from and to fractions of it. */
+/** Drags across the editor image between points given as fractions of its size. */
 async function dragAcross(editor: Page, from: [number, number], to: [number, number]): Promise<void> {
   const box = await editor.locator('.us-editor-canvas').boundingBox();
   if (box === null) throw new Error('The editor shows no image');
@@ -66,8 +63,8 @@ test('a new screenshot opens in the editor; the saved copy is cropped and blacke
   // The test page is white away from its heading.
   expect(before.colours[0]).toEqual(WHITE);
 
-  // Black out a band, crop the right side off, then slide the frame right by
-  // dragging the dimmed part: all on one surface, no tools to switch.
+  // Black out a band, crop off the right side, then drag the dimmed area to
+  // shift the crop frame right. All on the canvas, with no tool switch.
   await dragAcross(editor, [0.25, 0.25], [0.45, 0.75]);
   await expect(editor.getByRole('img', { name: 'Hidden area 1' })).toBeVisible();
   await dragAcross(editor, [1, 0.5], [0.6, 0.5]);
@@ -77,7 +74,7 @@ test('a new screenshot opens in the editor; the saved copy is cropped and blacke
   await Promise.all([editor.waitForEvent('close'), editor.keyboard.press('Enter')]);
   await expect(panel.getByText(IDLE_HINT)).toBeVisible();
 
-  // Kept: 10% to 70% of the width. The band, 25% to 45%, is now 25% to 58% of it.
+  // The crop keeps 10% to 70% of the width, so the band (25% to 45%) lands at 25% to 58%.
   await expect.poll(async () => (await readThumbnail(panel)).width).toBeLessThan(before.width * 0.62);
   const after = await readThumbnail(panel, [
     [0.4, 0.5],
@@ -88,20 +85,20 @@ test('a new screenshot opens in the editor; the saved copy is cropped and blacke
   expect(after.height).toBe(before.height);
   expect(after.colours).toEqual([BLACK, WHITE, WHITE]);
 
-  // Clicking the thumbnail reopens it with the edits, to change them.
+  // Clicking the thumbnail reopens the editor with the saved edits.
   const [again] = await Promise.all([
     context.waitForEvent('page'),
     panel.getByRole('button', { name: 'Edit evidence #1' }).click(),
   ]);
   await expect(again.getByRole('img', { name: 'Hidden area 1' })).toBeVisible();
   await expect(again.getByRole('button', { name: 'Reset crop' })).toBeVisible();
-  // Nothing changed, so Cancel closes without asking and the saved copy stays.
+  // With no changes, Cancel closes without asking and the saved copy stays.
   await Promise.all([again.waitForEvent('close'), again.getByRole('button', { name: 'Cancel' }).click()]);
   expect((await readThumbnail(panel)).width).toBe(after.width);
 });
 
 test('opens with the image at its full size, fading in rather than growing', async ({ context, page, panel }) => {
-  // Every frame of the editor's opening: the image's size and transform.
+  // Record the image's size, transform and opacity each frame for 1.5 s after opening.
   await context.addInitScript(() => {
     if (!location.pathname.endsWith('/editor.html')) return;
     const frames: [number, number, string, number][] = [];
@@ -126,7 +123,7 @@ test('opens with the image at its full size, fading in rather than growing', asy
   );
   expect(frames.length).toBeGreaterThan(3);
   const [width, height] = frames.at(-1) ?? [0, 0];
-  // Never resized or scaled on the way in: it fades from nearly transparent to fully shown.
+  // Size and transform never change. Only opacity animates, from below 0.5 to 1.
   for (const [frameWidth, frameHeight, transform] of frames)
     expect([frameWidth, frameHeight, transform]).toEqual([width, height, 'none']);
   expect(frames[0]?.[3]).toBeLessThan(0.5);
@@ -144,7 +141,7 @@ test('asks before discarding edits, and a discard leaves the screenshot as it wa
   await editor.getByRole('button', { name: 'Cancel' }).click();
   const question = editor.getByRole('alertdialog', { name: 'Discard your changes?' });
   await expect(question).toBeVisible();
-  // Tab stays inside the question: what is behind it is out of reach.
+  // Focus stays trapped in the dialog.
   for (let press = 0; press < 4; press += 1) {
     await editor.keyboard.press('Tab');
     expect(await question.evaluate((element) => element.contains(document.activeElement))).toBe(true);
@@ -153,7 +150,7 @@ test('asks before discarding edits, and a discard leaves the screenshot as it wa
   await expect(question).toBeHidden();
   await expect(editor.getByRole('img', { name: 'Hidden area 1' })).toBeVisible();
 
-  // Escape lets go of the box, then asks; Enter answers with the focused Discard.
+  // The first Escape deselects the box and the second asks. Enter picks the focused Discard.
   await editor.keyboard.press('Escape');
   await editor.keyboard.press('Escape');
   await expect(question).toBeVisible();
@@ -225,11 +222,11 @@ test('closes an editor with unsaved edits when the panel lets it go, and forgets
 }) => {
   const editor = await captureIntoEditor(context, page, panel);
   await dragAcross(editor, [0.25, 0.25], [0.45, 0.75]);
-  // The close warning is armed now; the panel's own dismissal must not trip it.
+  // Unsaved edits arm the close warning. Closing from the panel must not trigger it.
   editor.on('dialog', (dialog) => void dialog.dismiss());
 
   await Promise.all([editor.waitForEvent('close'), panel.getByRole('button', { name: 'Remove evidence #1' }).click()]);
-  // No editor is left behind: a new capture opens a fresh one.
+  // The panel forgets the editor, so a new capture opens a fresh one.
   await expect(panel.getByRole('button', { name: 'Add screenshot' })).toBeEnabled();
   const [next] = await Promise.all([
     context.waitForEvent('page'),
@@ -246,7 +243,7 @@ test('creates a real pixel redaction using keyboard controls', async ({ context,
   await editor.getByRole('button', { name: 'Add black box' }).focus();
   await editor.keyboard.press('Enter');
   await expect(editor.getByRole('img', { name: 'Hidden area 1' })).toBeVisible();
-  // Keyboard activation uses the same baked image path as pointer drawing.
+  // Like pointer drawing, the keyboard path bakes the box into the saved pixels.
   await editor.getByRole('button', { name: 'Save', exact: true }).focus();
   await Promise.all([editor.waitForEvent('close'), editor.keyboard.press('Enter')]);
   await expect(panel.getByText(IDLE_HINT)).toBeVisible();

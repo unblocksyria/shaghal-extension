@@ -1,20 +1,20 @@
 import type { EditedScreenshot, ImageEdits } from './imageEdits';
 
 /**
- * The screenshot editor opens in a window of its own, laid over the whole
- * browser window, because the side panel is too narrow to hide small text
- * precisely. The panel and that window talk over a BroadcastChannel, which
- * carries the screenshot itself: nothing is stored on the way.
+ * The screenshot editor runs in its own window over the browser window, since
+ * the side panel is too narrow to hide small text precisely. Panel and editor
+ * talk over a BroadcastChannel that carries the screenshot itself, so nothing
+ * is stored.
  *
- *   editor → panel  ready     (the window has loaded; repeated until answered)
+ *   editor → panel  ready     (loaded; repeated until answered)
  *   panel → editor  open      (the screenshot and its edits)
  *   editor → panel  saved | cancelled
- *   panel → editor  dismiss   (the panel let the screenshot go; the window closes itself)
+ *   panel → editor  dismiss   (screenshot removed; the window closes itself)
  *
- * The panel closes the window once it has the answer, so the answer is never
- * lost to a window closing mid-message. A dismissed window closes itself,
- * since only it can lift its own warning about unsaved edits, and the panel
- * counts it as open until Chrome says it is gone.
+ * The panel closes the window after receiving the answer, so a closing window
+ * cannot cut a message short. A dismissed window closes itself, because only it
+ * can clear its own unsaved-edits warning. The panel treats it as open until
+ * chrome.windows.onRemoved fires.
  */
 const CHANNEL = 'shaghal-screenshot-editor';
 
@@ -31,10 +31,10 @@ type EditorMessage =
   | { type: 'cancelled'; session: string }
   | { type: 'dismiss'; session: string };
 
-/** What an edit ended with: new edits, all edits taken off (null), or nothing changed (undefined). */
+/** New edits, null when all edits were removed, or undefined when nothing changed. */
 export type EditOutcome = EditedScreenshot | null | undefined;
 
-/** Thrown when an editor is already open: there is only ever one, so no edits are dropped unseen. */
+/** Only one editor may be open, so edits in an open one are never discarded unseen. */
 export class EditorBusyError extends Error {
   constructor() {
     super('A screenshot is already open in the editor.');
@@ -61,16 +61,16 @@ export function isEditorOpen(): boolean {
   return current !== null;
 }
 
-/** Be told when an editor window opens or closes; returns the way to stop. */
+/** Calls `watcher` when an editor window opens or closes. Returns an unsubscribe function. */
 export function watchEditor(watcher: () => void): () => void {
   watchers.add(watcher);
   return () => watchers.delete(watcher);
 }
 
-/** How long a dismissed editor window has to close itself before it is closed for it. */
+/** How long a dismissed editor gets to close itself before the panel force-closes it. */
 const DISMISS_GRACE_MS = 1000;
 
-/** The browser window's bounds, which the editor window takes to cover it. */
+/** Bounds of the current browser window, for the editor to cover. */
 async function browserBounds(): Promise<chrome.windows.CreateData> {
   try {
     const { left, top, width, height } = await chrome.windows.getCurrent();
@@ -81,16 +81,16 @@ async function browserBounds(): Promise<chrome.windows.CreateData> {
 }
 
 /**
- * Open the editor window for one screenshot. Resolves when it is saved or
- * cancelled, or when its window is closed. Rejects with EditorBusyError while
- * another editor is open, and with the browser's error when no window can
- * open, so the caller can edit inside the panel instead.
+ * Opens the editor window for one screenshot. Resolves when the edit is saved
+ * or cancelled, or the window closes. Rejects with EditorBusyError while another
+ * editor is open, or with Chrome's error if no window opens, so the caller can
+ * fall back to editing in the panel.
  */
 export function editInWindow(request: EditRequest): Promise<EditOutcome> {
   if (current !== null) return Promise.reject(new EditorBusyError());
 
-  // Everything is in place before anything waits: a second call made in the
-  // meantime sees this editor, and the window's first "ready" finds a listener.
+  // Register before any await, so a concurrent call sees this editor and the
+  // window's first "ready" finds a listener.
   const session = crypto.randomUUID();
   const channel = new BroadcastChannel(CHANNEL);
   let settle: (outcome: EditOutcome) => void = () => undefined;
@@ -99,8 +99,8 @@ export function editInWindow(request: EditRequest): Promise<EditOutcome> {
     settle = resolve;
     fail = reject;
   });
-  // Settled: the caller has its outcome. Released: this editor is no longer
-  // tracked, which waits until its window is really gone.
+  // `settled`: the caller has its outcome. `released`: the editor is no longer
+  // tracked, which waits until its window is gone.
   let settled = false;
   let released = false;
 
@@ -116,16 +116,16 @@ export function editInWindow(request: EditRequest): Promise<EditOutcome> {
     channel.close();
     chrome.windows.onRemoved.removeListener(onRemoved);
   };
-  /** The editor answered: take its answer and close its window. */
+  /** Takes the editor's answer and closes its window. */
   const finish = (result: EditOutcome) => {
     settleOnce(result);
     release();
     if (self.windowId !== undefined) void chrome.windows.remove(self.windowId).catch(() => undefined);
   };
   /**
-   * The panel lets the screenshot go. The window may hold unsaved edits and a
-   * warning against closing, so it is asked to close itself, with a forced
-   * close as a fallback; it stays tracked until it is gone.
+   * The window may hold unsaved edits behind a close warning, so ask it to
+   * close itself and force-close after DISMISS_GRACE_MS. It stays tracked until
+   * it is gone.
    */
   const dismiss = () => {
     settleOnce(undefined);
@@ -165,11 +165,11 @@ export function editInWindow(request: EditRequest): Promise<EditOutcome> {
   const open = async () => {
     const created = await chrome.windows
       .create({ ...editorPage, ...(await browserBounds()) })
-      // Chrome refuses bounds it thinks are mostly off screen; then it picks its own.
+      // Chrome rejects bounds it considers mostly off screen. Retry without them.
       .catch(() => chrome.windows.create(editorPage));
     if (created?.id === undefined) throw new Error('The editor window did not open.');
     self.windowId = created.id;
-    // Dismissed while its window was opening, as when its screenshot was removed.
+    // Dismissed while the window was opening.
     if (released) void chrome.windows.remove(created.id).catch(() => undefined);
   };
   open().catch((error: unknown) => {
@@ -180,12 +180,12 @@ export function editInWindow(request: EditRequest): Promise<EditOutcome> {
   return outcome;
 }
 
-/** Close the open editor window without taking its edits, as when its screenshot is removed. */
+/** Dismisses the open editor without taking its edits. */
 export function closeEditorWindow(): void {
   current?.dismiss();
 }
 
-/** Bring the open editor window to the front, if there is one. */
+/** Focuses the open editor window. Returns false if there is none. */
 export function focusEditorWindow(): boolean {
   if (current === null) return false;
   if (current.windowId !== undefined)
@@ -196,7 +196,7 @@ export function focusEditorWindow(): boolean {
 /** How often the editor window repeats "ready" until the panel answers. */
 const READY_EVERY_MS = 300;
 
-/** The editor window's side: ask the panel for its screenshot, and answer it. */
+/** The editor window's end of the channel. Requests the screenshot and sends back the result. */
 export function connectToPanel(
   session: string,
   onOpen: (request: EditRequest) => void,
@@ -205,8 +205,8 @@ export function connectToPanel(
   const channel = new BroadcastChannel(CHANNEL);
   const ready = () => channel.postMessage({ type: 'ready', session } satisfies EditorMessage);
   const asking = setInterval(ready, READY_EVERY_MS);
-  // Taken once: a repeated "ready" can be answered twice, and a second screenshot
-  // would reopen the image under edits already made.
+  // Accept only the first "open". Repeated "ready"s can be answered twice, and a
+  // second image would replace the one being edited.
   let opened = false;
   channel.onmessage = (event: MessageEvent<EditorMessage>) => {
     const message = event.data;
@@ -222,7 +222,7 @@ export function connectToPanel(
   };
   ready();
 
-  // The panel closes this window; closing it here too covers a panel that has gone away.
+  // The panel normally closes this window. Close it here too in case the panel is gone.
   let closing: ReturnType<typeof setTimeout> | undefined;
   const closeSoon = () => {
     closing ??= setTimeout(() => window.close(), 1500);

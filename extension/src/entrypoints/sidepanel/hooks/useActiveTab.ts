@@ -8,10 +8,9 @@ export interface ActiveTabInfo {
 const DEV_FALLBACK: ActiveTabInfo = { url: 'https://example.com', title: 'Example' };
 
 /**
- * Development builds only: `sidepanel.html?preview=<url>` opened as a tab shows
- * the panel for that address, so a state can be viewed or screenshotted
- * without driving the side panel. There is no page behind it, so a screenshot
- * taken from a preview captures the panel itself.
+ * Dev builds only. Opening `sidepanel.html?preview=<url>` in a tab renders the
+ * panel for that URL, for viewing a state without the side panel. A screenshot
+ * taken in preview captures the panel itself, since there is no page behind it.
  */
 function previewTab(): ActiveTabInfo | null {
   if (import.meta.env.DEV !== true || typeof location === 'undefined') return null;
