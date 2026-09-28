@@ -99,3 +99,69 @@ describe('arrow keys in a radio group', () => {
     expect(document.activeElement).toBe(radio('English'));
   });
 });
+
+/** A row with one radio disabled and a plain button beside the radios. */
+function MixedRow() {
+  const [picked, setPicked] = useState('system');
+  return (
+    <RadioGroup aria-label="Language">
+      {OPTIONS.map(({ value, label }) => (
+        <button
+          key={value}
+          type="button"
+          role="radio"
+          aria-checked={picked === value}
+          tabIndex={picked === value ? 0 : -1}
+          disabled={value === 'english'}
+          onClick={() => setPicked(value)}
+        >
+          {label}
+        </button>
+      ))}
+      <button type="button">Help</button>
+    </RadioGroup>
+  );
+}
+
+describe('keys a radio group leaves alone', () => {
+  it('moves for no key but the arrows, Home and End', async () => {
+    const user = userEvent.setup();
+    render(<Row />);
+    radio('System').focus();
+    await user.keyboard('{Enter}');
+    await user.keyboard('a');
+    await user.keyboard('{PageDown}');
+    expect(document.activeElement).toBe(radio('System'));
+    expect(checked('System')).toBe(true);
+  });
+
+  it('does nothing for a key pressed on something in the group that is not a radio', async () => {
+    const user = userEvent.setup();
+    render(<MixedRow />);
+    const help = screen.getByRole('button', { name: 'Help' });
+    help.focus();
+    await user.keyboard('{ArrowRight}');
+    expect(document.activeElement).toBe(help);
+    expect(checked('System')).toBe(true);
+  });
+
+  it('skips a disabled radio', async () => {
+    const user = userEvent.setup();
+    render(<MixedRow />);
+    radio('System').focus();
+    await user.keyboard('{ArrowRight}');
+    expect(document.activeElement).toBe(radio('Arabic'));
+    expect(checked('Arabic')).toBe(true);
+    await user.keyboard('{ArrowLeft}');
+    expect(document.activeElement).toBe(radio('System'));
+  });
+
+  it('runs left to right when nothing declares a direction', async () => {
+    const user = userEvent.setup();
+    document.documentElement.removeAttribute('dir');
+    render(<Row />);
+    radio('System').focus();
+    await user.keyboard('{ArrowLeft}');
+    expect(document.activeElement).toBe(radio('Arabic'));
+  });
+});

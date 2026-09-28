@@ -1,7 +1,8 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it, vi } from 'vitest';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import type { EditableImage } from '../../lib/imageBake';
 import type { EditedScreenshot, ImageEdits } from '../../lib/imageEdits';
 import { i18next } from '../../lib/i18n';
 import { ScreenshotEditor } from './ScreenshotEditor';
@@ -28,6 +29,7 @@ interface Opened {
   user: UserEvent;
   saved: (EditedScreenshot | null)[];
   cancelled: () => number;
+  unmount: () => void;
 }
 
 async function openEditor(edits?: ImageEdits, options: { guardClose?: boolean } = {}): Promise<Opened> {
@@ -35,7 +37,7 @@ async function openEditor(edits?: ImageEdits, options: { guardClose?: boolean } 
   const saved: (EditedScreenshot | null)[] = [];
   let cancels = 0;
   const user = userEvent.setup();
-  render(
+  const { unmount } = render(
     <ScreenshotEditor
       source={new Blob(['capture'])}
       edits={edits}
@@ -46,7 +48,7 @@ async function openEditor(edits?: ImageEdits, options: { guardClose?: boolean } 
     />,
   );
   await screen.findByRole('button', { name: 'Undo' });
-  return { user, saved, cancelled: () => cancels };
+  return { user, saved, cancelled: () => cancels, unmount };
 }
 
 /** The image canvas. Pointer events on it bubble up to the stage. */
@@ -549,4 +551,230 @@ it('labels the precise controls in the panel language', async () => {
   } finally {
     await i18next.changeLanguage('en');
   }
+});
+
+/** A ResizeObserver the test drives. jsdom has none. */
+function fakeResizeObserver() {
+  const observers: { callback: ResizeObserverCallback; disconnected: boolean }[] = [];
+  class FakeResizeObserver {
+    private readonly entry: { callback: ResizeObserverCallback; disconnected: boolean };
+    constructor(callback: ResizeObserverCallback) {
+      this.entry = { callback, disconnected: false };
+      observers.push(this.entry);
+    }
+    observe() {}
+    unobserve() {}
+    disconnect() {
+      this.entry.disconnected = true;
+    }
+  }
+  vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+  return {
+    resize: (width: number, height: number) =>
+      act(() => {
+        const entry = { contentRect: { width, height } } as ResizeObserverEntry;
+        observers.at(-1)?.callback([entry], {} as ResizeObserver);
+      }),
+    disconnected: () => observers.length > 0 && observers.every((observer) => observer.disconnected),
+  };
+}
+
+const canvasWidth = () => document.querySelector<HTMLElement>('.us-editor-canvas')?.style.width;
+
+describe('fitting the window', () => {
+  it('rescales the image as the stage changes size, never past one image pixel per screen pixel', async () => {
+    const observer = fakeResizeObserver();
+    const { user, saved } = await openEditor();
+    expect(canvasWidth()).toBe('304px');
+
+    observer.resize(720, 960);
+    expect(canvasWidth()).toBe('664px');
+    observer.resize(3000, 3000);
+    expect(canvasWidth()).toBe('1000px');
+    // A collapsed stage changes nothing.
+    observer.resize(0, 0);
+    expect(canvasWidth()).toBe('1000px');
+
+    // At full scale, a drag lands exactly where it was made.
+    const target = stage();
+    await user.pointer([
+      { keys: '[MouseLeft>]', target, coords: { clientX: 100, clientY: 100 } },
+      { target, coords: { clientX: 300, clientY: 200 } },
+      { keys: '[/MouseLeft]', target },
+    ]);
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(saved[0]?.edits.boxes).toEqual([expect.objectContaining({ x: 100, y: 100, width: 200, height: 100 })]);
+  });
+
+  it('puts the delete button below a box when there is no room above it', async () => {
+    const observer = fakeResizeObserver();
+    const { user } = await openEditor();
+    // A short stage leaves under 44 px above the image.
+    observer.resize(360, 240);
+    expect(canvasWidth()).toBe('304px');
+
+    await drag(user, [100, 0], [300, 50]);
+    const remove = screen.getByRole('button', { name: 'Delete this box' });
+    expect(Number.parseFloat(remove.style.top)).toBeCloseTo(50 * SCALE + 8, 1);
+  });
+
+  it('stops watching the stage when it closes', async () => {
+    const observer = fakeResizeObserver();
+    const { unmount } = await openEditor();
+    expect(observer.disconnected()).toBe(false);
+    unmount();
+    expect(observer.disconnected()).toBe(true);
+  });
+});
+
+describe('a browser with a native dialog', () => {
+  it('opens the editor as a modal and closes it when the editor goes', async () => {
+    const showModal = vi.fn(function (this: HTMLDialogElement) {
+      this.setAttribute('open', '');
+    });
+    const close = vi.fn(function (this: HTMLDialogElement) {
+      this.removeAttribute('open');
+    });
+    Object.assign(HTMLDialogElement.prototype, { showModal, close });
+    try {
+      const { unmount } = render(
+        <ScreenshotEditor
+          source={new Blob(['capture'])}
+          label="evidence #1"
+          onCancel={() => undefined}
+          onSave={() => undefined}
+        />,
+      );
+      await screen.findByRole('button', { name: 'Undo' });
+      expect(showModal).toHaveBeenCalledOnce();
+      expect(screen.getByRole('dialog', { name: 'Edit evidence #1' }).hasAttribute('open')).toBe(true);
+      unmount();
+      expect(close).toHaveBeenCalledOnce();
+    } finally {
+      Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal');
+      Reflect.deleteProperty(HTMLDialogElement.prototype, 'close');
+    }
+  });
+});
+
+it('frees a screenshot that finishes opening after the editor was closed', async () => {
+  const imageBake = await import('../../lib/imageBake');
+  let open: (image: EditableImage) => void = () => undefined;
+  vi.spyOn(imageBake, 'openEditableImage').mockReturnValueOnce(
+    new Promise((resolve) => {
+      open = resolve;
+    }),
+  );
+  const { unmount } = render(
+    <ScreenshotEditor
+      source={new Blob(['late'])}
+      label="evidence #1"
+      onCancel={() => undefined}
+      onSave={() => undefined}
+    />,
+  );
+  unmount();
+
+  const dispose = vi.fn();
+  open({ width: 1000, height: 600, url: 'blob:late', bitmap: {} as ImageBitmap, dispose });
+  await waitFor(() => expect(dispose).toHaveBeenCalledOnce());
+});
+
+describe('pointer and key details', () => {
+  it('clears the selection on a click beyond the image', async () => {
+    const { user } = await openEditor();
+    await drag(user, [100, 100], [300, 200]);
+    expect(screen.getByRole('button', { name: 'Delete this box' })).toBeDefined();
+
+    const target = stage();
+    await user.pointer([
+      { keys: '[MouseLeft>]', target, coords: { clientX: 1100 * SCALE, clientY: 100 * SCALE } },
+      { keys: '[/MouseLeft]', target },
+    ]);
+    expect(screen.queryByRole('button', { name: 'Delete this box' })).toBeNull();
+    expect(boxes()).toHaveLength(1);
+  });
+
+  it('points out the frame when the pointer rests on the dimmed part of a cropped image', async () => {
+    const { user } = await openEditor();
+    await drag(user, [1000, 600], [600, 400], cropHandle('se'));
+    const canvas = stage();
+
+    await user.pointer({ target: canvas, coords: { clientX: 800 * SCALE, clientY: 500 * SCALE } });
+    expect(screen.getByText('Drag the dimmed part to move the frame.')).toBeDefined();
+    expect(canvas.getAttribute('data-over')).toBe('outside');
+
+    await user.pointer({ target: canvas, coords: { clientX: 300 * SCALE, clientY: 200 * SCALE } });
+    expect(screen.getByText(/Drag to black out more, or drag the dimmed part/)).toBeDefined();
+    expect(canvas.hasAttribute('data-over')).toBe(false);
+  });
+
+  it('ignores shortcuts while the edits are being saved', async () => {
+    const imageBake = await import('../../lib/imageBake');
+    let finish: (blob: Blob) => void = () => undefined;
+    vi.spyOn(imageBake, 'bakeEdits').mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const { user, saved } = await openEditor();
+    await drag(user, [100, 100], [300, 200]);
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('button', { name: 'Saving…' });
+
+    await user.keyboard('{Control>}z{/Control}');
+    await user.keyboard('{Enter}');
+    await user.keyboard('{Escape}');
+    expect(boxes()).toHaveLength(1);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+
+    finish(new Blob(['edited']));
+    await waitFor(() => expect(saved).toHaveLength(1));
+  });
+
+  it('leaves typing in the precise fields alone', async () => {
+    const { user, saved } = await openEditor();
+    await drag(user, [100, 100], [300, 200]);
+    await user.click(screen.getByText('Precise crop and redaction'));
+    await user.click(screen.getByLabelText('Left (pixels)'));
+
+    await user.keyboard('{Backspace}');
+    expect(boxes()).toHaveLength(1);
+    await user.keyboard('{Enter}');
+    expect(saved).toEqual([]);
+  });
+
+  it('redoes with Ctrl+Y as well', async () => {
+    const { user } = await openEditor();
+    await drag(user, [100, 100], [300, 200]);
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(boxes()).toHaveLength(0);
+    await user.keyboard('{Control>}y{/Control}');
+    expect(boxes()).toHaveLength(1);
+  });
+
+  it('picks what the precise fields edit from the region list', async () => {
+    const { user } = await openEditor();
+    await drag(user, [100, 100], [300, 200]);
+    await drag(user, [500, 300], [700, 400]);
+    await user.click(screen.getByText('Precise crop and redaction'));
+    const region = screen.getByRole<HTMLSelectElement>('combobox', { name: 'Edit region' });
+    expect(region.value).not.toBe('crop');
+
+    await user.selectOptions(region, 'Black box 1');
+    expect(boxes()[0]?.getAttribute('aria-current')).toBe('true');
+    expect(screen.getByLabelText('Left (pixels)')).toHaveProperty('value', '100');
+
+    await user.selectOptions(region, 'Crop frame');
+    expect(boxes().some((box) => box.getAttribute('aria-current') === 'true')).toBe(false);
+    expect(screen.getByLabelText('Left (pixels)')).toHaveProperty('value', '0');
+    expect(screen.getByLabelText('Width (pixels)')).toHaveProperty('value', '1000');
+  });
+
+  it('ignores a precise value that is not a number', async () => {
+    const { user } = await openEditor();
+    await user.click(screen.getByText('Precise crop and redaction'));
+    fireEvent.change(screen.getByLabelText('Left (pixels)'), { target: { value: '' } });
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Undo' }).disabled).toBe(true);
+  });
 });

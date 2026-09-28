@@ -81,8 +81,10 @@ it.each(forms)('keeps a confirmed $name submission successful if remembering the
   vi.spyOn(chrome.storage.local, 'set').mockRejectedValueOnce(new Error('Storage unavailable'));
   const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ id: 'receipt' }));
   vi.stubGlobal('fetch', fetcher);
-  expect(await send()).toEqual({ ok: true, data: { id: 'receipt' } });
+  expect(await send('tester@example.com')).toEqual({ ok: true, data: { id: 'receipt' } });
   expect(fetcher).toHaveBeenCalledTimes(1);
+  // The email was not remembered, and nothing was sent twice because of it.
+  expect(await getSavedEmail()).toBe('');
 });
 
 it.each(forms)('tags a $name submission with the language the panel is in', async ({ send }) => {

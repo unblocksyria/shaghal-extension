@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { submitService } from './submit';
 
@@ -151,4 +151,80 @@ it('forgets a key the API reports as expired, so the next send gets a new one', 
   expect((await submitService(input)).ok).toBe(true);
   expect(keyOf(fetcher.mock.calls[1])).toBe(keyOf(fetcher.mock.calls[0]));
   expect(keyOf(fetcher.mock.calls[2])).not.toBe(keyOf(fetcher.mock.calls[0]));
+});
+
+describe('an earlier attempt the API can account for', () => {
+  /** A lost first send, then the receipt lookup's answer. */
+  const lostThen = (state: string, status?: number) =>
+    vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(new Error('lost response'))
+      .mockResolvedValueOnce(Response.json({ state, status }));
+
+  it('was received: says so, forgets the receipt and sends nothing', async () => {
+    const fetcher = lostThen('completed', 201);
+    vi.stubGlobal('fetch', fetcher);
+    await submitService(input);
+    const result = await submitService({ ...input, name: 'Changed' });
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        error: 'PREVIOUS_DELIVERY_CONFIRMED',
+        status: 409,
+        message: 'Your earlier submission was received. Check it before sending another.',
+      },
+    });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(await chrome.storage.session.get(null)).toEqual({});
+  });
+
+  it('was refused: says so, so the details can be reviewed before another try', async () => {
+    vi.stubGlobal('fetch', lostThen('completed', 422));
+    await submitService(input);
+    const result = await submitService({ ...input, name: 'Changed' });
+    expect(result.ok === false && result.error.message).toBe(
+      'Your earlier attempt was refused. Review the current details, then try again.',
+    );
+    expect(await chrome.storage.session.get(null)).toEqual({});
+  });
+
+  it.each([
+    ['failed on the server', 'completed', 503],
+    ['finished with no status', 'completed', undefined],
+    ['is in a state this build does not know', 'lost', undefined],
+  ])('%s: stays unconfirmed and keeps blocking new details', async (_label, state, status) => {
+    vi.stubGlobal('fetch', lostThen(state, status));
+    await submitService(input);
+    const result = await submitService({ ...input, name: 'Changed' });
+    expect(result.ok === false && result.error.error).toBe('DELIVERY_UNCONFIRMED');
+    expect(Object.keys(await chrome.storage.session.get(null))).toHaveLength(1);
+  });
+});
+
+describe('a definite failure', () => {
+  it('releases the key after a refusal, so the next send is a new attempt', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ error: 'INVALID', message: 'Refused' }, { status: 422 }))
+      .mockResolvedValueOnce(Response.json({ id: 'receipt' }));
+    vi.stubGlobal('fetch', fetcher);
+    expect((await submitService(input)).ok).toBe(false);
+    expect((await submitService(input)).ok).toBe(true);
+    expect(keyOf(fetcher.mock.calls[1])).not.toBe(keyOf(fetcher.mock.calls[0]));
+  });
+
+  it('includes a cancelled verification on a fresh attempt, which sent nothing', async () => {
+    verification.mockResolvedValueOnce({ ok: false, message: 'Cancelled' });
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ id: 'receipt' }));
+    vi.stubGlobal('fetch', fetcher);
+    expect((await submitService(input)).ok).toBe(false);
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(await chrome.storage.session.get(null)).toEqual({});
+  });
+});
+
+it('stays successful when the receipt cannot be cleared afterwards', async () => {
+  vi.spyOn(chrome.storage.session, 'remove').mockRejectedValueOnce(new Error('quota'));
+  vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json({ id: 'receipt' })));
+  expect((await submitService(input)).ok).toBe(true);
 });

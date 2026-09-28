@@ -21,6 +21,8 @@ const windows = vi.hoisted(() => {
     closed: 0,
     focused: 0,
     unavailable: false,
+    /** Refuses the next edit as busy although no editor shows as open: two forms raced for it. */
+    refuseOnce: false,
     open: false,
     watchers: new Set<() => void>(),
     setOpen: (open: boolean) => {
@@ -41,7 +43,10 @@ vi.mock('../../../lib/editorWindow', () => {
     },
     editInWindow: (request: EditRequest) => {
       if (windows.unavailable) return Promise.reject(new Error('No windows here'));
-      if (windows.open) return Promise.reject(new EditorBusyError());
+      if (windows.open || windows.refuseOnce) {
+        windows.refuseOnce = false;
+        return Promise.reject(new EditorBusyError());
+      }
       windows.requests.push(request);
       windows.setOpen(true);
       return new Promise<EditOutcome>((resolve) =>
@@ -80,6 +85,7 @@ async function openForm(user: UserEvent, pageUrl = 'https://edits.example/accoun
   windows.closed = 0;
   windows.focused = 0;
   windows.unavailable = false;
+  windows.refuseOnce = false;
   windows.open = false;
   stubScreenshot();
   const api = fakeApi()
@@ -357,4 +363,47 @@ describe('capture and submission races', () => {
     expect(api.callsTo('POST', '/uploads/evidence')).toHaveLength(0);
     expect(api.callsTo('POST', '/submissions')).toHaveLength(0);
   });
+});
+
+describe('the editor inside the panel', () => {
+  it('keeps the screenshot as it was when it is cancelled', async () => {
+    const user = userEvent.setup();
+    const api = await openForm(user);
+    windows.unavailable = true;
+
+    await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
+    await screen.findByRole('dialog', { name: 'Edit evidence #1' });
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByAltText('Evidence #1')).toBeDefined();
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Add another screenshot' }).disabled).toBe(false);
+
+    expect(await sentScreenshot(user, api)).toBe('hello');
+  });
+
+  it('closes when its screenshot is removed', async () => {
+    const user = userEvent.setup();
+    await openForm(user);
+    windows.unavailable = true;
+
+    await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
+    await screen.findByRole('dialog', { name: 'Edit evidence #1' });
+    await user.click(screen.getByRole('button', { name: 'Remove evidence #1' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByAltText('Evidence #1')).toBeNull();
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Add screenshot' }).disabled).toBe(false);
+  });
+});
+
+it('brings the other editor to the front when two forms reach for it at once', async () => {
+  const user = userEvent.setup();
+  await withScreenshot(user);
+  windows.refuseOnce = true;
+
+  await user.click(screen.getByRole('button', { name: 'Edit evidence #1' }));
+  expect(windows.focused).toBe(1);
+  expect(windows.requests).toHaveLength(0);
+  expect(screen.queryByText(/Editing evidence/)).toBeNull();
+  expect(screen.getByText(IDLE_HINT)).toBeDefined();
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Add another screenshot' }).disabled).toBe(false);
 });

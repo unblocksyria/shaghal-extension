@@ -154,3 +154,34 @@ it('explains shared-network cooldowns without losing the draft', () => {
     'Temporarily unavailable',
   );
 });
+
+describe('answers the panel cannot read', () => {
+  it('ignores a Retry-After that is neither seconds nor a date, and cools down for a minute', async () => {
+    stubFetch(
+      Response.json(
+        { error: 'RATE_LIMITED', message: 'Slow down' },
+        { status: 429, headers: { 'Retry-After': 'soon' } },
+      ),
+    );
+    const result = await apiRequest('/x');
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.retryAfterSeconds).toBeUndefined();
+    expect(formErrorMessage(result.error)).toContain('Try again in 1 minute.');
+  });
+
+  it('treats an error body that is JSON but not an object as an unknown error', async () => {
+    stubFetch(
+      Response.json('nope', { status: 500, statusText: 'Internal Server Error' }),
+      Response.json([1, 2], { status: 400, statusText: 'Bad Request' }),
+    );
+    expect(await apiRequest('/x')).toEqual({
+      ok: false,
+      error: { error: 'UNKNOWN_ERROR', message: 'Internal Server Error', status: 500, retryAfterSeconds: undefined },
+    });
+    expect(await apiRequest('/x')).toMatchObject({
+      ok: false,
+      error: { error: 'UNKNOWN_ERROR', message: 'Bad Request' },
+    });
+  });
+});
