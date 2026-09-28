@@ -37,10 +37,12 @@ describe('HostAccessNotice', () => {
     await settle();
     expect(screen.queryByRole('status')).toBeNull();
 
-    vi.stubGlobal('chrome', undefined);
-    render(<HostAccessNotice />);
-    await settle();
-    expect(screen.queryByRole('status')).toBeNull();
+    for (const chrome of [undefined, {}]) {
+      vi.stubGlobal('chrome', chrome);
+      render(<HostAccessNotice />);
+      await settle();
+      expect(screen.queryByRole('status')).toBeNull();
+    }
   });
 
   it('offers to ask again, and follows the permission as it changes', async () => {
@@ -60,5 +62,39 @@ describe('HostAccessNotice', () => {
 
     unmount();
     expect(permissions.listeners.size).toBe(0);
+  });
+
+  it('stays shown when the browser refuses the request', async () => {
+    const permissions = fakePermissions(false);
+    permissions.api.request.mockImplementation(() => Promise.reject(new Error('not from a click')));
+    vi.stubGlobal('chrome', { permissions: permissions.api });
+    render(<HostAccessNotice />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Allow access' }));
+    await settle();
+    expect(screen.queryByRole('status')).not.toBeNull();
+  });
+
+  it('ignores an answer that arrives after it is gone', async () => {
+    const permissions = fakePermissions(false);
+    vi.stubGlobal('chrome', { permissions: permissions.api });
+    const { unmount } = render(<HostAccessNotice />);
+    unmount();
+    await settle();
+    expect(permissions.api.contains).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('reads the answer once where the API has no change events, as in the test fake', async () => {
+    const permissions = fakePermissions(false);
+    const throwing = {
+      addListener: () => {
+        throw new Error('permissions.onAdded not implemented');
+      },
+      removeListener: () => undefined,
+    };
+    vi.stubGlobal('chrome', { permissions: { ...permissions.api, onAdded: throwing, onRemoved: throwing } });
+    const { unmount } = render(<HostAccessNotice />);
+    await screen.findByRole('status');
+    unmount();
   });
 });

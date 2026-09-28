@@ -1,14 +1,16 @@
-/** Firefox's sidebar API, which WXT's Chrome-based types leave out. */
+import { IS_FIREFOX } from '../lib/config';
+
+/** Firefox's sidebar API, which the Chrome-based types leave out. */
 interface SidebarAction {
-  toggle(): Promise<void>;
+  toggle: () => Promise<void>;
 }
 
 export default defineBackground(() => {
-  if (import.meta.env.FIREFOX) {
+  if (IS_FIREFOX) {
     // Firefox has no sidePanel API. The toolbar button toggles the sidebar,
     // which Firefox allows only from the click handler itself.
-    const { sidebarAction } = browser as unknown as { sidebarAction: SidebarAction };
-    browser.action.onClicked.addListener(() => {
+    const { sidebarAction } = chrome as unknown as { sidebarAction: SidebarAction };
+    chrome.action.onClicked.addListener(() => {
       void sidebarAction.toggle().catch(() => undefined);
     });
     return;

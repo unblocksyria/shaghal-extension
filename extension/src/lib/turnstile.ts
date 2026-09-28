@@ -1,6 +1,6 @@
-import { IS_LOCAL_API, VERIFY_BASE } from './config';
+import { IS_FIREFOX, IS_LOCAL_API, VERIFY_BASE } from './config';
 import { i18next } from './i18n';
-import { VERIFY_PATH, isFirefox, isRelayMessage, isVerifyFrame } from './verifyRelay';
+import { VERIFY_PATH, isRelayMessage, isVerifyFrame } from './verifyRelay';
 
 /** The Turnstile action each API endpoint expects its token to carry. */
 export type TurnstileAction = 'vote' | 'submission' | 'report' | 'correction' | 'upload';
@@ -92,7 +92,7 @@ function requestTurnstileToken(action: TurnstileAction): Promise<string> {
     function finish(outcome: string | Error) {
       if (finished) return;
       finished = true;
-      if (isFirefox()) chrome.runtime.onMessage.removeListener(onRelay);
+      if (IS_FIREFOX) chrome.runtime.onMessage.removeListener(onRelay);
       else window.removeEventListener('message', onMessage);
       clearTimeout(timer);
       if (overlay.open) overlay.close();
@@ -145,7 +145,7 @@ function requestTurnstileToken(action: TurnstileAction): Promise<string> {
       finish(new Error(i18next.t('turnstile.cancelled')));
     };
     cancel.onclick = () => finish(new Error(i18next.t('turnstile.cancelled')));
-    if (isFirefox()) chrome.runtime.onMessage.addListener(onRelay);
+    if (IS_FIREFOX) chrome.runtime.onMessage.addListener(onRelay);
     else window.addEventListener('message', onMessage);
     overlay.append(label, frame, cancel);
     document.body.append(overlay);

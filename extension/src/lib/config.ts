@@ -34,3 +34,12 @@ export const GEO_TRACE_URL = 'https://api.unblocksyria.com/cdn-cgi/trace';
 
 /** A local API skips human verification, so no Turnstile token is fetched. */
 export const IS_LOCAL_API = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(API_BASE);
+
+/**
+ * Whether this is the Firefox build. WXT inlines a boolean into a build, so
+ * the comparison folds and the other browser's branch leaves the bundle,
+ * which keeps Chrome-only API calls out of the Firefox package. WXT's test
+ * plugin supplies the string "false", which the comparison rejects; tests
+ * mock this module to choose a browser.
+ */
+export const IS_FIREFOX = import.meta.env.FIREFOX === true;

@@ -19,7 +19,7 @@ export default defineContentScript({
       const detail: unknown = (event as CustomEvent<unknown>).detail;
       if (typeof detail !== 'string') return;
       // Nothing to do if no panel is listening; the page's deadline reports it.
-      void browser.runtime.sendMessage({ type: RELAY_MESSAGE_TYPE, detail }).catch(() => undefined);
+      void chrome.runtime.sendMessage({ type: RELAY_MESSAGE_TYPE, detail }).catch(() => undefined);
     });
   },
 });

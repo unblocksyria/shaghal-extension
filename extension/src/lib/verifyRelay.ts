@@ -11,15 +11,6 @@ import { VERIFY_BASE } from './config';
 /** The page path, under VERIFY_BASE. */
 export const VERIFY_PATH = '/extension/turnstile';
 
-/**
- * Whether this is the Firefox build. WXT inlines a boolean into a build, but
- * its test plugin supplies the string "false", which is truthy, so the value
- * is read as text.
- */
-export function isFirefox(): boolean {
-  return String(import.meta.env.FIREFOX) === 'true';
-}
-
 /** The DOM event the page dispatches. Its `detail` is the message as JSON. */
 export const RELAY_EVENT = 'unblocksyria-turnstile';
 

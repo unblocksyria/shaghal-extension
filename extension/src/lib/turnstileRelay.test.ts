@@ -3,14 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { turnstileToken } from './turnstile';
 import { RELAY_MESSAGE_TYPE } from './verifyRelay';
 
-vi.mock('./config', () => ({ IS_LOCAL_API: false, VERIFY_BASE: 'https://verify.example.test' }));
+vi.mock('./config', () => ({ IS_FIREFOX: true, IS_LOCAL_API: false, VERIFY_BASE: 'https://verify.example.test' }));
 
 type Listener = (message: unknown, sender: chrome.runtime.MessageSender) => void;
 const listeners = new Set<Listener>();
 
 beforeEach(() => {
-  // WXT's test plugin sets this to "false"; see isFirefox in verifyRelay.ts.
-  vi.stubEnv('FIREFOX', 'true');
   vi.stubGlobal('chrome', {
     runtime: {
       onMessage: {
@@ -22,7 +20,6 @@ beforeEach(() => {
 });
 afterEach(() => {
   listeners.clear();
-  vi.unstubAllEnvs();
   vi.unstubAllGlobals();
 });
 
