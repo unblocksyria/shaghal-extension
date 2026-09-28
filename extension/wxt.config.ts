@@ -35,6 +35,16 @@ export default defineConfig({
     permissions: browser === 'firefox' ? ['storage', 'tabs'] : ['storage', 'sidePanel', 'tabs'],
     host_permissions: ['<all_urls>'],
     action: { default_title: '__MSG_actionTitle__' },
+    // Pressing the key does what a click on the toolbar button does, and the
+    // background already makes that open the panel, so no command listener is
+    // needed: Chrome never fires commands.onCommand for _execute_action.
+    // Firefox reads it as a click on the toolbar button, which toggles its
+    // sidebar. Rebindable at chrome://extensions/shortcuts.
+    commands: {
+      _execute_action: {
+        suggested_key: { default: 'Ctrl+Shift+U', mac: 'Command+Shift+U' },
+      },
+    },
     icons: {
       16: 'icons/icon-16.png',
       32: 'icons/icon-32.png',
