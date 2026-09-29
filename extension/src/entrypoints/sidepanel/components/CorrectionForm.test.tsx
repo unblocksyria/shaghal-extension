@@ -1,11 +1,12 @@
 /** @vitest-environment jsdom */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
-import { screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { closeEditorWindows } from '../../../testing/editorWindows';
 import { API_BASE } from '../../../lib/config';
 import { fakeApi, type FakeApi } from '../../../testing/fakeApi';
 import { openPanel, stubScreenshot } from '../../../testing/panel';
+import { SidePanelApp } from '../SidePanelApp';
 import categories from '../../../testing/fixtures/categories.json';
 import match from '../../../testing/fixtures/match.json';
 import serviceRecord from '../../../testing/fixtures/service-record.json';
@@ -245,5 +246,37 @@ describe('what stops a correction', () => {
       'This shared network is busy. Try again in 1 minute. Keep this panel open to preserve your draft.',
     );
     expect(screen.getByRole('textbox', { name: 'Website URL' })).toHaveProperty('value', 'https://stream.example');
+  });
+});
+
+/** The correction draft held for the fixture's service, or nothing. */
+const storedCorrection = async (): Promise<unknown> => {
+  const all = await chrome.storage.session.get(null);
+  return all['draft:correction:svc-netflix'];
+};
+
+describe('keeping the correction across a closed panel', () => {
+  it('brings the ticked field and its value back, and lets the draft go once submitted', async () => {
+    const user = userEvent.setup();
+    const api = await openCorrection(user, 'https://draft.example/page');
+    await user.click(screen.getByRole('checkbox', { name: 'Website URL' }));
+    await user.type(screen.getByRole('textbox', { name: 'Website URL' }), 'https://stream.example');
+    // The write lands half a second after the typing stops.
+    await vi.waitFor(async () => {
+      expect(await storedCorrection()).toBeDefined();
+    });
+
+    cleanup();
+    render(<SidePanelApp />);
+    await user.click(await screen.findByRole('button', { name: 'Suggest Correction' }));
+    await screen.findByRole('heading', { name: 'Suggest Correction' });
+
+    expect(screen.getByRole('checkbox', { name: 'Website URL' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('textbox', { name: 'Website URL' })).toHaveProperty('value', 'https://stream.example');
+
+    await user.click(screen.getByRole('button', { name: 'Submit Correction' }));
+    await screen.findByRole('heading', { name: 'Correction Submitted' });
+    expect(api.callsTo('POST', '/corrections')).toHaveLength(1);
+    expect(await storedCorrection()).toBeUndefined();
   });
 });

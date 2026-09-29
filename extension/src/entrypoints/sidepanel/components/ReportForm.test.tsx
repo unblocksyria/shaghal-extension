@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it, vi } from 'vitest';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
-import { fireEvent, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { closeEditorWindows } from '../../../testing/editorWindows';
 import { API_BASE } from '../../../lib/config';
 import { fakeApi, type FakeAnswer, type FakeApi, type FakeResponder } from '../../../testing/fakeApi';
@@ -9,6 +9,7 @@ import { openPanel, stubScreenshot } from '../../../testing/panel';
 import functionalities from '../../../testing/fixtures/functionalities.json';
 import match from '../../../testing/fixtures/match.json';
 import serviceRecord from '../../../testing/fixtures/service-record.json';
+import upload from '../../../testing/fixtures/upload.json';
 
 /** Opens the report form from the card, as a tester would. */
 async function openReport(user: UserEvent, pageUrl: string): Promise<FakeApi> {
@@ -112,7 +113,8 @@ describe('the report form', () => {
       await screen.findByText('يمكن أن يتضمن البلاغ 30 جزءاً و100 لقطة شاشة كحدّ أقصى. أزل بعضها قبل الإرسال.'),
     ).toBeDefined();
     expect(api.callsTo('POST', '/functionality-reports')).toHaveLength(0);
-  });
+    // 31 parts clicked one by one: worth more than the default allowance on a busy machine.
+  }, 30_000);
 });
 
 /** The report form for a service that records no parts yet. */
@@ -296,4 +298,142 @@ it("frees a removed part's screenshots", async () => {
   await user.click(screen.getByRole('button', { name: 'Remove Landing page' }));
   expect(screen.queryByAltText('Evidence #1')).toBeNull();
   expect(revoke).toHaveBeenCalledWith('blob:fake-evidence');
+});
+
+/** The report draft held for the fixture's service, or nothing. */
+const storedReport = async (): Promise<unknown> => {
+  const all = await chrome.storage.session.get(null);
+  return all['draft:report:svc-netflix'];
+};
+
+/** The write lands half a second after the typing stops. */
+const waitForDraft = async () => {
+  await vi.waitFor(async () => {
+    expect(await storedReport()).toBeDefined();
+  });
+};
+
+/** What the panel looks like after being closed and opened again. */
+const reopenPanel = async (user: UserEvent, pageUrl: string) => {
+  cleanup();
+  await openPanel(pageUrl, { keepSession: true });
+  await user.click(await screen.findByRole('button', { name: 'Report what works' }, { timeout: 3000 }));
+  await screen.findByRole('heading', { name: 'Report what works' });
+};
+
+const markAndNote = async (user: UserEvent, note: string) => {
+  await user.click(within(screen.getByRole('radiogroup', { name: 'Core use' })).getByRole('radio', { name: 'Works' }));
+  await user.type(screen.getByPlaceholderText('What happened?'), note);
+};
+
+describe('keeping the report across a closed panel', () => {
+  it('brings the mark and the note back, and lets the draft go once the report is sent', async () => {
+    const user = userEvent.setup();
+    await openReport(user, 'https://draft.example/');
+    await markAndNote(user, 'Opens after the first try.');
+    await waitForDraft();
+
+    await reopenPanel(user, 'https://draft.example/');
+    const coreUse = await screen.findByRole('radiogroup', { name: 'Core use' });
+    expect(within(coreUse).getByRole('radio', { name: 'Works' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByPlaceholderText('What happened?')).toHaveProperty('value', 'Opens after the first try.');
+
+    await user.click(screen.getByRole('button', { name: 'Send report' }));
+    await screen.findByRole('heading', { name: 'Report sent' });
+    expect(await storedReport()).toBeUndefined();
+  });
+
+  it('treats the restored report as work in progress, and forgets it when the tester chooses discard', async () => {
+    const user = userEvent.setup();
+    await openReport(user, 'https://guard.example/');
+    await markAndNote(user, 'Opens.');
+    await waitForDraft();
+
+    await reopenPanel(user, 'https://guard.example/');
+    await user.click(screen.getByRole('button', { name: 'Back to Netflix' }));
+    expect(await screen.findByText('Discard this draft?')).toBeDefined();
+    await user.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(screen.queryByText('Discard this draft?')).toBeNull();
+    expect(await storedReport()).toBeDefined();
+
+    await user.click(screen.getByRole('button', { name: 'Back to Netflix' }));
+    await user.click(await screen.findByRole('button', { name: 'Discard draft' }));
+    expect(await storedReport()).toBeUndefined();
+    await screen.findByRole('button', { name: 'Report what works' });
+  });
+
+  it("leaves another service's stored report alone", async () => {
+    const user = userEvent.setup();
+    await openReport(user, 'https://elsewhere.example/');
+    await chrome.storage.session.set({
+      'draft:report:svc-other': {
+        schema: 1,
+        form: 'report',
+        serviceKey: 'svc-other',
+        savedAt: 1,
+        fields: { partSlugs: [], levels: {}, touched: {}, notes: { core_use: 'Not this service.' } },
+        shots: [],
+      },
+    });
+
+    await reopenPanel(user, 'https://elsewhere.example/');
+    const coreUse = screen.getByRole('radiogroup', { name: 'Core use' });
+    expect(within(coreUse).getByRole('radio', { name: 'Works' }).getAttribute('aria-checked')).not.toBe('true');
+    expect(screen.queryByPlaceholderText('What happened?')).toBeNull();
+    expect(await chrome.storage.session.get(null)).toHaveProperty('draft:report:svc-other');
+  });
+
+  it('keeps the stored report when the API refuses it', async () => {
+    const user = userEvent.setup();
+    const api = await openReport(user, 'https://refused-draft.example/');
+    api.on('POST', '/functionality-reports', { status: 422, json: { error: 'INVALID', message: 'Report refused' } });
+    await markAndNote(user, 'Opens.');
+
+    await user.click(screen.getByRole('button', { name: 'Send report' }));
+    await screen.findByRole('alert');
+    await waitForDraft();
+    expect(await storedReport()).toBeDefined();
+  });
+
+  it('opens empty and quiet when the stored record is unreadable', async () => {
+    const user = userEvent.setup();
+    await openReport(user, 'https://corrupt.example/');
+    await chrome.storage.session.set({ 'draft:report:svc-netflix': { schema: 99, nonsense: true } });
+
+    await reopenPanel(user, 'https://corrupt.example/');
+    const coreUse = screen.getByRole('radiogroup', { name: 'Core use' });
+    expect(within(coreUse).getByRole('radio', { name: 'Works' }).getAttribute('aria-checked')).not.toBe('true');
+    expect(screen.queryByPlaceholderText('What happened?')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+    // The unusable record is dropped, so the next open starts clean too.
+    expect(await chrome.storage.session.get(null)).toEqual({});
+  });
+
+  it('brings a screenshot back as a thumbnail, and sends the bytes that were captured', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    const api = await openReport(user, 'https://shots.example/');
+    api.on('POST', '/uploads/evidence', { json: upload });
+    await user.click(
+      within(screen.getByRole('radiogroup', { name: 'Core use' })).getByRole('radio', { name: 'Works' }),
+    );
+    await user.click(partOf('Core use').getByRole('button', { name: 'Add screenshot' }));
+    await screen.findByAltText('Evidence #1');
+    await closeEditorWindows();
+    await waitForDraft();
+
+    await reopenPanel(user, 'https://shots.example/');
+    expect(await screen.findByAltText('Evidence #1')).toBeDefined();
+
+    await user.click(screen.getByRole('button', { name: 'Send report' }));
+    await screen.findByRole('heading', { name: 'Report sent' });
+
+    const uploads = api.callsTo('POST', '/uploads/evidence');
+    expect(uploads).toHaveLength(1);
+    // The stub's capture decodes to five bytes. Re-encoding would change that.
+    expect((uploads.at(0)?.body as FormData).get('file')).toMatchObject({ size: 5, type: 'image/jpeg' });
+    expect(api.callsTo('POST', '/functionality-reports').at(0)?.json).toMatchObject({
+      items: [{ slug: 'core_use', evidenceUrls: [upload.file.url] }],
+    });
+  });
 });

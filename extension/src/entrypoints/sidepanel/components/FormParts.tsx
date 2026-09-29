@@ -55,9 +55,17 @@ export function FormShell(props: {
   children: React.ReactNode;
   busy?: boolean;
   trackDraft?: boolean;
+  /** A restored draft counts as unsaved work, so Back and unload still ask before it goes. */
+  restored?: boolean;
+  /** Runs when the tester confirms they want the stored draft gone. */
+  onDiscardDraft?: () => void;
+  /** Fires the first time the tester changes anything, so the draft can be kept. */
+  onTouched?: () => void;
 }) {
   const trackDraft = props.trackDraft !== false;
-  const [dirty, setDirty] = useState(false);
+  const [changed, setChanged] = useState(false);
+  // Restored work never fires a change event, so it counts as work too.
+  const dirty = props.restored === true || changed;
   const [confirming, setConfirming] = useState(false);
   const discard = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -75,6 +83,12 @@ export function FormShell(props: {
   // Back points left in LTR and right in RTL.
   const Back = directionOf(activeLanguage()) === 'rtl' ? ArrowRight : ArrowLeft;
   const { t } = useTranslation();
+  // Anything the tester changes counts as work, both for the guard and for the draft.
+  const touch = () => {
+    if (!trackDraft) return;
+    setChanged(true);
+    props.onTouched?.();
+  };
   return (
     <section className="us-animate-fade" style={cardStyle}>
       <button
@@ -102,9 +116,9 @@ export function FormShell(props: {
         <p style={{ ...hintStyle, fontSize: 13 }}>{props.intro}</p>
       </div>
       <fieldset
-        onChangeCapture={() => trackDraft && setDirty(true)}
+        onChangeCapture={touch}
         onClickCapture={(event) => {
-          if (trackDraft && (event.target as HTMLElement).closest('button')) setDirty(true);
+          if ((event.target as HTMLElement).closest('button')) touch();
         }}
         disabled={props.busy}
         style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: 'grid', gap: 18 }}
@@ -126,7 +140,14 @@ export function FormShell(props: {
           <Button onClick={() => setConfirming(false)} autoFocus>
             {t('form.keepEditing')}
           </Button>
-          <Button onClick={props.onBack}>{t('form.discardDraft')}</Button>
+          <Button
+            onClick={() => {
+              props.onDiscardDraft?.();
+              props.onBack();
+            }}
+          >
+            {t('form.discardDraft')}
+          </Button>
         </dialog>
       )}
     </section>
@@ -151,6 +172,9 @@ export interface ScreenshotList {
   clear: () => void;
 }
 
+/** The list key the forms with a single screenshot list use. */
+export const SINGLE_LIST_KEY = 'form';
+
 /**
  * Screenshot lists by key, e.g. one per report part.
  *
@@ -158,7 +182,13 @@ export interface ScreenshotList {
  * stays open across tabs, so a capture can hit the wrong site, but services
  * also route through other sites (sign-in, payment) on purpose.
  */
-export function useScreenshotLists(pageUrl?: string | null): { list: (key: string) => ScreenshotList } {
+export function useScreenshotLists(pageUrl?: string | null): {
+  list: (key: string) => ScreenshotList;
+  /** Every list as it stands, for reading into a draft. */
+  entries: () => Record<string, PendingEvidence[]>;
+  /** Puts a restored draft's screenshots back, freeing the previews it replaces. */
+  restore: (next: Record<string, PendingEvidence[]>) => void;
+} {
   const { t } = useTranslation();
   const [byKey, setByKey] = useState<Record<string, PendingEvidence[]>>({});
   const [failure, setFailure] = useState<{ key: string; message: string } | null>(null);
@@ -263,11 +293,28 @@ export function useScreenshotLists(pageUrl?: string | null): { list: (key: strin
     },
   });
 
-  return { list };
+  const entries = (): Record<string, PendingEvidence[]> => byKey;
+
+  const restore = (next: Record<string, PendingEvidence[]>): void => {
+    const kept = new Set(
+      Object.values(next)
+        .flat()
+        .map((item) => item.id),
+    );
+    for (const items of Object.values(byKey))
+      for (const item of items) if (!kept.has(item.id)) URL.revokeObjectURL(item.previewUrl);
+    setByKey(next);
+  };
+
+  return { list, entries, restore };
 }
 
-export function useScreenshots(pageUrl?: string | null): ScreenshotList {
-  return useScreenshotLists(pageUrl).list('form');
+/** The forms with one screenshot list. `restore` puts a draft's list back in one go. */
+export function useScreenshots(pageUrl?: string | null): ScreenshotList & {
+  restore: (next: Record<string, PendingEvidence[]>) => void;
+} {
+  const lists = useScreenshotLists(pageUrl);
+  return { ...lists.list(SINGLE_LIST_KEY), restore: lists.restore };
 }
 
 /**

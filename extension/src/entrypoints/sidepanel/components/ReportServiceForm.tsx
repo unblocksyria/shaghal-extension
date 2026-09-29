@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { submitService } from '../../../lib/submit';
+import { normalizeServiceUrl } from '../../../lib/url';
 import { Input } from '../../../components/ui/Input';
 import { Textarea } from '../../../components/ui/Textarea';
+import { useDraft, type RestoredDraft } from '../hooks/useDraft';
 import {
   EmailField,
   emailError,
@@ -10,12 +12,20 @@ import {
   FormShell,
   ScreenshotField,
   SentState,
+  SINGLE_LIST_KEY,
   uploadScreenshots,
   useSavedEmail,
   useScreenshots,
   useFormError,
 } from './FormParts';
 import { VpnWarning } from './VpnWarning';
+
+/** What the draft keeps of this form. The url comes from the page it was opened on. */
+interface ServiceDraftFields {
+  name: string;
+  description: string;
+  email?: string;
+}
 
 /** First segment of the page title, which usually names the site. At most 80 characters. */
 function nameFromTitle(title: string | null): string {
@@ -33,6 +43,22 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
   const [busy, setBusy] = useState(false);
   const { error, setError, showApiError, onDiscard } = useFormError();
   const [sent, setSent] = useState(false);
+
+  const onRestore = ({ fields, shots }: RestoredDraft<ServiceDraftFields>) => {
+    setName(typeof fields.name === 'string' ? fields.name : '');
+    setDescription(typeof fields.description === 'string' ? fields.description : '');
+    // Through the saved email's own setter, which stops it overwriting this with the stored one.
+    if (typeof fields.email === 'string') setEmail(fields.email);
+    screenshots.restore(Object.fromEntries(shots.map((group) => [group.partSlug ?? SINGLE_LIST_KEY, group.items])));
+  };
+
+  const draft = useDraft<ServiceDraftFields>({
+    form: 'report-service',
+    serviceKey: normalizeServiceUrl(props.url) ?? props.url,
+    fields: { name, description, email },
+    shots: [{ partSlug: null, items: screenshots.items }],
+    onRestore,
+  });
 
   const submit = async () => {
     if (busy) return;
@@ -62,6 +88,8 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
       showApiError(result.error);
       return;
     }
+    // Only a confirmed send lets the draft go, so a refusal keeps it for a retry.
+    draft.clear();
     setSent(true);
   };
 
@@ -81,6 +109,9 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
       busy={busy}
       backLabel={t('common.back')}
       onBack={props.onBack}
+      onDiscardDraft={draft.clear}
+      onTouched={draft.markTouched}
+      restored={draft.restored}
       title={t('reportService.title')}
       intro={t('reportService.intro')}
     >
