@@ -37,9 +37,11 @@ function signatureOf<F>(fields: F, shots: DraftShotGroup[]): string {
  * Keeps one form's state in `chrome.storage.session` for as long as the panel
  * is closed, and puts it back when the same form opens for the same service.
  *
- * Only what the tester has touched is written. A form loads parts and an email
+ * Only what the tester has touched counts as work. A form loads parts and an email
  * of its own after it opens, and none of that counts as work: without `markTouched`
- * the panel would store a draft nobody started and then offer to discard it.
+ * the panel would store a draft nobody started and then offer to discard it. The
+ * same signal decides the other way around: a stored draft goes back only while
+ * the tester has not touched the form.
  * Writes wait 500 ms for typing to settle, with one flushed when the panel goes
  * away. Deleting is the caller's call: only a successful send or a confirmed
  * discard does it.
@@ -118,8 +120,10 @@ export function useDraft<F>(props: {
     void readDraft<F>(form, serviceKey).then((draft) => {
       if (cancelled) return;
       ready.current = true;
-      // The tester typed while the read was in flight. Their work wins.
-      if (draft !== null && signatureOf(latest.current.fields, latest.current.shots) === untouched) {
+      // Only the tester's own work beats a stored draft. The form loads parts
+      // and a saved email on its own once it opens, and if either landed before
+      // this read, comparing fields would throw the draft away.
+      if (draft !== null && !touchedNow.current) {
         const shots = groupShots(draft.shots);
         applyRestore.current({ fields: draft.fields, shots });
         // Storage already holds exactly this, so a form put back to its opening
@@ -173,7 +177,10 @@ export function useDraft<F>(props: {
     };
   }, [save]);
 
-  const markTouched = useCallback(() => setTouchedFor(key), [key]);
+  const markTouched = useCallback(() => {
+    touchedNow.current = true; // the read landing may beat React's re-render
+    setTouchedFor(key);
+  }, [key]);
 
   const clear = useCallback(() => {
     finished.current = true;

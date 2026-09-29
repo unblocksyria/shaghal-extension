@@ -28,12 +28,12 @@ const record = (note: string) => ({
 
 /** What the tester sees: the form's fields and screenshots, as they change. */
 interface DraftProps {
-  fields: { note: string };
+  fields: { note: string; email?: string };
   shots?: DraftShotGroup[];
 }
 
 /** Renders the hook for one service, with the form's state as its props. */
-function renderDraft(fields: { note: string }, serviceKey = 'svc-1', shots: DraftShotGroup[] = []) {
+function renderDraft(fields: { note: string; email?: string }, serviceKey = 'svc-1', shots: DraftShotGroup[] = []) {
   const onRestore = vi.fn();
   const initial: DraftProps = { fields, shots };
   const view = renderHook(
@@ -70,6 +70,18 @@ describe('useDraft', () => {
     expect(onRestore).toHaveBeenCalledTimes(1);
     expect(onRestore).toHaveBeenCalledWith({ fields: { note: 'Saved.' }, shots: [] });
     expect(view.result.current.restored).toBe(true);
+  });
+
+  it('puts the stored record back even when the saved email loads first', async () => {
+    await chrome.storage.session.set({ [KEY]: record('Saved.') });
+
+    // The panel's own loads race the read: this one lands before it does.
+    const { view, onRestore } = renderDraft({ note: '' });
+    view.rerender({ fields: { note: '', email: 'tester@example.org' } });
+    await settle(20);
+
+    expect(onRestore).toHaveBeenCalledTimes(1);
+    expect(onRestore).toHaveBeenCalledWith({ fields: { note: 'Saved.' }, shots: [] });
   });
 
   it('keeps a form nobody has touched out of storage, however its fields load in', async () => {
