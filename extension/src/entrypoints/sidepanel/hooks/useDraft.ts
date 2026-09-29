@@ -17,13 +17,18 @@ export interface RestoredDraft<F> {
 }
 
 /**
- * Compares a form's state without keeping it. Screenshots are named by id, size
- * and upload claim, since their bytes are not worth stringifying on every render.
+ * Compares a form's state without keeping it. Screenshots are named by id, size,
+ * upload claim and edits, since their bytes are not worth stringifying on every
+ * render: the edits say what the bytes are, so a re-encode that happens to land
+ * on the same size still counts as a change.
  */
 function signatureOf<F>(fields: F, shots: DraftShotGroup[]): string {
   const images = shots.map(({ partSlug, items }) => [
     partSlug,
-    items.map((item) => `${item.id}|${item.blob.size}|${item.uploadedUrl ?? ''}`),
+    items.map(
+      (item) =>
+        `${item.id}|${item.blob.size}|${item.uploadedUrl ?? ''}|${item.edits === undefined ? '' : JSON.stringify(item.edits)}`,
+    ),
   ]);
   return JSON.stringify([fields, images]);
 }

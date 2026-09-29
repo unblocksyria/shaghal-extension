@@ -4,7 +4,8 @@ import { act, renderHook } from '@testing-library/react';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { stubSession } from '../../../testing/session';
 import { draftKey } from '../../../lib/drafts';
-import { useDraft } from './useDraft';
+import type { ImageEdits } from '../../../lib/imageEdits';
+import { useDraft, type DraftShotGroup } from './useDraft';
 
 beforeEach(() => {
   fakeBrowser.reset();
@@ -25,13 +26,20 @@ const record = (note: string) => ({
   shots: [],
 });
 
+/** What the tester sees: the form's fields and screenshots, as they change. */
+interface DraftProps {
+  fields: { note: string };
+  shots?: DraftShotGroup[];
+}
+
 /** Renders the hook for one service, with the form's state as its props. */
-function renderDraft(fields: { note: string }, serviceKey = 'svc-1') {
+function renderDraft(fields: { note: string }, serviceKey = 'svc-1', shots: DraftShotGroup[] = []) {
   const onRestore = vi.fn();
+  const initial: DraftProps = { fields, shots };
   const view = renderHook(
-    (props: { fields: { note: string } }) =>
-      useDraft({ form: 'report', serviceKey, fields: props.fields, shots: [], onRestore }),
-    { initialProps: { fields } },
+    (props: DraftProps) =>
+      useDraft({ form: 'report', serviceKey, fields: props.fields, shots: props.shots ?? [], onRestore }),
+    { initialProps: initial },
   );
   return { view, onRestore };
 }
@@ -162,6 +170,42 @@ describe('useDraft', () => {
     await settle(700);
 
     expect(await chrome.storage.session.get(KEY)).toMatchObject({ [KEY]: { fields: { note: '' } } });
+  });
+
+  it('saves a screenshot the tester edited even when the re-encode keeps the same byte size', async () => {
+    const capture = (body: string, edits?: ImageEdits): DraftShotGroup[] => [
+      {
+        partSlug: null,
+        items: [
+          {
+            id: '1000-capture',
+            blob: new Blob([body]),
+            previewUrl: 'blob:capture',
+            filename: 'evidence.jpg',
+            ...(edits !== undefined && { edits }),
+          },
+        ],
+      },
+    ];
+    const redacted: ImageEdits = {
+      crop: { x: 0, y: 0, width: 4, height: 4 },
+      boxes: [{ id: 'box-1', x: 0, y: 0, width: 1, height: 1 }],
+    };
+
+    const { view } = renderDraft({ note: '' }, 'svc-1', capture('aaaa'));
+    await settle(20);
+    touch(view);
+    view.rerender({ fields: { note: 'Typed.' }, shots: capture('aaaa') });
+    await settle(700);
+
+    // The same capture re-encoded to the same length, with the detail redacted.
+    view.rerender({ fields: { note: 'Typed.' }, shots: capture('bbbb', redacted) });
+    await settle(700);
+
+    const saved = await chrome.storage.session.get(KEY);
+    const draft = saved[KEY] as { shots?: { bytes: ArrayBuffer }[] } | undefined;
+    const [first] = draft?.shots ?? [];
+    expect(new TextDecoder().decode(first?.bytes)).toBe('bbbb');
   });
 
   it('writes the last change when the panel goes away, before the debounce lands', async () => {
