@@ -6,6 +6,8 @@ import { serviceName } from '../../../lib/serviceName';
 import { Input } from '../../../components/ui/Input';
 import { Textarea } from '../../../components/ui/Textarea';
 import { CategoryPicker } from './CategoryPicker';
+import { storedList, storedStrings } from '../../../lib/drafts';
+import { useDraft, type RestoredDraft } from '../hooks/useDraft';
 import {
   EmailField,
   emailError,
@@ -13,6 +15,7 @@ import {
   FormShell,
   ScreenshotField,
   SentState,
+  SINGLE_LIST_KEY,
   uploadScreenshots,
   useSavedEmail,
   useScreenshots,
@@ -21,6 +24,17 @@ import {
 
 /** Correctable fields, as the API's correction types, in display order. */
 const FIELD_TYPES: CorrectionType[] = ['url', 'description', 'category', 'support_email', 'support_url', 'other'];
+
+/** Drops a stored field this build no longer knows about. */
+const isCorrectionType = (type: string): type is CorrectionType => FIELD_TYPES.includes(type as CorrectionType);
+
+/** What the draft keeps of this form. The recorded values come from the service. */
+interface CorrectionDraftFields {
+  selected: CorrectionType[];
+  values: Partial<Record<CorrectionType, string>>;
+  categories: string[];
+  email?: string;
+}
 
 function recorded(service: ServiceRecord, type: CorrectionType, options: CategoryItem[] = []): string {
   switch (type) {
@@ -82,6 +96,26 @@ export function CorrectionForm(props: { service: ServiceRecord; onBack: () => vo
   const [busy, setBusy] = useState(false);
   const { error, setError, showApiError, onDiscard } = useFormError();
   const [sent, setSent] = useState(false);
+
+  const onRestore = ({ fields, shots }: RestoredDraft<CorrectionDraftFields>) => {
+    setSelected(new Set(storedList(fields.selected).filter(isCorrectionType)));
+    const values: Partial<Record<CorrectionType, string>> = {};
+    for (const [type, value] of Object.entries(storedStrings(fields.values)))
+      if (isCorrectionType(type)) values[type] = value;
+    setValues(values);
+    setCategories(new Set(storedList(fields.categories)));
+    // Through the saved email's own setter, which stops it overwriting this with the stored one.
+    if (typeof fields.email === 'string') setEmail(fields.email);
+    screenshots.restore(Object.fromEntries(shots.map((group) => [group.partSlug ?? SINGLE_LIST_KEY, group.items])));
+  };
+
+  const draft = useDraft<CorrectionDraftFields>({
+    form: 'correction',
+    serviceKey: props.service.id,
+    fields: { selected: [...selected], values, categories: [...categories], email },
+    shots: [{ partSlug: null, items: screenshots.items }],
+    onRestore,
+  });
 
   const language = i18n.language;
   // Language of the loaded options, or null before any load. A language switch
@@ -173,6 +207,8 @@ export function CorrectionForm(props: { service: ServiceRecord; onBack: () => vo
       showApiError(result.error);
       return;
     }
+    // Only a confirmed send lets the draft go, so a refusal keeps it for a retry.
+    draft.clear();
     setSent(true);
   };
 
@@ -192,6 +228,9 @@ export function CorrectionForm(props: { service: ServiceRecord; onBack: () => vo
       busy={busy}
       backLabel={t('common.backTo', { name: serviceName(props.service) })}
       onBack={props.onBack}
+      onDiscardDraft={draft.clear}
+      onTouched={draft.markTouched}
+      restored={draft.restored}
       title={t('correction.title')}
       intro={t('correction.intro', { name: serviceName(props.service) })}
     >

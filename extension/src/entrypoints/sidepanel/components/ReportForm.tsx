@@ -7,6 +7,8 @@ import { SITE_BASE } from '../../../lib/config';
 import { activeLanguage, sitePathSegment } from '../../../lib/i18n';
 import { serviceName } from '../../../lib/serviceName';
 import { Textarea } from '../../../components/ui/Textarea';
+import { storedList, storedRecord, storedStrings } from '../../../lib/drafts';
+import { useDraft, type RestoredDraft } from '../hooks/useDraft';
 import {
   EmailField,
   emailError,
@@ -14,6 +16,7 @@ import {
   FormShell,
   ScreenshotField,
   SentState,
+  SINGLE_LIST_KEY,
   hintStyle,
   uploadScreenshots,
   useSavedEmail,
@@ -46,6 +49,15 @@ interface Part {
   name: string;
   /** Recorded level, or null if the service does not record this part. */
   recorded: Level | null;
+}
+
+/** What the draft keeps of this form. Part names and recorded levels come from the service. */
+interface ReportDraftFields {
+  partSlugs: string[];
+  levels: Record<string, Level>;
+  touched: Record<string, boolean>;
+  notes: Record<string, string>;
+  email?: string;
 }
 
 function LevelPicker(props: { name: string; value: Level; onChange: (level: Level) => void }) {
@@ -100,6 +112,62 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
 
   const screenshots = useScreenshotLists(props.pageUrl);
 
+  // Parts a stored draft named that the catalogue had not confirmed yet.
+  const pendingParts = useRef<string[]>([]);
+
+  const fallbackName = (slug: string): string => {
+    const key = DEFAULT_PART_KEYS[slug];
+    return key === undefined ? slug : t(key);
+  };
+
+  /** What the form starts with: the service's own parts, or the two every service has. */
+  const baseParts = (): Part[] => {
+    const own = (props.service.functionalities ?? []).map((part) => ({
+      slug: part.slug,
+      name: part.name,
+      recorded: part.level,
+    }));
+    return own.length > 0
+      ? own
+      : DEFAULT_PART_SLUGS.map((slug) => ({ slug, name: fallbackName(slug), recorded: null }));
+  };
+
+  const onRestore = ({ fields, shots }: RestoredDraft<ReportDraftFields>) => {
+    const stored = storedList(fields.partSlugs);
+    const base = baseParts();
+    const baseSlugs = base.map((part) => part.slug);
+    // A part the tester dropped stays dropped; one they added has to exist in the catalogue.
+    const removed = new Set(baseSlugs.filter((slug) => !stored.includes(slug)));
+    const beyond = stored.filter((slug) => !baseSlugs.includes(slug));
+    const names = new Map(catalogue.map((item) => [item.slug, item.name]));
+    const added = beyond
+      .filter((slug) => names.has(slug))
+      .map((slug) => ({ slug, name: names.get(slug) ?? slug, recorded: null }));
+    pendingParts.current = beyond.filter((slug) => !added.some((part) => part.slug === slug));
+    setParts([...base.filter((part) => !removed.has(part.slug)), ...added]);
+
+    const levels: Record<string, Level> = {};
+    for (const [slug, value] of Object.entries(storedRecord(fields.levels)))
+      if (value === 'working' || value === 'failing' || value === 'unknown') levels[slug] = value;
+    setLevels(levels);
+    const touched: Record<string, boolean> = {};
+    for (const [slug, value] of Object.entries(storedRecord(fields.touched)))
+      if (typeof value === 'boolean') touched[slug] = value;
+    setTouched(touched);
+    setNotes(storedStrings(fields.notes));
+    // Through the saved email's own setter, which stops it overwriting this with the stored one.
+    if (typeof fields.email === 'string') setEmail(fields.email);
+    screenshots.restore(Object.fromEntries(shots.map((group) => [group.partSlug ?? SINGLE_LIST_KEY, group.items])));
+  };
+
+  const draft = useDraft<ReportDraftFields>({
+    form: 'report',
+    serviceKey: props.service.id,
+    fields: { partSlugs: parts.map((part) => part.slug), levels, touched, notes, email },
+    shots: Object.entries(screenshots.entries()).map(([partSlug, items]) => ({ partSlug, items })),
+    onRestore,
+  });
+
   // Language of the displayed part names. The catalogue arrives in the active
   // locale, so this advances only when a fetch succeeds.
   const namesLanguage = useRef(language);
@@ -145,6 +213,18 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
       cancelled = true;
     };
   }, [catalogueAttempt, language, t]);
+
+  // A stored draft can name a part the catalogue had not loaded when it was restored.
+  useEffect(() => {
+    if (pendingParts.current.length === 0 || catalogue.length === 0) return;
+    const names = new Map(catalogue.map((item) => [item.slug, item.name]));
+    const added = pendingParts.current
+      .filter((slug) => names.has(slug))
+      .map((slug) => ({ slug, name: names.get(slug) ?? slug, recorded: null }));
+    if (added.length === 0) return;
+    pendingParts.current = pendingParts.current.filter((slug) => !added.some((part) => part.slug === slug));
+    setParts((current) => [...current, ...added.filter((part) => !current.some((known) => known.slug === part.slug))]);
+  }, [catalogue]);
 
   const recordedOf = (part: Part): Level => part.recorded ?? 'unknown';
   const levelOf = (part: Part): Level => levels[part.slug] ?? recordedOf(part);
@@ -223,6 +303,8 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
       showApiError(result.error);
       return;
     }
+    // Only a confirmed send lets the draft go, so a refusal keeps it for a retry.
+    draft.clear();
     setSent(true);
   };
 
@@ -242,6 +324,9 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
       busy={busy}
       backLabel={t('common.backTo', { name: serviceName(props.service) })}
       onBack={props.onBack}
+      onDiscardDraft={draft.clear}
+      onTouched={draft.markTouched}
+      restored={draft.restored}
       title={t('report.title')}
       intro={t('report.intro', { name: serviceName(props.service) })}
     >

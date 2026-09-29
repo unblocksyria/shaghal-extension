@@ -1,12 +1,15 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it, vi } from 'vitest';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { ReportServiceForm } from './ReportServiceForm';
+import { SidePanelApp } from '../SidePanelApp';
 import { API_BASE } from '../../../lib/config';
 import { fakeApi, type FakeApi } from '../../../testing/fakeApi';
-import { openPanel } from '../../../testing/panel';
+import { openPanel, stubScreenshot } from '../../../testing/panel';
+import { closeEditorWindows } from '../../../testing/editorWindows';
+import { stubSession } from '../../../testing/session';
 import matchNone from '../../../testing/fixtures/match-none.json';
 
 /** Opens the report-a-service form, which the card offers for an untracked site. */
@@ -136,6 +139,7 @@ it('offers to discard an earlier send that could not be confirmed, then sends th
 async function renderForm(pageTitle: string | null): Promise<HTMLInputElement> {
   await Promise.resolve(fakeBrowser.reset());
   vi.stubGlobal('chrome', fakeBrowser);
+  stubSession();
   fakeApi().install();
   render(<ReportServiceForm url="https://untracked.example" pageTitle={pageTitle} onBack={() => undefined} />);
   return screen.getByRole<HTMLInputElement>('textbox', { name: 'Service name' });
@@ -201,4 +205,98 @@ it('says so when the earlier attempt cannot be discarded', async () => {
   await screen.findByText(
     'Could not save a delivery receipt in this browser. Nothing was sent. Reopen the panel and try again.',
   );
+});
+
+/** The report a service draft held for this page's address, or nothing. */
+const storedServiceDraft = async (): Promise<unknown> => {
+  const all = await chrome.storage.session.get(null);
+  const key = Object.keys(all).find((entry) => entry.startsWith('draft:report-service:'));
+  return key === undefined ? undefined : all[key];
+};
+
+describe('keeping the report a service form across a closed panel', () => {
+  it('brings the name back, and lets the draft go once the report is sent', async () => {
+    const user = userEvent.setup();
+    await openReportService(user, 'https://untracked.example/download');
+    await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Half typed Service');
+    // The write lands half a second after the typing stops.
+    await vi.waitFor(async () => {
+      expect(await storedServiceDraft()).toBeDefined();
+    });
+
+    cleanup();
+    render(<SidePanelApp />);
+    await user.click(await screen.findByRole('button', { name: 'Report a Service' }));
+    await screen.findByRole('heading', { name: 'Report a Service' });
+
+    expect(screen.getByRole('textbox', { name: 'Service name' })).toHaveProperty('value', 'Half typed Service');
+
+    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+    await screen.findByRole('heading', { name: 'Report received' });
+    expect(await storedServiceDraft()).toBeUndefined();
+  });
+
+  it('starts from whatever the record held, even when it holds no name, description or email', async () => {
+    const user = userEvent.setup();
+    await openReportService(user, 'https://partial.example/download');
+    await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Typed Service');
+    await vi.waitFor(async () => {
+      expect(await storedServiceDraft()).toBeDefined();
+    });
+
+    // A record written by an older build, or one that shed a field on the way.
+    const all = await chrome.storage.session.get(null);
+    const key = Object.keys(all).find((entry) => entry.startsWith('draft:report-service:'));
+    const record = key === undefined ? undefined : all[key];
+    if (key === undefined || typeof record !== 'object' || record === null) throw new Error('No draft to rewrite.');
+    await chrome.storage.session.set({ [key]: { ...record, fields: {} } });
+
+    cleanup();
+    await openPanel('https://partial.example/download', { keepSession: true });
+    await user.click(await screen.findByRole('button', { name: 'Report a Service' }));
+    await screen.findByRole('heading', { name: 'Report a Service' });
+
+    expect(screen.getByRole('textbox', { name: 'Service name' })).toHaveProperty('value', '');
+    expect(screen.getByRole('textbox', { name: 'Description' })).toHaveProperty('value', '');
+    expect(screen.getByRole('textbox', { name: 'Your email' })).toHaveProperty('value', '');
+  });
+
+  it('keys the draft to the raw page address when the address carries no site', async () => {
+    const user = userEvent.setup();
+    await Promise.resolve(fakeBrowser.reset());
+    vi.stubGlobal('chrome', fakeBrowser);
+    stubSession();
+    fakeApi().install();
+    render(<ReportServiceForm url="ftp://files.example/download" pageTitle="Files" onBack={() => undefined} />);
+
+    await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Filed Transfer');
+    await vi.waitFor(async () => {
+      expect(await storedServiceDraft()).toBeDefined();
+    });
+    // Nothing to reduce the address to, so the address itself is what the record is held under.
+    expect(await chrome.storage.session.get('draft:report-service:ftp://files.example/download')).toHaveProperty(
+      'draft:report-service:ftp://files.example/download',
+    );
+  });
+
+  it('brings a screenshot back with the name it was captured beside', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    await openReportService(user, 'https://shots.example/download');
+    await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Half typed Service');
+    await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
+    await screen.findByAltText('Evidence #1');
+    await closeEditorWindows();
+    await vi.waitFor(async () => {
+      expect(await storedServiceDraft()).toBeDefined();
+    });
+
+    cleanup();
+    await openPanel('https://shots.example/download', { keepSession: true });
+    await user.click(await screen.findByRole('button', { name: 'Report a Service' }));
+    await screen.findByRole('heading', { name: 'Report a Service' });
+
+    expect(await screen.findByAltText('Evidence #1')).toBeDefined();
+    expect(screen.getByRole('textbox', { name: 'Service name' })).toHaveProperty('value', 'Half typed Service');
+  });
 });

@@ -30,9 +30,12 @@ public listings directly. The panel is available in English and Arabic.
   Credentials and fragments are removed, and browser and local pages are skipped.
   Close the panel to stop lookups.
 - **Screenshots.** Taken only when you ask, kept in memory, and uploaded only when
-  you press Send. The editor crops and covers details with solid black boxes; the
-  upload is a new image without the removed pixels. Anyone with a submitted
-  screenshot's address can open it, so remove personal details first.
+  you press Send. While a form is unfinished they are also held in the browser's
+  memory only session storage, so closing the panel does not lose them; sending
+  the form, discarding the draft or restarting the browser clears them. The
+  editor crops and covers details with solid black boxes; the upload is a new
+  image without the removed pixels. Anyone with a submitted screenshot's address
+  can open it, so remove personal details first.
 - **Email.** Optional. It's saved in the browser for later forms and can be
   changed or cleared in Settings.
 - **Other requests.** Report forms check your connection's country to warn when

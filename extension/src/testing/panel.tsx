@@ -3,20 +3,24 @@ import { vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { SidePanelApp } from '../entrypoints/sidepanel/SidePanelApp';
 import { applyStoredLanguage } from '../lib/i18n';
+import { stubSession } from './session';
 
 /**
  * Renders the panel against a fresh fakeBrowser with one active tab.
  * - `url`: the tab's address, or null for none.
  * - `language`: the stored language setting. Unset means `system`.
  * - `uiLanguage`: what `chrome.i18n.getUILanguage()` returns. Defaults to `en-US`.
+ * - `keepSession`: reopen without forgetting what the last open stored, the way a
+ *   panel that closes and comes back keeps its session storage.
  */
 export async function openPanel(
   url: string | null,
-  options: { language?: 'system' | 'en' | 'ar'; uiLanguage?: string } = {},
+  options: { language?: 'system' | 'en' | 'ar'; uiLanguage?: string; keepSession?: boolean } = {},
 ): Promise<RenderResult> {
   // Typed as void, but fakeBrowser.reset() returns a promise.
   await Promise.resolve(fakeBrowser.reset());
   vi.stubGlobal('chrome', fakeBrowser);
+  if (options.keepSession !== true) stubSession();
   // fakeBrowser lacks chrome.i18n, which the panel reads to resolve `system`.
   Object.assign(fakeBrowser, { i18n: { getUILanguage: () => options.uiLanguage ?? 'en-US' } });
   if (options.language !== undefined) await fakeBrowser.storage.local.set({ language: options.language });
