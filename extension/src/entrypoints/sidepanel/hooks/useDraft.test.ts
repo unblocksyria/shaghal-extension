@@ -108,4 +108,40 @@ describe('useDraft', () => {
     expect(view.result.current.restored).toBe(false);
     expect(await chrome.storage.session.get(KEY)).toMatchObject({ [KEY]: { fields: { note: 'Typed first.' } } });
   });
+
+  it('does nothing when the panel closes before the read has come back', async () => {
+    await chrome.storage.session.set({ [KEY]: record('Stored.') });
+    const { view, onRestore } = renderDraft({ note: '' });
+    view.unmount();
+
+    await settle(20);
+    expect(onRestore).not.toHaveBeenCalled();
+  });
+
+  it('does not write a form that was sent before the typing had settled', async () => {
+    const { view } = renderDraft({ note: '' });
+    await settle(20);
+    touch(view);
+    view.rerender({ fields: { note: 'Typed.' } });
+    act(() => {
+      view.result.current.clear();
+    });
+    await settle(700);
+
+    expect(await chrome.storage.session.get(null)).toEqual({});
+  });
+
+  it('writes the last change when the panel goes away, before the debounce lands', async () => {
+    const { view } = renderDraft({ note: '' });
+    await settle(20);
+    touch(view);
+    view.rerender({ fields: { note: 'Typed.' } });
+
+    act(() => {
+      window.dispatchEvent(new Event('pagehide'));
+    });
+    await settle(700);
+
+    expect(await chrome.storage.session.get(KEY)).toMatchObject({ [KEY]: { fields: { note: 'Typed.' } } });
+  });
 });

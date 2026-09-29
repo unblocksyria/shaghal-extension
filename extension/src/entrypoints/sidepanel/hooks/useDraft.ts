@@ -82,18 +82,16 @@ export function useDraft<F>(props: {
     ready.current = false;
     finished.current = false;
     written.current = null;
-    void readDraft<F>(form, serviceKey)
-      .catch(() => null)
-      .then((draft) => {
-        if (cancelled) return;
-        ready.current = true;
-        // The tester typed while the read was in flight. Their work wins.
-        if (draft !== null && signatureOf(latest.current.fields, latest.current.shots) === untouched) {
-          applyRestore.current({ fields: draft.fields, shots: groupShots(draft.shots) });
-          setRestoredFor(`${form}:${serviceKey}`);
-        }
-        setLoaded((count) => count + 1);
-      });
+    void readDraft<F>(form, serviceKey).then((draft) => {
+      if (cancelled) return;
+      ready.current = true;
+      // The tester typed while the read was in flight. Their work wins.
+      if (draft !== null && signatureOf(latest.current.fields, latest.current.shots) === untouched) {
+        applyRestore.current({ fields: draft.fields, shots: groupShots(draft.shots) });
+        setRestoredFor(`${form}:${serviceKey}`);
+      }
+      setLoaded((count) => count + 1);
+    });
     return () => {
       cancelled = true;
     };

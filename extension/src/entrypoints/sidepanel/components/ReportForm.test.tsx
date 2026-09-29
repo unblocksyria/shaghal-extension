@@ -409,6 +409,39 @@ describe('keeping the report across a closed panel', () => {
     expect(await chrome.storage.session.get(null)).toEqual({});
   });
 
+  it('brings a part the tester added back, on a service that records nothing yet', async () => {
+    const user = userEvent.setup();
+    await openBlankReport(user, 'https://added-part.example/', { data: functionalities });
+    await chrome.storage.session.set({
+      'draft:report:svc-netflix': {
+        schema: 1,
+        form: 'report',
+        serviceKey: 'svc-netflix',
+        savedAt: 1,
+        fields: {
+          partSlugs: ['core_use', 'sign_up'],
+          levels: { core_use: 'working', sign_up: 'working' },
+          touched: { core_use: true, sign_up: true },
+          notes: { core_use: 'Opens.', sign_up: 'Signed up fine.' },
+        },
+        shots: [],
+      },
+    });
+
+    await reopenPanel(user, 'https://added-part.example/');
+
+    // Named from the extension's own translations, because there is no catalogue record to read.
+    expect(await screen.findByRole('radiogroup', { name: 'Core use' })).toBeDefined();
+    expect(screen.queryByRole('radiogroup', { name: 'Landing page' })).toBeNull();
+    // The catalogue had not loaded when the record was read, so the part waited for it.
+    expect(await screen.findByRole('radiogroup', { name: 'Sign up' })).toBeDefined();
+    expect(
+      within(screen.getByRole('radiogroup', { name: 'Core use' }))
+        .getByRole('radio', { name: 'Works' })
+        .getAttribute('aria-checked'),
+    ).toBe('true');
+  });
+
   it('brings a screenshot back as a thumbnail, and sends the bytes that were captured', async () => {
     const user = userEvent.setup();
     stubScreenshot();
