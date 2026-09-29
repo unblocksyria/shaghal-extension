@@ -144,4 +144,34 @@ describe('useDraft', () => {
 
     expect(await chrome.storage.session.get(KEY)).toMatchObject({ [KEY]: { fields: { note: 'Typed.' } } });
   });
+
+  it('keeps quiet when the panel goes away before the form was touched', async () => {
+    const { view } = renderDraft({ note: '' });
+    await settle(20);
+
+    act(() => {
+      window.dispatchEvent(new Event('pagehide'));
+    });
+    await settle(700);
+
+    expect(await chrome.storage.session.get(null)).toEqual({});
+    expect(view.result.current.restored).toBe(false);
+  });
+
+  it('does not write a second time when the panel goes away after typing has settled', async () => {
+    const { view } = renderDraft({ note: '' });
+    await settle(20);
+    touch(view);
+    view.rerender({ fields: { note: 'Typed.' } });
+    await settle(700);
+    expect(await chrome.storage.session.get(KEY)).toBeDefined();
+
+    const set = vi.spyOn(chrome.storage.session, 'set');
+    act(() => {
+      window.dispatchEvent(new Event('pagehide'));
+    });
+    await settle(700);
+
+    expect(set).not.toHaveBeenCalled();
+  });
 });

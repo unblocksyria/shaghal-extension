@@ -236,6 +236,31 @@ describe('keeping the report a service form across a closed panel', () => {
     expect(await storedServiceDraft()).toBeUndefined();
   });
 
+  it('starts from whatever the record held, even when it has no name or description', async () => {
+    const user = userEvent.setup();
+    await openReportService(user, 'https://partial.example/download');
+    await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Typed Service');
+    await vi.waitFor(async () => {
+      expect(await storedServiceDraft()).toBeDefined();
+    });
+
+    // A record written by an older build, or one that shed a field on the way.
+    const all = await chrome.storage.session.get(null);
+    const key = Object.keys(all).find((entry) => entry.startsWith('draft:report-service:'));
+    const record = key === undefined ? undefined : all[key];
+    if (key === undefined || typeof record !== 'object' || record === null) throw new Error('No draft to rewrite.');
+    await chrome.storage.session.set({ [key]: { ...record, fields: { email: 'tester@example.com' } } });
+
+    cleanup();
+    await openPanel('https://partial.example/download', { keepSession: true });
+    await user.click(await screen.findByRole('button', { name: 'Report a Service' }));
+    await screen.findByRole('heading', { name: 'Report a Service' });
+
+    expect(screen.getByRole('textbox', { name: 'Service name' })).toHaveProperty('value', '');
+    expect(screen.getByRole('textbox', { name: 'Description' })).toHaveProperty('value', '');
+    expect(screen.getByRole('textbox', { name: 'Your email' })).toHaveProperty('value', 'tester@example.com');
+  });
+
   it('brings a screenshot back with the name it was captured beside', async () => {
     const user = userEvent.setup();
     stubScreenshot();
