@@ -60,6 +60,27 @@ describe('the screenshot list', () => {
     expect(screen.getByRole('button', { name: 'Add screenshot' })).toBeDefined();
   });
 
+  it('frees the previews that a restored draft no longer holds', () => {
+    const revoke = vi.fn();
+    URL.revokeObjectURL = revoke;
+    const { result } = renderHook(() => useScreenshotLists('https://restore.example/download'));
+    const shot = (id: string): PendingEvidence => ({
+      id,
+      blob: new Blob([new Uint8Array([1, 2, 3])], { type: 'image/jpeg' }),
+      previewUrl: `blob:${id}`,
+      filename: `${id}.jpg`,
+    });
+    const held = shot('1700000000000-held');
+    const kept = shot('1700000000001-kept');
+
+    act(() => result.current.restore({ form: [held, kept] }));
+    act(() => result.current.restore({ form: [kept] }));
+
+    expect(revoke).toHaveBeenCalledWith('blob:1700000000000-held');
+    expect(revoke).not.toHaveBeenCalledWith('blob:1700000000001-kept');
+    expect(result.current.list('form').items.map((item) => item.id)).toEqual(['1700000000001-kept']);
+  });
+
   it('uploads once and reuses that upload when a send is refused', async () => {
     const user = userEvent.setup();
     stubScreenshot();

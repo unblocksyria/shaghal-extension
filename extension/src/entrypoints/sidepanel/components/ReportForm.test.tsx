@@ -469,4 +469,56 @@ describe('keeping the report across a closed panel', () => {
       items: [{ slug: 'core_use', evidenceUrls: [upload.file.url] }],
     });
   });
+
+  it('reads a record from a service that records nothing, and drops a part the catalogue never heard of', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    // The service left the field out rather than sending an empty list.
+    fakeApi()
+      .on('POST', '/services/match', { data: match })
+      .on('GET', '/services/netflix', { data: { ...serviceRecord, functionalities: undefined } })
+      .on('GET', '/functionalities', { data: functionalities })
+      .on('POST', '/functionality-reports', { status: 201, json: { id: 'receipt' } })
+      .install();
+    await openPanel('https://thin-record.example/');
+    await user.click(await screen.findByRole('button', { name: 'Report what works' }, { timeout: 3000 }));
+    await screen.findByRole('heading', { name: 'Report what works' });
+
+    await chrome.storage.session.set({
+      'draft:report:svc-netflix': {
+        schema: 1,
+        form: 'report',
+        serviceKey: 'svc-netflix',
+        savedAt: 1,
+        fields: {
+          partSlugs: ['core_use', 'landing_page', 'mystery_part'],
+          levels: { core_use: 'working', landing_page: 'failing', standing: 'unknown', gone: 'bogus' },
+          touched: { core_use: true, landing_page: false, standing: 'yes' },
+          notes: {},
+        },
+        // A shot with no part of its own, the way the single list stores them.
+        shots: [
+          {
+            id: '1700000000000-single',
+            bytes: new Uint8Array([1, 2, 3]).buffer,
+            type: 'image/jpeg',
+            filename: 'single.jpg',
+            partSlug: null,
+            uploadedUrl: null,
+            uploadedAt: null,
+          },
+        ],
+      },
+    });
+
+    await reopenPanel(user, 'https://thin-record.example/');
+
+    // Both parts every service has, named from the extension's own translations.
+    const coreUse = await screen.findByRole('radiogroup', { name: 'Core use' });
+    expect(screen.getByRole('radiogroup', { name: 'Landing page' })).toBeDefined();
+    expect(within(coreUse).getByRole('radio', { name: 'Works' }).getAttribute('aria-checked')).toBe('true');
+    // The part the catalogue never heard of stays dropped rather than offered half named.
+    expect(screen.queryByRole('radiogroup', { name: 'mystery_part' })).toBeNull();
+    expect(screen.queryByRole('radiogroup', { name: 'Mystery part' })).toBeNull();
+  });
 });

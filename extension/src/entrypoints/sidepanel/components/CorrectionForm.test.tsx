@@ -301,4 +301,35 @@ describe('keeping the correction across a closed panel', () => {
     expect(await screen.findByAltText('Evidence #1')).toBeDefined();
     expect(screen.getByRole('textbox', { name: 'Website URL' })).toHaveProperty('value', 'https://stream.example');
   });
+
+  it('reads a record holding a field this build does not know, and no email', async () => {
+    const user = userEvent.setup();
+    await openCorrection(user, 'https://old-record.example/page');
+    // Written by a build with one more field than this one, and never given an email.
+    await chrome.storage.session.set({
+      'draft:correction:svc-netflix': {
+        schema: 1,
+        form: 'correction',
+        serviceKey: 'svc-netflix',
+        savedAt: 1,
+        fields: {
+          selected: ['url', 'postal_code'],
+          values: { url: 'https://stream.example', postal_code: '12345' },
+          categories: [],
+        },
+        shots: [],
+      },
+    });
+
+    cleanup();
+    await openPanel('https://old-record.example/page', { keepSession: true });
+    await user.click(await screen.findByRole('button', { name: 'Suggest Correction' }));
+    await screen.findByRole('heading', { name: 'Suggest Correction' });
+
+    expect(screen.getByRole('checkbox', { name: 'Website URL' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('textbox', { name: 'Website URL' })).toHaveProperty('value', 'https://stream.example');
+    // The field it does not know is dropped, and the record's own email never arrives.
+    expect(screen.queryByRole('checkbox', { name: 'Postal code' })).toBeNull();
+    expect(screen.getByRole('textbox', { name: 'Your email' })).toHaveProperty('value', '');
+  });
 });

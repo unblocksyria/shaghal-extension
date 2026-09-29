@@ -236,7 +236,7 @@ describe('keeping the report a service form across a closed panel', () => {
     expect(await storedServiceDraft()).toBeUndefined();
   });
 
-  it('starts from whatever the record held, even when it has no name or description', async () => {
+  it('starts from whatever the record held, even when it holds no name, description or email', async () => {
     const user = userEvent.setup();
     await openReportService(user, 'https://partial.example/download');
     await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Typed Service');
@@ -249,7 +249,7 @@ describe('keeping the report a service form across a closed panel', () => {
     const key = Object.keys(all).find((entry) => entry.startsWith('draft:report-service:'));
     const record = key === undefined ? undefined : all[key];
     if (key === undefined || typeof record !== 'object' || record === null) throw new Error('No draft to rewrite.');
-    await chrome.storage.session.set({ [key]: { ...record, fields: { email: 'tester@example.com' } } });
+    await chrome.storage.session.set({ [key]: { ...record, fields: {} } });
 
     cleanup();
     await openPanel('https://partial.example/download', { keepSession: true });
@@ -258,7 +258,25 @@ describe('keeping the report a service form across a closed panel', () => {
 
     expect(screen.getByRole('textbox', { name: 'Service name' })).toHaveProperty('value', '');
     expect(screen.getByRole('textbox', { name: 'Description' })).toHaveProperty('value', '');
-    expect(screen.getByRole('textbox', { name: 'Your email' })).toHaveProperty('value', 'tester@example.com');
+    expect(screen.getByRole('textbox', { name: 'Your email' })).toHaveProperty('value', '');
+  });
+
+  it('keys the draft to the raw page address when the address carries no site', async () => {
+    const user = userEvent.setup();
+    await Promise.resolve(fakeBrowser.reset());
+    vi.stubGlobal('chrome', fakeBrowser);
+    stubSession();
+    fakeApi().install();
+    render(<ReportServiceForm url="ftp://files.example/download" pageTitle="Files" onBack={() => undefined} />);
+
+    await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Filed Transfer');
+    await vi.waitFor(async () => {
+      expect(await storedServiceDraft()).toBeDefined();
+    });
+    // Nothing to reduce the address to, so the address itself is what the record is held under.
+    expect(await chrome.storage.session.get('draft:report-service:ftp://files.example/download')).toHaveProperty(
+      'draft:report-service:ftp://files.example/download',
+    );
   });
 
   it('brings a screenshot back with the name it was captured beside', async () => {
