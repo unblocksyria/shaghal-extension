@@ -279,4 +279,26 @@ describe('keeping the correction across a closed panel', () => {
     expect(api.callsTo('POST', '/corrections')).toHaveLength(1);
     expect(await storedCorrection()).toBeUndefined();
   });
+
+  it('brings a screenshot back with the fields it was captured beside', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    await openCorrection(user, 'https://shots.example/page');
+    await user.click(screen.getByRole('checkbox', { name: 'Website URL' }));
+    await user.type(screen.getByRole('textbox', { name: 'Website URL' }), 'https://stream.example');
+    await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
+    await screen.findByAltText('Evidence #1');
+    await closeEditorWindows();
+    await vi.waitFor(async () => {
+      expect(await storedCorrection()).toBeDefined();
+    });
+
+    cleanup();
+    await openPanel('https://shots.example/page', { keepSession: true });
+    await user.click(await screen.findByRole('button', { name: 'Suggest Correction' }));
+    await screen.findByRole('heading', { name: 'Suggest Correction' });
+
+    expect(await screen.findByAltText('Evidence #1')).toBeDefined();
+    expect(screen.getByRole('textbox', { name: 'Website URL' })).toHaveProperty('value', 'https://stream.example');
+  });
 });

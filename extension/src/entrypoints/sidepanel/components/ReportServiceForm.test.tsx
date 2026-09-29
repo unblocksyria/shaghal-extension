@@ -7,7 +7,8 @@ import { ReportServiceForm } from './ReportServiceForm';
 import { SidePanelApp } from '../SidePanelApp';
 import { API_BASE } from '../../../lib/config';
 import { fakeApi, type FakeApi } from '../../../testing/fakeApi';
-import { openPanel } from '../../../testing/panel';
+import { openPanel, stubScreenshot } from '../../../testing/panel';
+import { closeEditorWindows } from '../../../testing/editorWindows';
 import { stubSession } from '../../../testing/session';
 import matchNone from '../../../testing/fixtures/match-none.json';
 
@@ -233,5 +234,26 @@ describe('keeping the report a service form across a closed panel', () => {
     await user.click(screen.getByRole('button', { name: 'Submit Report' }));
     await screen.findByRole('heading', { name: 'Report received' });
     expect(await storedServiceDraft()).toBeUndefined();
+  });
+
+  it('brings a screenshot back with the name it was captured beside', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    await openReportService(user, 'https://shots.example/download');
+    await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Half typed Service');
+    await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
+    await screen.findByAltText('Evidence #1');
+    await closeEditorWindows();
+    await vi.waitFor(async () => {
+      expect(await storedServiceDraft()).toBeDefined();
+    });
+
+    cleanup();
+    await openPanel('https://shots.example/download', { keepSession: true });
+    await user.click(await screen.findByRole('button', { name: 'Report a Service' }));
+    await screen.findByRole('heading', { name: 'Report a Service' });
+
+    expect(await screen.findByAltText('Evidence #1')).toBeDefined();
+    expect(screen.getByRole('textbox', { name: 'Service name' })).toHaveProperty('value', 'Half typed Service');
   });
 });
