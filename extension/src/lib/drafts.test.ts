@@ -1,7 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { stubSession } from '../testing/session';
-import { DRAFT_SCHEMA, clearDraft, draftKey, groupShots, readDraft, toShots, writeDraft } from './drafts';
+import {
+  DRAFT_SCHEMA,
+  clearDraft,
+  draftKey,
+  groupShots,
+  readDraft,
+  storedList,
+  storedRecord,
+  storedStrings,
+  toShots,
+  writeDraft,
+} from './drafts';
 import type { PendingEvidence } from './evidence';
 
 beforeEach(() => {
@@ -95,6 +106,24 @@ describe('a draft that fits', () => {
   });
 });
 
+describe('what comes out of a record', () => {
+  it('puts a shot it cannot date first, so it is the one shed when space runs out', async () => {
+    const shots = await toShots([
+      { partSlug: null, items: [evidence('1700000000000-dated'), evidence('no-time-in-this-id')] },
+    ]);
+    expect(shots.map((shot) => shot.id)).toEqual(['no-time-in-this-id', '1700000000000-dated']);
+  });
+
+  it('reads a stored list, map and string map as something usable, whatever the record held', () => {
+    expect(storedList([1, 'kept', null])).toEqual(['kept']);
+    expect(storedList('not a list')).toEqual([]);
+    expect(storedRecord(['not a record'])).toEqual({});
+    expect(storedRecord({ a: 1 })).toEqual({ a: 1 });
+    expect(storedStrings({ kept: 'yes', dropped: 7, nested: { nope: true } })).toEqual({ kept: 'yes' });
+    expect(storedStrings(null)).toEqual({});
+  });
+});
+
 describe('a record this build cannot use', () => {
   it.each([
     ['unreadable json', 'not json at all'],
@@ -116,6 +145,17 @@ describe('a record this build cannot use', () => {
         savedAt: 1,
         fields: {},
         shots: [{ id: 'a', bytes: 'oops', type: 'image/jpeg', filename: 'a.jpg', partSlug: null }],
+      },
+    ],
+    [
+      'a shot that is not an object',
+      {
+        schema: 1,
+        form: 'report',
+        serviceKey: 'svc-1',
+        savedAt: 1,
+        fields: {},
+        shots: ['not a shot'],
       },
     ],
     ['shots that are not a list', { schema: 1, form: 'report', serviceKey: 'svc-1', savedAt: 1, fields: {}, shots: 3 }],
@@ -143,6 +183,24 @@ describe('storage that runs out of room', () => {
     expect(draft?.fields).toEqual({ notes: 'Kept.' });
     expect(draft?.shots.map((shot) => shot.id)).toEqual(['1700000005000-middle', '1700000009000-newest']);
     expect(set).toHaveBeenCalledTimes(2);
+  });
+
+  it('sheds one at a time until the record fits, keeping the newest shot', async () => {
+    const shots = await toShots([
+      {
+        partSlug: null,
+        items: [evidence('1700000000000-a'), evidence('1700000001000-b'), evidence('1700000002000-c')],
+      },
+    ]);
+    vi.spyOn(chrome.storage.session, 'set')
+      .mockRejectedValueOnce(new Error('quota'))
+      .mockRejectedValueOnce(new Error('quota'));
+
+    await writeDraft('report', 'svc-1', { notes: 'Kept.' }, shots);
+
+    const draft = await readDraft('report', 'svc-1');
+    expect(draft?.shots.map((shot) => shot.id)).toEqual(['1700000002000-c']);
+    expect(draft?.fields).toEqual({ notes: 'Kept.' });
   });
 
   it('keeps the fields alone when shedding one shot is still not enough', async () => {

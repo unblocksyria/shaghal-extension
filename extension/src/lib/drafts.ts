@@ -106,10 +106,8 @@ export async function writeDraft<F>(form: DraftForm, serviceKey: string, fields:
       return false;
     }
   };
-  if (await put(shots)) return;
-  if (shots.length === 0) return;
-  if (await put(shots.slice(1))) return;
-  if (shots.length > 1) await put([]);
+  // Shed one at a time from the oldest, and stop the moment something fits.
+  for (let shed = 0; shed <= shots.length; shed += 1) if (await put(shots.slice(shed))) return;
 }
 
 /** Removes the record. Only a successful send or a confirmed discard calls this. */
