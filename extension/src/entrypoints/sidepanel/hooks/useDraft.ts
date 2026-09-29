@@ -60,6 +60,13 @@ export function useDraft<F>(props: {
   const touched = touchedFor === key;
   const ready = useRef(false);
   const finished = useRef(false);
+  // Bumped by every scheduled save and by a discard, so a save still in flight
+  // never commits work that a newer save replaced or that was thrown away.
+  const generation = useRef(0);
+  // Storage work in one queue: an older snapshot can then never land after a
+  // newer one, and a discard waits for the save in flight to finish before it
+  // drops the record.
+  const queue = useRef<Promise<void>>(Promise.resolve());
   // The state as the panel opened it, and the last state actually stored.
   const baseline = useRef<string>('');
   const written = useRef<string | null>(null);
@@ -74,6 +81,27 @@ export function useDraft<F>(props: {
     touchedNow.current = touched;
   });
 
+  const run = useCallback((task: () => Promise<void>): void => {
+    queue.current = queue.current.then(task, task).catch(() => undefined);
+  }, []);
+
+  // Queues one save. The generation token is checked before the bytes are read
+  // and once more before the write, so a save overtaken by a later one or by a
+  // discard leaves nothing behind.
+  const save = useCallback(
+    (kind: DraftForm, service: string, fields: F, shots: DraftShotGroup[]): void => {
+      generation.current += 1;
+      const token = generation.current;
+      run(async () => {
+        if (token !== generation.current) return;
+        const stored = await toShots(shots);
+        if (token !== generation.current) return;
+        await writeDraft(kind, service, fields, stored);
+      });
+    },
+    [run],
+  );
+
   // Read once per key. Writes stay off until this lands.
   useEffect(() => {
     let cancelled = false;
@@ -87,7 +115,11 @@ export function useDraft<F>(props: {
       ready.current = true;
       // The tester typed while the read was in flight. Their work wins.
       if (draft !== null && signatureOf(latest.current.fields, latest.current.shots) === untouched) {
-        applyRestore.current({ fields: draft.fields, shots: groupShots(draft.shots) });
+        const shots = groupShots(draft.shots);
+        applyRestore.current({ fields: draft.fields, shots });
+        // Storage already holds exactly this, so a form put back to its opening
+        // state is a change the next write has to catch up with.
+        written.current = signatureOf(draft.fields, shots);
         setRestoredFor(`${form}:${serviceKey}`);
       }
       setLoaded((count) => count + 1);
@@ -107,15 +139,15 @@ export function useDraft<F>(props: {
   useEffect(() => {
     if (!ready.current || !touched || !needsWrite(signature)) return;
     const timer = setTimeout(() => {
-      const { fields, shots } = latest.current;
+      const { form: kind, serviceKey: service, fields, shots } = latest.current;
       const current = signatureOf(fields, shots);
       if (!needsWrite(current)) return;
       written.current = current;
-      void toShots(shots).then((stored) => writeDraft(latest.current.form, latest.current.serviceKey, fields, stored));
+      save(kind, service, fields, shots);
     }, DEBOUNCE_MS);
     return () => clearTimeout(timer);
     // `loaded` re-runs this when a read lands, which may leave work to save.
-  }, [signature, form, serviceKey, loaded, touched]);
+  }, [signature, form, serviceKey, loaded, touched, save]);
 
   // The panel's document is destroyed on close, so the last write has to be
   // offered here. Best effort: losing it costs at most the debounce window.
@@ -126,7 +158,7 @@ export function useDraft<F>(props: {
       const current = signatureOf(fields, shots);
       if (!needsWrite(current)) return;
       written.current = current;
-      void toShots(shots).then((stored) => writeDraft(kind, service, fields, stored));
+      save(kind, service, fields, shots);
     };
     window.addEventListener('pagehide', flush);
     window.addEventListener('beforeunload', flush);
@@ -134,14 +166,15 @@ export function useDraft<F>(props: {
       window.removeEventListener('pagehide', flush);
       window.removeEventListener('beforeunload', flush);
     };
-  }, []);
+  }, [save]);
 
   const markTouched = useCallback(() => setTouchedFor(key), [key]);
 
   const clear = useCallback(() => {
     finished.current = true;
-    void clearDraft(form, serviceKey);
-  }, [form, serviceKey]);
+    generation.current += 1; // a save already in flight must not commit
+    run(() => clearDraft(form, serviceKey));
+  }, [form, serviceKey, run]);
 
   return { restored: restoredFor === key, markTouched, clear };
 }

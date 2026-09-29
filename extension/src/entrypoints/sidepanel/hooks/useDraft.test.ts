@@ -87,6 +87,7 @@ describe('useDraft', () => {
     act(() => {
       view.result.current.clear();
     });
+    await settle(0);
     expect(await chrome.storage.session.get(null)).toEqual({});
     // A cleared form stays quiet: no later write can bring the record back.
     view.rerender({ fields: { note: 'Typed again.' } });
@@ -129,6 +130,38 @@ describe('useDraft', () => {
     await settle(700);
 
     expect(await chrome.storage.session.get(null)).toEqual({});
+  });
+
+  it('does not bring a discarded draft back when a save was already on its way', async () => {
+    const { view } = renderDraft({ note: '' });
+    await settle(20);
+    touch(view);
+    view.rerender({ fields: { note: 'Typed.' } });
+
+    // The close flush starts the save, and the tester discards before it lands.
+    act(() => {
+      window.dispatchEvent(new Event('pagehide'));
+      view.result.current.clear();
+    });
+    await settle(700);
+
+    expect(await chrome.storage.session.get(null)).toEqual({});
+  });
+
+  it('writes when the tester empties a restored draft back to how the form opened', async () => {
+    await chrome.storage.session.set({ [KEY]: record('Saved.') });
+
+    const { view, onRestore } = renderDraft({ note: '' });
+    await settle(20);
+    expect(onRestore).toHaveBeenCalledTimes(1);
+
+    // What the form does with the restored draft, and then what the tester does.
+    view.rerender({ fields: { note: 'Saved.' } });
+    touch(view);
+    view.rerender({ fields: { note: '' } });
+    await settle(700);
+
+    expect(await chrome.storage.session.get(KEY)).toMatchObject({ [KEY]: { fields: { note: '' } } });
   });
 
   it('writes the last change when the panel goes away, before the debounce lands', async () => {
