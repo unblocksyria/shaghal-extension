@@ -12,7 +12,7 @@ flowchart LR
     Button["Toolbar button"] -->|opens| Panel["Side panel"]
     Tab["Active tab"] -.->|"URL, title,<br/>screenshot"| Panel
     Panel <-->|BroadcastChannel| Editor["Screenshot editor window"]
-    Panel --> Storage[("Extension storage<br/>settings, vote hints,<br/>pending receipts")]
+    Panel --> Storage[("Extension storage<br/>settings, vote hints,<br/>pending receipts,<br/>form drafts")]
     Panel -->|HTTPS| API["api.unblocksyria.com<br/>lookups, votes, uploads,<br/>forms, country check"]
     Panel -->|hidden frame| Verify["verify.unblocksyria.com<br/>Turnstile page"]
     Panel -.->|links| Site["unblocksyria.com"]
@@ -219,7 +219,11 @@ three seconds. Services that already work can't be voted for.
 
 ### Screenshots
 
-Screenshots and their edit history stay in memory; none is written to storage.
+Screenshots and their edit history stay in memory. While a form is half
+finished, that memory includes session storage: each draft carries the raw bytes
+of its screenshots so the panel can close and reopen, and the record is deleted
+on a successful send, when the tester confirms the discard dialog, or when the
+browser restarts. Nothing is ever written to disk.
 
 1. **Capture.** In the report and new-service forms, a page on a different site
    from the form's needs a second click. The capture is resized to fit the API's
@@ -299,9 +303,13 @@ that are never attached, but until then one may be readable at its address.
 Attached screenshots stay readable by anyone with the address, and the extension
 can't delete an upload.
 
-Drafts live only in memory. Back asks before discarding changes, and Settings
-opens over the form without unmounting it. Closing the panel loses the draft; the
-unload warning is best effort.
+A half finished form is written to session storage about half a second after the
+tester stops typing, and put back when the panel reopens on the same service, so
+closing the panel no longer costs the report. Back asks before discarding
+changes, and Settings opens over the form without unmounting it. The record is
+deleted when the send succeeds or the discard is confirmed, and the browser drops
+it on restart. The unload warning is best effort, so the last half second of
+typing can still be lost.
 
 ## Language and theme
 
@@ -323,7 +331,7 @@ its colors with `light-dark()`. The editor window is always dark.
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `tabs`       | Read the active tab's URL and title.                                                                                                             |
 | `sidePanel`  | Show the panel. Chrome only; Firefox's `sidebar_action` needs no permission.                                                                     |
-| `storage`    | Keep settings, vote hints and pending receipts.                                                                                                  |
+| `storage`    | Keep settings, vote hints, pending receipts and half finished form drafts.                                                                       |
 | `<all_urls>` | Capture screenshots of any site the panel follows, reach the API (or a local one), and on Firefox run the relay on the verification page. |
 
 `activeTab` would be narrower, but its grant ends on navigation, so every new page
@@ -336,14 +344,15 @@ send anything, so it shows a notice with a button that asks for the access again
 | Store                    | Keys                                                                          | Lifetime                                            |
 | ------------------------ | ----------------------------------------------------------------------------- | --------------------------------------------------- |
 | `chrome.storage.local`   | `testerEmail`, `language`, `voteHint:<slug>` (and legacy `votedServiceSlugs`) | Until cleared                                       |
-| `chrome.storage.session` | `pendingReceipt:<path>:<target>`                                              | Until the browser restarts or the extension reloads |
+| `chrome.storage.session` | `pendingReceipt:<path>:<target>`, `draft:<form>:<serviceKey>`                     | Until the browser restarts or the extension reloads |
 | `localStorage`           | `theme`                                                                       | Until cleared                                       |
 
 The saved email changes only after a successful submission with an email, or in
 Settings, where saving it blank clears it. Vote hints are separate keys, so panels
 update each other through storage events without overwriting each other. No
-browsing history or screenshot is stored. Service logos load from the hosts the
-API supplies, without a referrer.
+browsing history is stored, and a screenshot is written only as part of the draft
+described above. Service logos load from the hosts the API supplies, without a
+referrer.
 
 Chrome 123 is the minimum, for CSS `light-dark()`. Other Chromium browsers need
 the same side panel API and aren't tested. Firefox 140 is the minimum, for the
