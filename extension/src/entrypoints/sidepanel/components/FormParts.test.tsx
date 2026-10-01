@@ -302,3 +302,86 @@ describe('capturing', () => {
     expect(revoke).toHaveBeenCalledWith('blob:fake-evidence');
   });
 });
+
+describe('picking files instead of capturing', () => {
+  it('offers an upload beside the camera, for the image types the API takes', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    await openReportService(user, 'https://upload.example/download');
+
+    expect(screen.getByRole('button', { name: 'Upload images' })).toBeDefined();
+    expect(screen.getByText('Or drop an image here.')).toBeDefined();
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+    if (input === null) throw new Error('The form has no file picker');
+    expect(input.getAttribute('accept')).toBe('image/jpeg,image/png,image/gif,image/webp');
+    expect(input.hasAttribute('multiple')).toBe(true);
+  });
+
+  it('takes an image dropped on the field, and opens it for editing', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    await openReportService(user, 'https://drop.example/download');
+
+    const field = screen.getByText('Or drop an image here.').closest('div');
+    if (field === null) throw new Error('The screenshot field is not there');
+    const file = new File(['png-bytes'], 'dropped.png', { type: 'image/png' });
+    fireEvent.drop(field, { dataTransfer: { types: ['Files'], files: [file] } });
+
+    await screen.findByAltText('Evidence #1');
+    await closeEditorWindows();
+    expect(screen.getByRole('button', { name: 'Add another screenshot' })).toBeDefined();
+  });
+});
+
+/** A screenshot list on its own, for reading what an added file became. */
+function fileList() {
+  URL.createObjectURL = () => 'blob:picked';
+  return renderHook(() => useScreenshotLists('https://files.example/download'));
+}
+
+describe('adding a file to the list', () => {
+  it('keeps the bytes, the type and the name the file already had', () => {
+    const { result } = fileList();
+    const file = new File(['png-bytes'], 'evidence.png', { type: 'image/png' });
+    let added: PendingEvidence[] = [];
+    act(() => {
+      added = result.current.list('form').add([file], 10);
+    });
+    expect(added).toHaveLength(1);
+    expect(added[0]?.filename).toBe('evidence.png');
+    expect(added[0]?.blob.type).toBe('image/png');
+    expect(result.current.list('form').items).toHaveLength(1);
+    expect(result.current.list('form').error).toBeNull();
+  });
+
+  it.each([
+    ['text/plain', 'notes.txt', 'That file is not a JPEG, PNG, GIF or WebP image.'],
+    ['image/svg+xml', 'logo.svg', 'That file is not a JPEG, PNG, GIF or WebP image.'],
+    ['image/png', 'huge.png', 'That image is larger than 5 MiB. Pick a smaller one.'],
+  ])('refuses %s with a message, and adds nothing', (type, name, message) => {
+    const { result } = fileList();
+    const bytes = type === 'image/png' ? new Uint8Array(5 * 1024 * 1024 + 1) : 'x';
+    const file = new File([bytes], name, { type });
+    let added: PendingEvidence[] = [];
+    act(() => {
+      added = result.current.list('form').add([file], 10);
+    });
+    expect(added).toHaveLength(0);
+    expect(result.current.list('form').items).toHaveLength(0);
+    expect(result.current.list('form').error).toBe(message);
+  });
+
+  it('adds only what there is room for, and says so', () => {
+    const { result } = fileList();
+    const shot = (name: string) => new File(['x'], name, { type: 'image/png' });
+    let added: PendingEvidence[] = [];
+    act(() => {
+      added = result.current.list('form').add([shot('one.png'), shot('two.png')], 1);
+    });
+    expect(added).toHaveLength(1);
+    expect(result.current.list('form').items).toHaveLength(1);
+    expect(result.current.list('form').error).toBe(
+      'This form already holds the most screenshots. Remove one to add another.',
+    );
+  });
+});

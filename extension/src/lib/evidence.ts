@@ -19,6 +19,11 @@ export interface PendingEvidence {
 /** The API refuses evidence files over 5 MiB. */
 const MAX_EVIDENCE_BYTES = 5 * 1024 * 1024;
 
+/** What the site accepts for an uploaded screenshot, for the picker's accept list. */
+export const EVIDENCE_ACCEPT = 'image/jpeg,image/png,image/gif,image/webp';
+
+const EVIDENCE_TYPES = EVIDENCE_ACCEPT.split(',');
+
 /** A JPEG of the visible tab, downscaled if over the upload limit. */
 async function captureVisibleScreenshot(windowId: number): Promise<Blob> {
   const dataUrl = await chrome.tabs.captureVisibleTab(windowId, { format: 'jpeg', quality: 90 });
@@ -64,6 +69,23 @@ export async function captureScreenshot(windowId: number): Promise<PendingEviden
     blob,
     previewUrl: URL.createObjectURL(blob),
     filename: `unblocksyria-evidence-${new Date().toISOString()}.jpg`,
+  };
+}
+
+/**
+ * A screenshot chosen from disk or dropped on a form. Its own bytes, type and
+ * name go through untouched, so nothing is rescaled behind the tester's back,
+ * and only a file the upload accepts gets in. Refuses with a message the form
+ * can show.
+ */
+export function fromFile(file: File): PendingEvidence {
+  if (!EVIDENCE_TYPES.includes(file.type)) throw new Error(i18next.t('evidence.unsupportedType'));
+  if (file.size > MAX_EVIDENCE_BYTES) throw new Error(i18next.t('evidence.fileTooLarge'));
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    blob: file,
+    previewUrl: URL.createObjectURL(file),
+    filename: file.name,
   };
 }
 
