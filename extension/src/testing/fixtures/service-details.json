@@ -1,0 +1,86 @@
+{
+  "id": "svc-netflix",
+  "name": "Netflix",
+  "url": "https://www.netflix.com",
+  "description": "Streaming video service.",
+  "supportEmail": null,
+  "supportUrl": null,
+  "functionalities": [
+    {
+      "slug": "core_use",
+      "name": "Core use",
+      "level": "failing",
+      "description": "Opening the app and playing a video.",
+      "changedAt": "2026-02-16T09:00:00.000Z",
+      "lastObservedAt": "2026-09-29T09:00:00.000Z"
+    },
+    {
+      "slug": "landing_page",
+      "name": "Landing page",
+      "level": "working",
+      "description": null,
+      "changedAt": "2026-01-04T09:00:00.000Z",
+      "lastObservedAt": "2026-09-20T09:00:00.000Z"
+    },
+    {
+      "slug": "payments",
+      "name": "Payments",
+      "level": "unknown",
+      "description": null,
+      "changedAt": null,
+      "lastObservedAt": null
+    }
+  ],
+  "alternatives": [
+    {
+      "id": "svc-netflix",
+      "name": "Netflix",
+      "slug": "netflix",
+      "logoUrl": null,
+      "availability": "usable",
+      "voteCount": 12,
+      "statusCheckedAt": "2026-09-01T10:00:00.000Z",
+      "company": { "name": "Netflix, Inc." }
+    },
+    {
+      "id": "svc-airbnb",
+      "name": "Airbnb",
+      "slug": "airbnb",
+      "logoUrl": null,
+      "availability": "available",
+      "voteCount": 3,
+      "statusCheckedAt": null,
+      "company": null
+    },
+    {
+      "id": "svc-booking",
+      "name": "Booking.com",
+      "slug": "booking-com",
+      "logoUrl": null,
+      "availability": "usable",
+      "voteCount": 7,
+      "statusCheckedAt": "2026-09-10T08:00:00.000Z",
+      "company": null
+    },
+    {
+      "id": "svc-hostelworld",
+      "name": "Hostelworld",
+      "slug": "hostelworld",
+      "logoUrl": null,
+      "availability": "blocked",
+      "voteCount": 1,
+      "statusCheckedAt": null,
+      "company": null
+    },
+    {
+      "id": "svc-wanderlog",
+      "name": "Wanderlog",
+      "slug": "wanderlog",
+      "logoUrl": null,
+      "availability": "unknown",
+      "voteCount": 0,
+      "statusCheckedAt": null,
+      "company": null
+    }
+  ]
+}

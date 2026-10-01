@@ -55,6 +55,23 @@ describe('untrusted API data', () => {
     ['GET', '/functionalities', getFunctionalities, null],
     ['GET', '/functionalities', getFunctionalities, [{ slug: 'constructor', name: 'Constructor' }]],
     ['GET', '/services/x', () => getServiceBySlug('x'), { id: 'x', name: 'X', url: null, functionalities: [{}] }],
+    [
+      'GET',
+      '/services/x',
+      () => getServiceBySlug('x'),
+      { id: 'x', name: 'X', url: null, functionalities: [{ slug: 'a', name: 'A', level: 'broken' }] },
+    ],
+    [
+      'GET',
+      '/services/x',
+      () => getServiceBySlug('x'),
+      {
+        id: 'x',
+        name: 'X',
+        url: null,
+        functionalities: [{ slug: 'a', name: 'A', level: 'working', lastObservedAt: 7 }],
+      },
+    ],
   ] as const)('rejects malformed data from %s %s', async (method, path, request, data) => {
     fakeApi().on(method, path, { data }).install();
     expect(await request()).toMatchObject({ ok: false, error: { error: 'BAD_RESPONSE' } });

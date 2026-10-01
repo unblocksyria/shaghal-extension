@@ -9,6 +9,7 @@ import { openPanel } from '../../../testing/panel';
 import match from '../../../testing/fixtures/match.json';
 import matchMany from '../../../testing/fixtures/match-many.json';
 import matchNone from '../../../testing/fixtures/match-none.json';
+import serviceDetails from '../../../testing/fixtures/service-details.json';
 import vote from '../../../testing/fixtures/vote.json';
 
 // Each test mounts the full panel, so every state is reached as a tester would reach it.
@@ -271,4 +272,45 @@ it('follows a vote cast from another panel without asking the API', async () => 
   await fakeBrowser.storage.local.set({ 'voteHint:netflix': true });
   await screen.findByRole('button', { name: /Voted/ });
   expect(api.callsTo('POST', '/services/netflix/vote')).toHaveLength(0);
+});
+
+describe('the parts of a matched service', () => {
+  it('shows each part with its level, its note and both dates', async () => {
+    const api = fakeApi()
+      .on('POST', '/services/match', { data: match })
+      .on('GET', '/services/netflix', { data: serviceDetails })
+      .install();
+
+    await openPanel('https://parts.example/');
+    await screen.findByRole('heading', { name: 'What works' }, { timeout: 3000 });
+
+    // The card asks once, as soon as the service matches.
+    expect(api.callsTo('GET', '/services/netflix')).toHaveLength(1);
+    expect(screen.getByText('Each part of the service, checked from Syria.')).toBeDefined();
+
+    expect(screen.getByText('Core use')).toBeDefined();
+    expect(screen.getByText('Fails')).toBeDefined();
+    expect(screen.getByText('Opening the app and playing a video.')).toBeDefined();
+    expect(screen.getByText(/Since 16 Feb 2026/)).toBeDefined();
+    // September can come out as "Sep" or "Sept" depending on the ICU build.
+    expect(screen.getByText(/Checked 29 Sep/)).toBeDefined();
+
+    expect(screen.getByText('Landing page')).toBeDefined();
+    expect(screen.getByText('Works')).toBeDefined();
+    // A part with no note and no dates still shows its name and level.
+    expect(screen.getByText('Payments')).toBeDefined();
+    expect(screen.getByText('Not checked')).toBeDefined();
+  });
+
+  it('keeps the card as it is when the record cannot be read', async () => {
+    fakeApi()
+      .on('POST', '/services/match', { data: match })
+      .on('GET', '/services/netflix', { status: 500, json: { error: 'BOOM', message: 'Record unavailable' } })
+      .install();
+
+    await openPanel('https://no-details.example/');
+    await screen.findByRole('heading', { name: 'Netflix' }, { timeout: 3000 });
+    expect(screen.getByText('Usable')).toBeDefined();
+    expect(screen.queryByRole('heading', { name: 'What works' })).toBeNull();
+  });
 });

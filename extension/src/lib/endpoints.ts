@@ -20,6 +20,12 @@ const expectation = (check: (value: unknown) => boolean) => ({
   message: i18next.t('api.incompleteData'),
 });
 
+const isFunctionality = (value: unknown) =>
+  record(value) &&
+  part(value) &&
+  ['working', 'failing', 'unknown'].includes(String(value.level)) &&
+  ['description', 'changedAt', 'lastObservedAt'].every((key) => optionalText(value[key]));
+
 function isServiceRecord(value: unknown): boolean {
   return (
     record(value) &&
@@ -27,10 +33,7 @@ function isServiceRecord(value: unknown): boolean {
     nullableText(value.url) &&
     ['description', 'supportEmail', 'supportUrl'].every((key) => optionalText(value[key])) &&
     (value.categories === undefined || listOf(named)(value.categories)) &&
-    (value.functionalities === undefined ||
-      listOf((item) => record(item) && part(item) && ['working', 'failing', 'unknown'].includes(String(item.level)))(
-        value.functionalities,
-      ))
+    (value.functionalities === undefined || listOf(isFunctionality)(value.functionalities))
   );
 }
 
@@ -61,6 +64,19 @@ function isVote(value: unknown): boolean {
   return record(value) && Number.isSafeInteger(value.voteCount) && Number(value.voteCount) >= 0;
 }
 
+/** One part of a service as `GET /services/:slug` records it. */
+export interface ServiceFunctionality {
+  slug: string;
+  name: string;
+  level: 'working' | 'failing' | 'unknown';
+  /** What this part does, or null when the record says nothing about it. */
+  description?: string | null;
+  /** When the level last changed, which the card shows as "Since". */
+  changedAt?: string | null;
+  /** When a tester last checked it, which the card shows as "Checked". */
+  lastObservedAt?: string | null;
+}
+
 /** A service's full record, used by the report and correction forms. */
 export interface ServiceRecord {
   id: string;
@@ -72,7 +88,7 @@ export interface ServiceRecord {
   supportEmail?: string | null;
   supportUrl?: string | null;
   categories?: { id: string; name: string }[];
-  functionalities?: { slug: string; name: string; level: 'working' | 'failing' | 'unknown' }[];
+  functionalities?: ServiceFunctionality[];
 }
 
 export async function getServiceBySlug(slug: string): Promise<ApiResult<ServiceRecord>> {
