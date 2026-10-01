@@ -44,7 +44,7 @@ jobs:
       # Branches in this repository need the CODECOV_TOKEN secret. Pull requests
       # from forks upload without one.
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: extension/coverage/lcov.info
