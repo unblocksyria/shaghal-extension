@@ -413,6 +413,29 @@ function WorksSection(props: { parts: ServiceFunctionality[] }) {
   );
 }
 
+/** The site's "What works instead", for a blocked service only. Each row opens the site. */
+function AlternativesSection(props: { service: CatalogService; alternatives: CatalogService[] }) {
+  const { t } = useTranslation();
+  const siteLanguage = sitePathSegment(activeLanguage());
+  return (
+    <section style={{ display: 'grid', gap: 10 }}>
+      <div style={{ display: 'grid', gap: 2 }}>
+        <h2 style={{ ...titleStyle, fontSize: 15 }}>{t('card.alternativesTitle')}</h2>
+        <p style={hintStyle}>{t('card.alternativesHint', { name: serviceName(props.service) })}</p>
+      </div>
+      <div style={{ display: 'grid', gap: 6 }}>
+        {props.alternatives.map((item) => (
+          <ServiceRow
+            key={item.id}
+            service={item}
+            href={`${SITE_BASE}${siteLanguage}/services/${encodeURIComponent(item.slug)}`}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function ServiceView(props: {
   service: CatalogService;
   details: DetailsState;
@@ -427,6 +450,14 @@ function ServiceView(props: {
   const company = service.company !== null && service.company.name !== service.name ? service.company.name : null;
   const siteLanguage = sitePathSegment(activeLanguage());
   const parts = details.status === 'ready' ? (details.record.functionalities ?? []) : [];
+  // Only what works from Syria is worth pointing a blocked service's tester at.
+  const alternatives =
+    details.status === 'ready'
+      ? (details.record.alternatives ?? []).filter(
+          (item) => item.slug !== service.slug && (item.availability === 'available' || item.availability === 'usable'),
+        )
+      : [];
+  const offerAlternatives = knownStatus(service.availability) === 'blocked' && alternatives.length > 0;
   return (
     <section className="us-animate-fade" style={cardStyle}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
@@ -456,6 +487,7 @@ function ServiceView(props: {
       </Button>
 
       {parts.length > 0 && <WorksSection parts={parts} />}
+      {offerAlternatives && <AlternativesSection service={service} alternatives={alternatives} />}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
         <button type="button" onClick={props.onCorrect} style={linkStyle}>

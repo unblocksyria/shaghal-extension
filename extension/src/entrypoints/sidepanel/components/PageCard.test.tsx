@@ -312,5 +312,44 @@ describe('the parts of a matched service', () => {
     await screen.findByRole('heading', { name: 'Netflix' }, { timeout: 3000 });
     expect(screen.getByText('Usable')).toBeDefined();
     expect(screen.queryByRole('heading', { name: 'What works' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'What works instead' })).toBeNull();
+  });
+});
+
+describe('alternatives on a blocked card', () => {
+  const blocked = { ...match, service: { ...match.service, availability: 'blocked' } };
+
+  it('offers the ones that work from Syria, each opening its page on the site', async () => {
+    fakeApi()
+      .on('POST', '/services/match', { data: blocked })
+      .on('GET', '/services/netflix', { data: serviceDetails })
+      .install();
+
+    await openPanel('https://alternatives.example/');
+    await screen.findByRole('heading', { name: 'What works instead' }, { timeout: 3000 });
+
+    expect(screen.getByText('Netflix is blocked from Syria. These work instead.')).toBeDefined();
+    expect(screen.getByRole('link', { name: /Airbnb/ })).toHaveProperty('href', `${SITE_BASE}/en/services/airbnb`);
+    expect(screen.getByRole('link', { name: /Booking/ })).toHaveProperty(
+      'href',
+      `${SITE_BASE}/en/services/booking-com`,
+    );
+    // Blocked and untested services are not offered as a way out.
+    expect(screen.queryByText('Hostelworld')).toBeNull();
+    expect(screen.queryByText('Wanderlog')).toBeNull();
+    // The service never points at itself.
+    expect(screen.queryByRole('link', { name: /Netflix/ })).toBeNull();
+  });
+
+  it('stays off a service that is not blocked', async () => {
+    fakeApi()
+      .on('POST', '/services/match', { data: match })
+      .on('GET', '/services/netflix', { data: serviceDetails })
+      .install();
+
+    await openPanel('https://not-blocked.example/');
+    await screen.findByRole('heading', { name: 'What works' }, { timeout: 3000 });
+    expect(screen.queryByRole('heading', { name: 'What works instead' })).toBeNull();
+    expect(screen.queryByText('Airbnb')).toBeNull();
   });
 });

@@ -72,6 +72,8 @@ export const ar: Arabic<Catalog> = {
     since: 'منذ {{date}}',
     worksTitle: 'ما الذي يعمل',
     worksHint: 'كل جزء من الخدمة، مفحوص من سوريا.',
+    alternativesTitle: 'ما الذي يعمل بدلاً منها',
+    alternativesHint: '{{name}} محجوب من سوريا. هذه تعمل بدلاً منها.',
     voteCount_zero: 'لا أصوات',
     voteCount_one: '{{n}} صوت',
     voteCount_two: '{{n}} صوتان',

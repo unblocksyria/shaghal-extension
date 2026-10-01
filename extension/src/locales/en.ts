@@ -66,6 +66,8 @@ export const en = {
     since: 'Since {{date}}',
     worksTitle: 'What works',
     worksHint: 'Each part of the service, checked from Syria.',
+    alternativesTitle: 'What works instead',
+    alternativesHint: '{{name}} is blocked from Syria. These work instead.',
     voteCount_one: '{{n}} vote',
     voteCount_other: '{{n}} votes',
     votesClosed: '{{votes}}. Voting is closed because this service is available.',

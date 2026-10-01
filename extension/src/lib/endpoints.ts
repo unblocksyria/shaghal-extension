@@ -33,7 +33,8 @@ function isServiceRecord(value: unknown): boolean {
     nullableText(value.url) &&
     ['description', 'supportEmail', 'supportUrl'].every((key) => optionalText(value[key])) &&
     (value.categories === undefined || listOf(named)(value.categories)) &&
-    (value.functionalities === undefined || listOf(isFunctionality)(value.functionalities))
+    (value.functionalities === undefined || listOf(isFunctionality)(value.functionalities)) &&
+    (value.alternatives === undefined || listOf(isCatalogService)(value.alternatives))
   );
 }
 
@@ -89,6 +90,8 @@ export interface ServiceRecord {
   supportUrl?: string | null;
   categories?: { id: string; name: string }[];
   functionalities?: ServiceFunctionality[];
+  /** Services that fill in for this one, with their own availability. */
+  alternatives?: CatalogService[];
 }
 
 export async function getServiceBySlug(slug: string): Promise<ApiResult<ServiceRecord>> {
