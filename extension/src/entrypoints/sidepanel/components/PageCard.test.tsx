@@ -69,6 +69,19 @@ describe('the page card', () => {
     expect(screen.getByRole('heading', { name: 'Google' })).toBeDefined();
   });
 
+  it('tints a candidate row while it is hovered, and returns it when the pointer leaves', async () => {
+    fakeApi().on('POST', '/services/match', { data: matchMany }).install();
+
+    await openPanel('https://hover.example/');
+    const row = await screen.findByRole('button', { name: /Google/ }, { timeout: 3000 });
+    expect(row.style.backgroundColor).toBe('var(--us-card)');
+
+    fireEvent.mouseEnter(row);
+    expect(row.style.backgroundColor).toBe('var(--us-hover-tint)');
+    fireEvent.mouseLeave(row);
+    expect(row.style.backgroundColor).toBe('var(--us-card)');
+  });
+
   it('asks the API for nothing when nothing is tracked', async () => {
     const api = fakeApi().on('POST', '/services/match', { data: matchNone }).install();
 

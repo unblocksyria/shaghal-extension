@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it, vi } from 'vitest';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
-import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
+import { act, createEvent, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { FormShell, emailError, useSavedEmail, useScreenshotLists } from './FormParts';
 import { saveEmail } from '../../../lib/settings';
 import type { PendingEvidence } from '../../../lib/evidence';
@@ -364,6 +364,46 @@ describe('picking files instead of capturing', () => {
     await screen.findByAltText('Evidence #1');
     await closeEditorWindows();
     expect(screen.getAllByAltText(/Evidence #/)).toHaveLength(1);
+  });
+
+  it('lights the field while files are dragged over it, and dims it when they leave', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    await openReportService(user, 'https://hover.example/download');
+
+    const field = screen.getByText('Or drop an image here.').closest('div');
+    if (field === null) throw new Error('The screenshot field is not there');
+    expect(field.style.borderColor).toBe('transparent');
+
+    // A drag with no files in it does not light the field.
+    fireEvent.dragEnter(field, { dataTransfer: { types: ['text/plain'] } });
+    expect(field.style.borderColor).toBe('transparent');
+
+    fireEvent.dragEnter(field, { dataTransfer: { types: ['Files'] } });
+    expect(field.style.borderColor).toBe('var(--us-border-hover)');
+    // Crossing a child on the way down keeps the field lit, and the drag may end on the field.
+    fireEvent.dragEnter(screen.getByText('Or drop an image here.'), { dataTransfer: { types: ['Files'] } });
+    fireEvent.dragLeave(screen.getByText('Or drop an image here.'));
+    expect(field.style.borderColor).toBe('var(--us-border-hover)');
+
+    const over = createEvent.dragOver(field, { dataTransfer: { types: ['Files'] } });
+    fireEvent(field, over);
+    expect(over.defaultPrevented).toBe(true);
+
+    fireEvent.dragLeave(field);
+    expect(field.style.borderColor).toBe('transparent');
+  });
+
+  it('opens the file picker from the Upload images button', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    await openReportService(user, 'https://picker.example/download');
+
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+    if (input === null) throw new Error('The form has no file picker');
+    const open = vi.spyOn(input, 'click').mockReturnValue(undefined);
+    await user.click(screen.getByRole('button', { name: 'Upload images' }));
+    expect(open).toHaveBeenCalledOnce();
   });
 
   it('opens every picked file for editing in turn when no editor window can open', async () => {
