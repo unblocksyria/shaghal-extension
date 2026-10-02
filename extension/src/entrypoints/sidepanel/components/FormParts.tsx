@@ -405,6 +405,7 @@ export function ScreenshotField(props: {
   const [capturing, setCapturing] = useState(false);
   const [picking, setPicking] = useState(false);
   const [dropping, setDropping] = useState(false);
+  const [refusal, setRefusal] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   // How many file drags are over the field, so passing over a child keeps it lit.
   const dragDepth = useRef(0);
@@ -419,6 +420,16 @@ export function ScreenshotField(props: {
     };
   }, []);
   const inWindow = editing?.where === 'window';
+  // Resolves the openEditor that fell back to the panel editor, once it closes.
+  const settleInline = useRef<(() => void) | null>(null);
+
+  const closeInlineEditor = () => {
+    inlineEditors.delete(inlineId.current);
+    setEditing(null);
+    const settle = settleInline.current;
+    settleInline.current = null;
+    settle?.();
+  };
 
   // Close this form's editor window on unmount.
   const ownsWindow = useRef(false);
@@ -433,11 +444,12 @@ export function ScreenshotField(props: {
   );
 
   const openEditor = async (item: PendingEvidence, label: string) => {
-    // Only one editor at a time. If one is open, focus it instead.
+    // Only one editor at a time. If a window editor is open, focus it instead.
     if (isEditorOpen()) {
       focusEditorWindow();
       return;
     }
+    if (editing !== null) return;
     setEditing({ item, label, where: 'window' });
     try {
       const outcome = await editInWindow({ source: item.original ?? item.blob, edits: item.edits, label });
@@ -448,8 +460,13 @@ export function ScreenshotField(props: {
         focusEditorWindow();
         setEditing(null);
       } else if (alive.current) {
+        // No window would open, so edit in the panel and hold whoever opened
+        // this until the editor closes, so a queue of files opens in turn.
         inlineEditors.add(inlineId.current);
         setEditing({ item, label, where: 'panel' });
+        await new Promise<void>((resolve) => {
+          settleInline.current = resolve;
+        });
       }
     }
   };
@@ -471,17 +488,16 @@ export function ScreenshotField(props: {
    * the editor one at a time so the tester can crop them and hide details.
    */
   const pick = (files: File[]) => {
-    if (locked || files.length === 0) return;
+    if (locked || full || editorOpen || capturing || picking || editing !== null || files.length === 0) return;
     const added = add(files, max - items.length);
     if (added.length === 0) return;
+    setRefusal(null);
     setPicking(true);
     void (async () => {
       try {
         for (const [index, item] of added.entries()) {
           if (!alive.current) return;
           await openEditor(item, t('evidence.item', { n: items.length + index + 1 }));
-          // Stop when an editor is still up: the inline one would be replaced.
-          if (isEditorOpen() || inlineEditors.size > 0) return;
         }
       } finally {
         if (alive.current) setPicking(false);
@@ -492,11 +508,18 @@ export function ScreenshotField(props: {
   const overFiles = (event: React.DragEvent) =>
     !locked && Array.from(event.dataTransfer?.types ?? []).includes('Files');
 
+  // Why a drop is refused right now, or null while it can come in.
+  const dropRefusal = (): string | null => {
+    if (editorOpen) return t('form.finishEditorFirst');
+    if (capturing || picking || editing !== null) return t('form.finishCapturing');
+    if (full) return t('form.listFull');
+    return null;
+  };
+
   const discard = (id: string) => {
     if (editing?.item.id === id) {
       if (editing.where === 'window') closeEditorWindow();
-      inlineEditors.delete(inlineId.current);
-      setEditing(null);
+      closeInlineEditor();
     }
     remove(id);
   };
@@ -540,6 +563,9 @@ export function ScreenshotField(props: {
         setDropping(false);
         if (!overFiles(event)) return;
         event.preventDefault();
+        const refusal = dropRefusal();
+        setRefusal(refusal);
+        if (refusal !== null) return;
         pick(Array.from(event.dataTransfer?.files ?? []));
       }}
     >
@@ -561,14 +587,10 @@ export function ScreenshotField(props: {
           source={editing.item.original ?? editing.item.blob}
           edits={editing.item.edits}
           label={editing.label}
-          onCancel={() => {
-            inlineEditors.delete(inlineId.current);
-            setEditing(null);
-          }}
+          onCancel={closeInlineEditor}
           onSave={(edited: EditedScreenshot | null) => {
-            inlineEditors.delete(inlineId.current);
             edit(editing.item.id, edited);
-            setEditing(null);
+            closeInlineEditor();
           }}
         />
       )}
@@ -607,6 +629,7 @@ export function ScreenshotField(props: {
       <p style={hintStyle}>{t('form.dropHint')}</p>
       {props.hint !== undefined && <p style={hintStyle}>{props.hint}</p>}
       {error !== null && <p style={{ ...hintStyle, color: 'var(--us-danger)' }}>{error}</p>}
+      {error === null && refusal !== null && <p style={{ ...hintStyle, color: 'var(--us-danger)' }}>{refusal}</p>}
     </div>
   );
 }

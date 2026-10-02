@@ -12,6 +12,14 @@ import { closeEditorWindows } from '../../../testing/editorWindows';
 import matchNone from '../../../testing/fixtures/match-none.json';
 import upload from '../../../testing/fixtures/upload.json';
 
+// jsdom can't decode or draw images, so the editor opens a fixed-size fake and
+// saves marker bytes.
+vi.mock('../../../lib/imageBake', () => ({
+  openEditableImage: () =>
+    Promise.resolve({ width: 1000, height: 600, url: 'blob:source', bitmap: {}, dispose: () => undefined }),
+  bakeEdits: () => Promise.resolve(new Blob(['edited'], { type: 'image/jpeg' })),
+}));
+
 it('still protects unsent form drafts on Back and unload', async () => {
   const user = userEvent.setup();
   const onBack = vi.fn();
@@ -331,6 +339,62 @@ describe('picking files instead of capturing', () => {
     await closeEditorWindows();
     expect(screen.getByRole('button', { name: 'Add another screenshot' })).toBeDefined();
   });
+
+  it('refuses a drop while a capture is in flight, saying why', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    await openReportService(user, 'https://busy-drop.example/download');
+    let release: (dataUrl: string) => void = () => undefined;
+    fakeBrowser.tabs.captureVisibleTab = () =>
+      new Promise<string>((resolve) => {
+        release = resolve;
+      });
+
+    await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
+    const field = screen.getByText('Or drop an image here.').closest('div');
+    if (field === null) throw new Error('The screenshot field is not there');
+    const file = new File(['png-bytes'], 'dropped.png', { type: 'image/png' });
+    fireEvent.drop(field, { dataTransfer: { types: ['Files'], files: [file] } });
+
+    await screen.findByText('Finish capturing or editing your screenshot first.');
+    expect(screen.queryByAltText('Evidence #1')).toBeNull();
+
+    // The capture lands after, and the refused drop added nothing.
+    release('data:image/jpeg;base64,aGVsbG8=');
+    await screen.findByAltText('Evidence #1');
+    await closeEditorWindows();
+    expect(screen.getAllByAltText(/Evidence #/)).toHaveLength(1);
+  });
+
+  it('opens every picked file for editing in turn when no editor window can open', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    await openReportService(user, 'https://inline.example/download');
+    fakeBrowser.windows.create = () => Promise.reject(new Error('Popups are blocked'));
+
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+    if (input === null) throw new Error('The form has no file picker');
+    fireEvent.change(input, {
+      target: {
+        files: [
+          new File(['one'], 'one.png', { type: 'image/png' }),
+          new File(['two'], 'two.png', { type: 'image/png' }),
+        ],
+      },
+    });
+
+    await screen.findByRole('dialog', { name: 'Edit evidence #1' });
+    await user.click(await screen.findByRole('button', { name: 'Save' }));
+    // The second file opens only after the first editor closes.
+    await screen.findByRole('dialog', { name: 'Edit evidence #2' });
+    expect(screen.queryByRole('dialog', { name: 'Edit evidence #1' })).toBeNull();
+    await user.click(await screen.findByRole('button', { name: 'Save' }));
+
+    expect(screen.getByAltText('Evidence #1')).toBeDefined();
+    expect(screen.getByAltText('Evidence #2')).toBeDefined();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Add another screenshot' }).disabled).toBe(false);
+  });
 });
 
 /** A screenshot list on its own, for reading what an added file became. */
@@ -369,6 +433,18 @@ describe('adding a file to the list', () => {
     expect(added).toHaveLength(0);
     expect(result.current.list('form').items).toHaveLength(0);
     expect(result.current.list('form').error).toBe(message);
+  });
+
+  it('refuses an empty image with a message, and adds nothing', () => {
+    const { result } = fileList();
+    const file = new File([], 'empty.png', { type: 'image/png' });
+    let added: PendingEvidence[] = [];
+    act(() => {
+      added = result.current.list('form').add([file], 10);
+    });
+    expect(added).toHaveLength(0);
+    expect(result.current.list('form').items).toHaveLength(0);
+    expect(result.current.list('form').error).toBe('That file is empty. Pick an image that has content.');
   });
 
   it('adds only what there is room for, and says so', () => {
