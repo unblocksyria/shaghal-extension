@@ -80,6 +80,7 @@ export async function captureScreenshot(windowId: number): Promise<PendingEviden
  */
 export function fromFile(file: File): PendingEvidence {
   if (!EVIDENCE_TYPES.includes(file.type)) throw new Error(i18next.t('evidence.unsupportedType'));
+  if (file.size === 0) throw new Error(i18next.t('evidence.fileEmpty'));
   if (file.size > MAX_EVIDENCE_BYTES) throw new Error(i18next.t('evidence.fileTooLarge'));
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,

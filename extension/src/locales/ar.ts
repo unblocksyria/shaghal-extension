@@ -258,6 +258,7 @@ export const ar: Arabic<Catalog> = {
     viewScreenshot: 'اعرض لقطة الشاشة',
     sizeRange: 'يجب أن تكون لقطات الشاشة بين 1 بايت و5 ميبيبايت.',
     fileTooLarge: 'هذه الصورة أكبر من 5 ميبيبايت. اختر صورة أصغر.',
+    fileEmpty: 'هذا الملف فارغ. اختر صورة تحتوي على محتوى.',
     unsupportedType: 'هذا الملف ليس صورة JPEG أو PNG أو GIF أو WebP.',
     cannotResize: 'لا يستطيع هذا المتصفح تصغير لقطة الشاشة.',
     tooLarge: 'لقطة الشاشة كبيرة جداً. التقط مساحة أصغر.',

@@ -207,6 +207,11 @@ describe('a file picked from disk', () => {
     expect(() => fromFile(file)).toThrow('That file is not a JPEG, PNG, GIF or WebP image.');
   });
 
+  it('refuses an empty file before it can fail later, when editing or uploading', () => {
+    const file = new File([], 'empty.png', { type: 'image/png' });
+    expect(() => fromFile(file)).toThrow('That file is empty. Pick an image that has content.');
+  });
+
   it('refuses an image over the upload limit instead of rescaling it', () => {
     const big = new File([new Uint8Array(5 * 1024 * 1024 + 1)], 'huge.png', { type: 'image/png' });
     expect(() => fromFile(big)).toThrow('That image is larger than 5 MiB. Pick a smaller one.');

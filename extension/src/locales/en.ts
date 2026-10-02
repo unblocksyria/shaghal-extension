@@ -251,6 +251,7 @@ export const en = {
     viewScreenshot: 'View screenshot',
     sizeRange: 'Screenshots must be between 1 byte and 5 MiB.',
     fileTooLarge: 'That image is larger than 5 MiB. Pick a smaller one.',
+    fileEmpty: 'That file is empty. Pick an image that has content.',
     unsupportedType: 'That file is not a JPEG, PNG, GIF or WebP image.',
     cannotResize: 'This browser cannot resize the screenshot.',
     tooLarge: 'The screenshot is too large. Capture a smaller area.',
