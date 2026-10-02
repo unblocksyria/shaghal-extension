@@ -44,6 +44,10 @@
   --us-status-available: #177b30;
   --us-status-blocked: #6b1f2a;
   --us-status-unknown: #4a4a4a;
+  /* Level words on the card's part list, as the site colours them: green-light
+     over green-accessible, burgundy over burgundy-accessible. */
+  --us-level-working: light-dark(#1a4a45, #7ebdb7);
+  --us-level-failing: light-dark(#6b1f2a, #e8a0a8);
 
   /* Shape */
   --us-radius-card: 10px;

@@ -65,10 +65,10 @@ function sinceText(iso: string | null | undefined): string | null {
   return date === null ? null : i18next.t('card.since', { date });
 }
 
-/** The card's colour for a part's level. The words come from the report catalog. */
+/** The card's colour for a part's level, matching the website's level cells. The words come from the report catalog. */
 const LEVEL_COLOR: Record<ServiceFunctionality['level'], string> = {
-  working: 'var(--us-status-available)',
-  failing: 'var(--us-status-blocked)',
+  working: 'var(--us-level-working)',
+  failing: 'var(--us-level-failing)',
   unknown: 'var(--us-status-unknown)',
 };
 
