@@ -80,6 +80,14 @@ export function fakeApi(): FakeApi {
   const routes: Route[] = [
     // Country check answer: Syria, unless a test overrides it.
     { method: 'GET', path: new URL(GEO_TRACE_URL).pathname, answer: { text: 'fl=v8\nloc=SY\nts=1758000000\n' } },
+    // The card asks for the record behind a matched service as soon as it
+    // matches. This answer carries no parts and no alternatives, so a test that
+    // wants either answers this route itself. Routes registered later win.
+    {
+      method: 'GET',
+      path: /^\/services\/[^/]+$/,
+      answer: { data: { id: 'svc-record', name: 'Record', url: null, functionalities: [], alternatives: [] } },
+    },
   ];
 
   const findRoute = (call: FakeCall): Route | undefined =>

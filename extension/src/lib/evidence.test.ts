@@ -1,7 +1,15 @@
 import { fakeApi } from '../testing/fakeApi';
 import upload from '../testing/fixtures/upload.json';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { captureScreenshot, shrinkToFit, uploadPendingEvidence, withEdits, type PendingEvidence } from './evidence';
+import {
+  captureScreenshot,
+  EVIDENCE_ACCEPT,
+  fromFile,
+  shrinkToFit,
+  uploadPendingEvidence,
+  withEdits,
+  type PendingEvidence,
+} from './evidence';
 import type { ImageEdits } from './imageEdits';
 
 const edits: ImageEdits = { crop: { x: 0, y: 0, width: 5, height: 5 }, boxes: [] };
@@ -173,5 +181,43 @@ describe('capturing the tab', () => {
     const second = await captureScreenshot(1);
     expect(first.blob.type).toBe('image/jpeg');
     expect(first.id).not.toBe(second.id);
+  });
+});
+
+describe('a file picked from disk', () => {
+  it('keeps the bytes, the type and the name the picker gave it', () => {
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:picked');
+    const file = new File(['png-bytes'], 'evidence.png', { type: 'image/png' });
+
+    const item = fromFile(file);
+    expect(item.blob).toBe(file);
+    expect(item.blob.type).toBe('image/png');
+    expect(item.filename).toBe('evidence.png');
+    expect(item.previewUrl).toBe('blob:picked');
+    expect(item.uploadedUrl).toBeUndefined();
+  });
+
+  it.each([
+    ['a text file', 'notes.txt', 'text/plain'],
+    ['a vector image', 'logo.svg', 'image/svg+xml'],
+    ['a document', 'report.pdf', 'application/pdf'],
+    ['a file with no type at all', 'mystery', ''],
+  ])('refuses %s with a message', (_name, filename, type) => {
+    const file = new File(['x'], filename, { type });
+    expect(() => fromFile(file)).toThrow('That file is not a JPEG, PNG, GIF or WebP image.');
+  });
+
+  it('refuses an empty file before it can fail later, when editing or uploading', () => {
+    const file = new File([], 'empty.png', { type: 'image/png' });
+    expect(() => fromFile(file)).toThrow('That file is empty. Pick an image that has content.');
+  });
+
+  it('refuses an image over the upload limit instead of rescaling it', () => {
+    const big = new File([new Uint8Array(5 * 1024 * 1024 + 1)], 'huge.png', { type: 'image/png' });
+    expect(() => fromFile(big)).toThrow('That image is larger than 5 MiB. Pick a smaller one.');
+  });
+
+  it('names the four image types a form will accept', () => {
+    expect(EVIDENCE_ACCEPT.split(',')).toEqual(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
   });
 });

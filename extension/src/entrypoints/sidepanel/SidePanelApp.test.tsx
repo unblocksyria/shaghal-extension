@@ -52,7 +52,8 @@ describe('opening a form', () => {
     await openPanel('https://opening.example/');
     await user.click(await screen.findByRole('button', { name: 'Report what works' }, { timeout: 3000 }));
 
-    await waitFor(() => expect(api.callsTo('GET', '/services/netflix')).toHaveLength(1), { timeout: 3000 });
+    // Once for the card's parts, once for the form that is opening.
+    await waitFor(() => expect(api.callsTo('GET', '/services/netflix')).toHaveLength(2), { timeout: 3000 });
     expect(screen.getByText('Opening…')).toBeDefined();
     expect(screen.queryByRole('radiogroup', { name: 'Core use' })).toBeNull();
   });

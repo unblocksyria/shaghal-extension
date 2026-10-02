@@ -1,16 +1,29 @@
 /** @vitest-environment jsdom */
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
-import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
-import { FormShell, emailError, useSavedEmail, useScreenshotLists } from './FormParts';
+import { act, createEvent, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
+import { FormShell, ScreenshotField, emailError, useSavedEmail, useScreenshotLists, useScreenshots } from './FormParts';
+import { isEditorOpen } from '../../../lib/editorWindow';
 import { saveEmail } from '../../../lib/settings';
 import type { PendingEvidence } from '../../../lib/evidence';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
+
+// Tests below block popups by replacing windows.create; fakeBrowser.reset()
+// does not restore it, so keep the original to put back before each test.
+const windowsCreate = fakeBrowser.windows.create;
 import { fakeApi, type FakeApi } from '../../../testing/fakeApi';
 import { openPanel, stubScreenshot } from '../../../testing/panel';
 import { closeEditorWindows } from '../../../testing/editorWindows';
 import matchNone from '../../../testing/fixtures/match-none.json';
 import upload from '../../../testing/fixtures/upload.json';
+
+// jsdom can't decode or draw images, so the editor opens a fixed-size fake and
+// saves marker bytes.
+vi.mock('../../../lib/imageBake', () => ({
+  openEditableImage: () =>
+    Promise.resolve({ width: 1000, height: 600, url: 'blob:source', bitmap: {}, dispose: () => undefined }),
+  bakeEdits: () => Promise.resolve(new Blob(['edited'], { type: 'image/jpeg' })),
+}));
 
 it('still protects unsent form drafts on Back and unload', async () => {
   const user = userEvent.setup();
@@ -300,5 +313,435 @@ describe('capturing', () => {
     release();
     expect(await taken).toBeNull();
     expect(revoke).toHaveBeenCalledWith('blob:fake-evidence');
+  });
+});
+
+describe('picking files instead of capturing', () => {
+  it('offers an upload beside the camera, for the image types the API takes', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    await openReportService(user, 'https://upload.example/download');
+
+    expect(screen.getByRole('button', { name: 'Upload images' })).toBeDefined();
+    expect(screen.getByText('Or drop an image here.')).toBeDefined();
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+    if (input === null) throw new Error('The form has no file picker');
+    expect(input.getAttribute('accept')).toBe('image/jpeg,image/png,image/gif,image/webp');
+    expect(input.hasAttribute('multiple')).toBe(true);
+  });
+
+  it('takes an image dropped on the field, and opens it for editing', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    await openReportService(user, 'https://drop.example/download');
+
+    const field = screen.getByText('Or drop an image here.').closest('div');
+    if (field === null) throw new Error('The screenshot field is not there');
+    const file = new File(['png-bytes'], 'dropped.png', { type: 'image/png' });
+    fireEvent.drop(field, { dataTransfer: { types: ['Files'], files: [file] } });
+
+    await screen.findByAltText('Evidence #1');
+    await closeEditorWindows();
+    expect(screen.getByRole('button', { name: 'Add another screenshot' })).toBeDefined();
+  });
+
+  it('refuses a drop while a capture is in flight, saying why', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    await openReportService(user, 'https://busy-drop.example/download');
+    let release: (dataUrl: string) => void = () => undefined;
+    fakeBrowser.tabs.captureVisibleTab = () =>
+      new Promise<string>((resolve) => {
+        release = resolve;
+      });
+
+    await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
+    const field = screen.getByText('Or drop an image here.').closest('div');
+    if (field === null) throw new Error('The screenshot field is not there');
+    const file = new File(['png-bytes'], 'dropped.png', { type: 'image/png' });
+    fireEvent.drop(field, { dataTransfer: { types: ['Files'], files: [file] } });
+
+    await screen.findByText('Finish capturing or editing your screenshot first.');
+    expect(screen.queryByAltText('Evidence #1')).toBeNull();
+
+    // The capture lands after, and the refused drop added nothing.
+    release('data:image/jpeg;base64,aGVsbG8=');
+    await screen.findByAltText('Evidence #1');
+    await closeEditorWindows();
+    expect(screen.getAllByAltText(/Evidence #/)).toHaveLength(1);
+  });
+
+  it('lights the field while files are dragged over it, and dims it when they leave', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    await openReportService(user, 'https://hover.example/download');
+
+    const field = screen.getByText('Or drop an image here.').closest('div');
+    if (field === null) throw new Error('The screenshot field is not there');
+    expect(field.style.borderColor).toBe('transparent');
+
+    // A drag with no files in it does not light the field.
+    fireEvent.dragEnter(field, { dataTransfer: { types: ['text/plain'] } });
+    expect(field.style.borderColor).toBe('transparent');
+
+    fireEvent.dragEnter(field, { dataTransfer: { types: ['Files'] } });
+    expect(field.style.borderColor).toBe('var(--us-border-hover)');
+    // Crossing a child on the way down keeps the field lit, and the drag may end on the field.
+    fireEvent.dragEnter(screen.getByText('Or drop an image here.'), { dataTransfer: { types: ['Files'] } });
+    fireEvent.dragLeave(screen.getByText('Or drop an image here.'));
+    expect(field.style.borderColor).toBe('var(--us-border-hover)');
+
+    const over = createEvent.dragOver(field, { dataTransfer: { types: ['Files'] } });
+    fireEvent(field, over);
+    expect(over.defaultPrevented).toBe(true);
+
+    fireEvent.dragLeave(field);
+    expect(field.style.borderColor).toBe('transparent');
+  });
+
+  it('opens the file picker from the Upload images button', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    await openReportService(user, 'https://picker.example/download');
+
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+    if (input === null) throw new Error('The form has no file picker');
+    const open = vi.spyOn(input, 'click').mockReturnValue(undefined);
+    await user.click(screen.getByRole('button', { name: 'Upload images' }));
+    expect(open).toHaveBeenCalledOnce();
+  });
+
+  it('opens every picked file for editing in turn when no editor window can open', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    await openReportService(user, 'https://inline.example/download');
+    fakeBrowser.windows.create = () => Promise.reject(new Error('Popups are blocked'));
+
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+    if (input === null) throw new Error('The form has no file picker');
+    fireEvent.change(input, {
+      target: {
+        files: [
+          new File(['one'], 'one.png', { type: 'image/png' }),
+          new File(['two'], 'two.png', { type: 'image/png' }),
+        ],
+      },
+    });
+
+    await screen.findByRole('dialog', { name: 'Edit evidence #1' });
+    await user.click(await screen.findByRole('button', { name: 'Save' }));
+    // The second file opens only after the first editor closes.
+    await screen.findByRole('dialog', { name: 'Edit evidence #2' });
+    expect(screen.queryByRole('dialog', { name: 'Edit evidence #1' })).toBeNull();
+    await user.click(await screen.findByRole('button', { name: 'Save' }));
+
+    expect(screen.getByAltText('Evidence #1')).toBeDefined();
+    expect(screen.getByAltText('Evidence #2')).toBeDefined();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Add another screenshot' }).disabled).toBe(false);
+  });
+});
+
+/** A screenshot list on its own, for reading what an added file became. */
+function fileList() {
+  URL.createObjectURL = () => 'blob:picked';
+  return renderHook(() => useScreenshotLists('https://files.example/download'));
+}
+
+describe('adding a file to the list', () => {
+  it('keeps the bytes, the type and the name the file already had', () => {
+    const { result } = fileList();
+    const file = new File(['png-bytes'], 'evidence.png', { type: 'image/png' });
+    let added: PendingEvidence[] = [];
+    act(() => {
+      added = result.current.list('form').add([file], 10);
+    });
+    expect(added).toHaveLength(1);
+    expect(added[0]?.filename).toBe('evidence.png');
+    expect(added[0]?.blob.type).toBe('image/png');
+    expect(result.current.list('form').items).toHaveLength(1);
+    expect(result.current.list('form').error).toBeNull();
+  });
+
+  it.each([
+    ['text/plain', 'notes.txt', 'That file is not a JPEG, PNG, GIF or WebP image.'],
+    ['image/svg+xml', 'logo.svg', 'That file is not a JPEG, PNG, GIF or WebP image.'],
+    ['image/png', 'huge.png', 'That image is larger than 5 MiB. Pick a smaller one.'],
+  ])('refuses %s with a message, and adds nothing', (type, name, message) => {
+    const { result } = fileList();
+    const bytes = type === 'image/png' ? new Uint8Array(5 * 1024 * 1024 + 1) : 'x';
+    const file = new File([bytes], name, { type });
+    let added: PendingEvidence[] = [];
+    act(() => {
+      added = result.current.list('form').add([file], 10);
+    });
+    expect(added).toHaveLength(0);
+    expect(result.current.list('form').items).toHaveLength(0);
+    expect(result.current.list('form').error).toBe(message);
+  });
+
+  it('refuses an empty image with a message, and adds nothing', () => {
+    const { result } = fileList();
+    const file = new File([], 'empty.png', { type: 'image/png' });
+    let added: PendingEvidence[] = [];
+    act(() => {
+      added = result.current.list('form').add([file], 10);
+    });
+    expect(added).toHaveLength(0);
+    expect(result.current.list('form').items).toHaveLength(0);
+    expect(result.current.list('form').error).toBe('That file is empty. Pick an image that has content.');
+  });
+
+  it('adds only what there is room for, and says so', () => {
+    const { result } = fileList();
+    const shot = (name: string) => new File(['x'], name, { type: 'image/png' });
+    let added: PendingEvidence[] = [];
+    act(() => {
+      added = result.current.list('form').add([shot('one.png'), shot('two.png')], 1);
+    });
+    expect(added).toHaveLength(1);
+    expect(result.current.list('form').items).toHaveLength(1);
+    expect(result.current.list('form').error).toBe(
+      'This form already holds the most screenshots. Remove one to add another.',
+    );
+  });
+
+  it('adds nothing for an empty file list, and keeps the first refusal among several', () => {
+    const { result } = fileList();
+    let added: PendingEvidence[] = [];
+    act(() => {
+      added = result.current.list('form').add([], 10);
+    });
+    expect(added).toEqual([]);
+    expect(result.current.list('form').items).toHaveLength(0);
+
+    const first = new File(['x'], 'first.txt', { type: 'text/plain' });
+    const second = new File(['y'], 'second.svg', { type: 'image/svg+xml' });
+    act(() => {
+      added = result.current.list('form').add([first, second], 10);
+    });
+    expect(added).toEqual([]);
+    expect(result.current.list('form').items).toHaveLength(0);
+    expect(result.current.list('form').error).toBe('That file is not a JPEG, PNG, GIF or WebP image.');
+  });
+});
+
+/** The field at its limit, on its own. */
+function FieldAtLimit() {
+  const screenshots = useScreenshots('https://limit.example/download');
+  return <ScreenshotField screenshots={screenshots} max={1} />;
+}
+
+describe('guards against presses and drops that add nothing', () => {
+  beforeEach(() => {
+    fakeBrowser.windows.create = windowsCreate;
+  });
+
+  it('does not count a drop without image files as touched work', () => {
+    const onTouched = vi.fn();
+    render(
+      <FormShell backLabel="Back" onBack={vi.fn()} title="Report" intro="Describe the issue." onTouched={onTouched}>
+        <input aria-label="Description" />
+      </FormShell>,
+    );
+    const field = screen.getByRole('textbox', { name: 'Description' });
+    fireEvent.drop(field, { dataTransfer: { types: ['text/plain'] } });
+    fireEvent.drop(field);
+    expect(onTouched).not.toHaveBeenCalled();
+  });
+
+  it('ignores an Edit press while the panel editor is already up', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    await openReportService(user, 'https://inline-again.example/download');
+    fakeBrowser.windows.create = () => Promise.reject(new Error('Popups are blocked'));
+
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+    if (input === null) throw new Error('The form has no file picker');
+    fireEvent.change(input, {
+      target: { files: [new File(['one'], 'one.png', { type: 'image/png' })] },
+    });
+
+    await screen.findByRole('dialog', { name: 'Edit evidence #1' });
+    fireEvent.click(screen.getByRole('button', { name: 'Edit evidence #1' }));
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+
+    await user.click(await screen.findByRole('button', { name: 'Save' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByAltText('Evidence #1')).toBeDefined();
+  });
+
+  it('refuses a camera press while a capture is still in flight', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    await openReportService(user, 'https://double-capture.example/download');
+    let release: (dataUrl: string) => void = () => undefined;
+    fakeBrowser.tabs.captureVisibleTab = () =>
+      new Promise<string>((resolve) => {
+        release = resolve;
+      });
+
+    const camera = screen.getByRole('button', { name: 'Add screenshot' });
+    await user.click(camera);
+    // userEvent refuses clicks on the disabled button, so press it directly.
+    fireEvent.click(camera);
+
+    release('data:image/jpeg;base64,aGVsbG8=');
+    await screen.findByAltText('Evidence #1');
+    await closeEditorWindows();
+    expect(screen.getAllByAltText(/Evidence #/)).toHaveLength(1);
+  });
+
+  it('adds nothing from a Files drag without files, or a picker change without files', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    await openReportService(user, 'https://empty-drag.example/download');
+
+    const field = screen.getByText('Or drop an image here.').closest('div');
+    if (field === null) throw new Error('The screenshot field is not there');
+    fireEvent.drop(field, { dataTransfer: { types: ['Files'] } });
+
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+    if (input === null) throw new Error('The form has no file picker');
+    fireEvent.change(input, { target: { files: null } });
+
+    expect(screen.queryByAltText(/Evidence #/)).toBeNull();
+  });
+
+  it('leaves the list alone when every picked file is refused', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    await openReportService(user, 'https://invalid-pick.example/download');
+
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+    if (input === null) throw new Error('The form has no file picker');
+    fireEvent.change(input, { target: { files: [new File(['x'], 'notes.txt', { type: 'text/plain' })] } });
+
+    await screen.findByText('That file is not a JPEG, PNG, GIF or WebP image.');
+    expect(screen.queryByAltText(/Evidence #/)).toBeNull();
+  });
+
+  it('stops the pick queue when the panel closes while the editor window is up', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    fakeApi().on('POST', '/services/match', { data: matchNone }).install();
+    const panel = await openPanel('https://queue-close.example/download');
+    await user.click(await screen.findByRole('button', { name: 'Report a Service' }, { timeout: 3000 }));
+    await screen.findByRole('heading', { name: 'Report a Service' });
+
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+    if (input === null) throw new Error('The form has no file picker');
+    fireEvent.change(input, {
+      target: {
+        files: [
+          new File(['one'], 'one.png', { type: 'image/png' }),
+          new File(['two'], 'two.png', { type: 'image/png' }),
+        ],
+      },
+    });
+
+    await waitFor(async () => {
+      expect((await fakeBrowser.windows.getAll()).some((win) => win.type === 'popup')).toBe(true);
+    });
+
+    panel.unmount();
+    await closeEditorWindows();
+    await act(async () => {});
+    expect(isEditorOpen()).toBe(false);
+    expect((await fakeBrowser.windows.getAll()).filter((win) => win.type === 'popup')).toHaveLength(0);
+  });
+
+  it('refuses a drop while a screenshot is open in the editor window', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    await openReportService(user, 'https://editor-open.example/download');
+
+    await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
+    await screen.findByAltText('Evidence #1');
+
+    const field = screen.getByText('Or drop an image here.').closest('div');
+    if (field === null) throw new Error('The screenshot field is not there');
+    fireEvent.drop(field, {
+      dataTransfer: { types: ['Files'], files: [new File(['x'], 'late.png', { type: 'image/png' })] },
+    });
+    await screen.findByText('Finish the screenshot open in the editor first.');
+    await closeEditorWindows();
+    expect(screen.getAllByAltText(/Evidence #/)).toHaveLength(1);
+  });
+
+  it('refuses a drop once the field has reached its limit', async () => {
+    stubScreenshot();
+    await Promise.resolve(fakeBrowser.reset());
+    vi.stubGlobal('chrome', fakeBrowser);
+    render(<FieldAtLimit />);
+
+    const field = screen.getByText('Or drop an image here.').closest('div');
+    if (field === null) throw new Error('The screenshot field is not there');
+    fireEvent.drop(field, {
+      dataTransfer: { types: ['Files'], files: [new File(['x'], 'one.png', { type: 'image/png' })] },
+    });
+    await screen.findByAltText('Evidence #1');
+    await closeEditorWindows();
+    // The pick queue settles only after the editor has closed.
+    await waitFor(() => expect(isEditorOpen()).toBe(false));
+    await act(async () => {});
+
+    fireEvent.drop(field, {
+      dataTransfer: { types: ['Files'], files: [new File(['y'], 'two.png', { type: 'image/png' })] },
+    });
+    await screen.findByText('This form already holds the most screenshots. Remove one to add another.');
+    expect(screen.getAllByAltText(/Evidence #/)).toHaveLength(1);
+  });
+
+  it('lets a drag without image files pass over and off the field', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    await openReportService(user, 'https://plain-drag.example/download');
+
+    const field = screen.getByText('Or drop an image here.').closest('div');
+    if (field === null) throw new Error('The screenshot field is not there');
+    const over = createEvent.dragOver(field, { dataTransfer: { types: ['text/plain'] } });
+    fireEvent(field, over);
+    expect(over.defaultPrevented).toBe(false);
+
+    fireEvent.drop(field, { dataTransfer: { types: ['text/plain'] } });
+    expect(field.style.borderColor).toBe('transparent');
+    expect(screen.queryByAltText(/Evidence #/)).toBeNull();
+
+    // A drag event with no dataTransfer object at all is not a file drag either.
+    fireEvent.dragOver(field);
+    fireEvent.drop(field);
+    expect(field.style.borderColor).toBe('transparent');
+    expect(screen.queryByAltText(/Evidence #/)).toBeNull();
+  });
+
+  it('ignores drops, camera presses and picks while the form is sending', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    const api = fakeApi().on('POST', '/services/match', { data: matchNone });
+    const releaseSubmission = api.hold('POST', '/submissions', { status: 201, json: { id: 'receipt' } });
+    api.install();
+    await openPanel('https://sending.example/download');
+    await user.click(await screen.findByRole('button', { name: 'Report a Service' }, { timeout: 3000 }));
+    await screen.findByRole('heading', { name: 'Report a Service' });
+    await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Blocked Service');
+    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+
+    const field = screen.getByText('Or drop an image here.').closest('div');
+    if (field === null) throw new Error('The screenshot field is not there');
+    const file = new File(['png-bytes'], 'locked.png', { type: 'image/png' });
+    fireEvent.dragEnter(field, { dataTransfer: { types: ['Files'] } });
+    expect(field.style.borderColor).toBe('transparent');
+    fireEvent.drop(field, { dataTransfer: { types: ['Files'], files: [file] } });
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+    if (input === null) throw new Error('The form has no file picker');
+    fireEvent.change(input, { target: { files: [file] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add screenshot' }));
+    expect(screen.queryByAltText(/Evidence #/)).toBeNull();
+    expect(screen.queryByText('Finish capturing or editing your screenshot first.')).toBeNull();
+
+    releaseSubmission();
+    await screen.findByRole('heading', { name: 'Report received' });
+    expect(api.callsTo('POST', '/uploads/evidence')).toHaveLength(0);
   });
 });
