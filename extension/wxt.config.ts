@@ -26,7 +26,7 @@ export default defineConfig({
     name: '__MSG_extName__',
     description: '__MSG_extDescription__',
     default_locale: 'en',
-    version: '0.2.1',
+    version: '0.2.2',
     // tabs: read the active tab's URL.
     // sidePanel: Chrome's side panel. Firefox shows the same page through
     // sidebar_action, which needs no permission.
