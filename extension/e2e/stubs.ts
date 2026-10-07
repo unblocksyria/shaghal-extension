@@ -43,7 +43,7 @@ function json(payload: unknown): StubAnswer {
 
 const answers = new Map<string, StubAnswer>([
   ['POST /services/match', json({ data: fixture<ServiceMatch>('match') })],
-  ['GET /services/netflix', json({ data: fixture<ServiceRecord>('service-record') })],
+  ['GET /services/netflix', json({ data: fixture<ServiceRecord>('service-details') })],
   ['GET /categories', json({ data: fixture<CategoryItem[]>('categories') })],
   ['GET /functionalities', json({ data: fixture<FunctionalityItem[]>('functionalities') })],
   ['POST /services/netflix/vote', json(fixture<{ voteCount: number }>('vote'))],

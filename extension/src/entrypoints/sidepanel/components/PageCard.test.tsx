@@ -9,6 +9,7 @@ import { openPanel } from '../../../testing/panel';
 import match from '../../../testing/fixtures/match.json';
 import matchMany from '../../../testing/fixtures/match-many.json';
 import matchNone from '../../../testing/fixtures/match-none.json';
+import serviceDetails from '../../../testing/fixtures/service-details.json';
 import vote from '../../../testing/fixtures/vote.json';
 
 // Each test mounts the full panel, so every state is reached as a tester would reach it.
@@ -66,6 +67,19 @@ describe('the page card', () => {
 
     await user.click(screen.getByRole('button', { name: /Google/ }));
     expect(screen.getByRole('heading', { name: 'Google' })).toBeDefined();
+  });
+
+  it('tints a candidate row while it is hovered, and returns it when the pointer leaves', async () => {
+    fakeApi().on('POST', '/services/match', { data: matchMany }).install();
+
+    await openPanel('https://hover.example/');
+    const row = await screen.findByRole('button', { name: /Google/ }, { timeout: 3000 });
+    expect(row.style.backgroundColor).toBe('var(--us-card)');
+
+    fireEvent.mouseEnter(row);
+    expect(row.style.backgroundColor).toBe('var(--us-hover-tint)');
+    fireEvent.mouseLeave(row);
+    expect(row.style.backgroundColor).toBe('var(--us-card)');
   });
 
   it('asks the API for nothing when nothing is tracked', async () => {
@@ -271,4 +285,84 @@ it('follows a vote cast from another panel without asking the API', async () => 
   await fakeBrowser.storage.local.set({ 'voteHint:netflix': true });
   await screen.findByRole('button', { name: /Voted/ });
   expect(api.callsTo('POST', '/services/netflix/vote')).toHaveLength(0);
+});
+
+describe('the parts of a matched service', () => {
+  it('shows each part with its level, its note and both dates', async () => {
+    const api = fakeApi()
+      .on('POST', '/services/match', { data: match })
+      .on('GET', '/services/netflix', { data: serviceDetails })
+      .install();
+
+    await openPanel('https://parts.example/');
+    await screen.findByRole('heading', { name: 'What works' }, { timeout: 3000 });
+
+    // The card asks once, as soon as the service matches.
+    expect(api.callsTo('GET', '/services/netflix')).toHaveLength(1);
+    expect(screen.getByText('Each part of the service, checked from Syria.')).toBeDefined();
+
+    expect(screen.getByText('Core use')).toBeDefined();
+    expect(screen.getByText('Fails')).toBeDefined();
+    expect(screen.getByText('Opening the app and playing a video.')).toBeDefined();
+    expect(screen.getByText(/Since 16 Feb 2026/)).toBeDefined();
+    // September can come out as "Sep" or "Sept" depending on the ICU build.
+    expect(screen.getByText(/Checked 29 Sep/)).toBeDefined();
+
+    expect(screen.getByText('Landing page')).toBeDefined();
+    expect(screen.getByText('Works')).toBeDefined();
+    // A part with no note and no dates still shows its name and level.
+    expect(screen.getByText('Payments')).toBeDefined();
+    expect(screen.getByText('Not checked')).toBeDefined();
+  });
+
+  it('keeps the card as it is when the record cannot be read', async () => {
+    fakeApi()
+      .on('POST', '/services/match', { data: match })
+      .on('GET', '/services/netflix', { status: 500, json: { error: 'BOOM', message: 'Record unavailable' } })
+      .install();
+
+    await openPanel('https://no-details.example/');
+    await screen.findByRole('heading', { name: 'Netflix' }, { timeout: 3000 });
+    expect(screen.getByText('Usable')).toBeDefined();
+    expect(screen.queryByRole('heading', { name: 'What works' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'What works instead' })).toBeNull();
+  });
+});
+
+describe('alternatives on a blocked card', () => {
+  const blocked = { ...match, service: { ...match.service, availability: 'blocked' } };
+
+  it('offers the ones that work from Syria, each opening its page on the site', async () => {
+    fakeApi()
+      .on('POST', '/services/match', { data: blocked })
+      .on('GET', '/services/netflix', { data: serviceDetails })
+      .install();
+
+    await openPanel('https://alternatives.example/');
+    await screen.findByRole('heading', { name: 'What works instead' }, { timeout: 3000 });
+
+    expect(screen.getByText('Netflix is blocked from Syria. These work instead.')).toBeDefined();
+    expect(screen.getByRole('link', { name: /Airbnb/ })).toHaveProperty('href', `${SITE_BASE}/en/services/airbnb`);
+    expect(screen.getByRole('link', { name: /Booking/ })).toHaveProperty(
+      'href',
+      `${SITE_BASE}/en/services/booking-com`,
+    );
+    // Blocked and untested services are not offered as a way out.
+    expect(screen.queryByText('Hostelworld')).toBeNull();
+    expect(screen.queryByText('Wanderlog')).toBeNull();
+    // The service never points at itself.
+    expect(screen.queryByRole('link', { name: /Netflix/ })).toBeNull();
+  });
+
+  it('stays off a service that is not blocked', async () => {
+    fakeApi()
+      .on('POST', '/services/match', { data: match })
+      .on('GET', '/services/netflix', { data: serviceDetails })
+      .install();
+
+    await openPanel('https://not-blocked.example/');
+    await screen.findByRole('heading', { name: 'What works' }, { timeout: 3000 });
+    expect(screen.queryByRole('heading', { name: 'What works instead' })).toBeNull();
+    expect(screen.queryByText('Airbnb')).toBeNull();
+  });
 });

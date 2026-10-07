@@ -9,6 +9,7 @@ import {
 } from './endpoints';
 import { fakeApi } from '../testing/fakeApi';
 import match from '../testing/fixtures/match.json';
+import serviceDetails from '../testing/fixtures/service-details.json';
 import upload from '../testing/fixtures/upload.json';
 
 const screenshot = new Blob(['jpeg'], { type: 'image/jpeg' });
@@ -55,6 +56,30 @@ describe('untrusted API data', () => {
     ['GET', '/functionalities', getFunctionalities, null],
     ['GET', '/functionalities', getFunctionalities, [{ slug: 'constructor', name: 'Constructor' }]],
     ['GET', '/services/x', () => getServiceBySlug('x'), { id: 'x', name: 'X', url: null, functionalities: [{}] }],
+    [
+      'GET',
+      '/services/x',
+      () => getServiceBySlug('x'),
+      { id: 'x', name: 'X', url: null, functionalities: [{ slug: 'a', name: 'A', level: 'broken' }] },
+    ],
+    [
+      'GET',
+      '/services/x',
+      () => getServiceBySlug('x'),
+      {
+        id: 'x',
+        name: 'X',
+        url: null,
+        functionalities: [{ slug: 'a', name: 'A', level: 'working', lastObservedAt: 7 }],
+      },
+    ],
+    ['GET', '/services/x', () => getServiceBySlug('x'), { id: 'x', name: 'X', url: null, alternatives: [{}] }],
+    [
+      'GET',
+      '/services/x',
+      () => getServiceBySlug('x'),
+      { id: 'x', name: 'X', url: null, alternatives: [{ ...match.service, voteCount: 1.5 }] },
+    ],
   ] as const)('rejects malformed data from %s %s', async (method, path, request, data) => {
     fakeApi().on(method, path, { data }).install();
     expect(await request()).toMatchObject({ ok: false, error: { error: 'BAD_RESPONSE' } });
@@ -62,5 +87,30 @@ describe('untrusted API data', () => {
   it.each([null, {}, { voteCount: -1 }, { voteCount: '12' }])('rejects malformed vote receipts', async (json) => {
     fakeApi().on('POST', '/services/x/vote', { json }).install();
     expect(await voteForService('x')).toMatchObject({ ok: false, error: { error: 'BAD_RESPONSE' } });
+  });
+});
+
+// The card reads the parts and the alternatives straight off this record.
+describe('a record the card reads', () => {
+  it('keeps the part notes and dates and the alternatives as they came', async () => {
+    fakeApi().on('GET', '/services/netflix', { data: serviceDetails }).install();
+
+    const result = await getServiceBySlug('netflix');
+    expect(result).toMatchObject({ ok: true });
+    if (!result.ok) return;
+    expect(result.data.functionalities?.[0]).toMatchObject({
+      slug: 'core_use',
+      level: 'failing',
+      description: 'Opening the app and playing a video.',
+      changedAt: '2026-02-16T09:00:00.000Z',
+      lastObservedAt: '2026-09-29T09:00:00.000Z',
+    });
+    expect(result.data.alternatives?.map((item) => item.availability)).toEqual([
+      'usable',
+      'available',
+      'usable',
+      'blocked',
+      'unknown',
+    ]);
   });
 });
