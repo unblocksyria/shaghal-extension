@@ -14,7 +14,10 @@ accurate.
 
 ## Features
 
-Shaghal opens in the browser's side panel, next to the page. From there you can:
+Shaghal opens in the browser's side panel, next to the page, from its toolbar
+button or with Ctrl+Shift+U (Cmd+Shift+U on macOS). You can change the shortcut at
+`chrome://extensions/shortcuts`, or in Firefox under **Manage Extension Shortcuts**
+on the add-ons page. From the panel you can:
 
 - **Vote** for services you need.
 - **Report what works**, with a note or screenshot for each part you tested.
@@ -93,8 +96,9 @@ npm run test:e2e                 # browser tests against the last build
 ```
 
 `npm test` runs the unit tests alone, `npm run test:coverage` adds a coverage
-report in `extension/coverage/`, and `npm run format` formats the code. CI runs
-`check` with coverage, uploads it to Codecov, and runs the browser tests.
+report in `extension/coverage/`, and `npm run format` formats the code and the
+Markdown files at the root. CI runs `check` with coverage, uploads it to Codecov,
+and runs the browser tests.
 
 ### Builds
 
