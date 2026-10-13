@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { submitCorrection, submitFunctionalityReport, submitService } from './submit';
+import { submitWithReceipt } from './receipts';
 
 const verification = vi.hoisted(() => vi.fn());
 vi.mock('./turnstile', () => ({ turnstileToken: verification }));
@@ -255,6 +256,13 @@ describe('receipt slots', () => {
     });
     expect(Object.keys(await chrome.storage.session.get(null))).toEqual(['pendingReceipt:/corrections:service']);
   });
+
+  it('keys a receipt without a service or a url in the shared new-service slot', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockRejectedValueOnce(new Error('lost response'));
+    vi.stubGlobal('fetch', fetcher);
+    await submitWithReceipt('/submissions', { name: 'Example' }, 'submission');
+    expect(Object.keys(await chrome.storage.session.get(null))).toEqual(['pendingReceipt:/submissions:new-service']);
+  });
 });
 
 describe('two sites in a row', () => {
@@ -328,6 +336,31 @@ describe('a receipt left by an older build in the shared new-service slot', () =
       await blocked.error.discard?.();
     }
     expect(await chrome.storage.session.get(null)).toEqual({});
+  });
+
+  it('gives the current send its own slot once the shared receipt is over 24 hours old', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockRejectedValueOnce(new Error('lost response'));
+    vi.stubGlobal('fetch', fetcher);
+    await chrome.storage.session.set({
+      [legacy]: { key: `${Date.now() - 25 * 60 * 60 * 1000}.u`, fingerprint: 'nope' },
+    });
+    await submitService({ ...input, url: 'https://other.example' });
+    expect(Object.keys(await chrome.storage.session.get(null))).toEqual([
+      'pendingReceipt:/submissions:https://other.example',
+    ]);
+  });
+
+  it('gives the current send its own slot once the API no longer knows the shared receipt', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ state: 'expired' }))
+      .mockRejectedValueOnce(new Error('lost response'));
+    vi.stubGlobal('fetch', fetcher);
+    await chrome.storage.session.set({ [legacy]: { key: `${Date.now()}.u`, fingerprint: 'nope' } });
+    await submitService({ ...input, url: 'https://other.example' });
+    expect(Object.keys(await chrome.storage.session.get(null))).toEqual([
+      'pendingReceipt:/submissions:https://other.example',
+    ]);
   });
 });
 
