@@ -126,7 +126,7 @@ The reference is ordinary selectable text so it can be copied into a bug report.
 [receipts.ts](extension/src/lib/receipts.ts) protects form sends from being
 written twice. Each send gets a random key, stored in session storage with a hash
 of the request body. There is one pending receipt per service for reports and
-corrections, and one shared by all new-service submissions. Resending the same
+corrections, and one per submitted address for new-service submissions. Resending the same
 body reuses the key, and the API answers a repeated key with the original result.
 A different body first asks `POST /submission-receipts` what happened to the
 earlier send; the sequence is in [Forms and screenshots](#forms-and-screenshots).

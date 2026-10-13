@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
-import { submitService } from './submit';
+import { submitCorrection, submitFunctionalityReport, submitService } from './submit';
 
 const verification = vi.hoisted(() => vi.fn());
 vi.mock('./turnstile', () => ({ turnstileToken: verification }));
@@ -219,6 +219,114 @@ describe('a definite failure', () => {
     vi.stubGlobal('fetch', fetcher);
     expect((await submitService(input)).ok).toBe(false);
     expect(fetcher).not.toHaveBeenCalled();
+    expect(await chrome.storage.session.get(null)).toEqual({});
+  });
+});
+
+describe('receipt slots', () => {
+  it('keys a new-service receipt by the submitted url', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockRejectedValueOnce(new Error('lost response'));
+    vi.stubGlobal('fetch', fetcher);
+    await submitService(input);
+    expect(Object.keys(await chrome.storage.session.get(null))).toEqual([
+      'pendingReceipt:/submissions:https://example.com',
+    ]);
+  });
+
+  it('keys a report receipt by service, not by url', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockRejectedValueOnce(new Error('lost response'));
+    vi.stubGlobal('fetch', fetcher);
+    await submitFunctionalityReport({
+      serviceId: 'service',
+      items: [{ slug: 'core_use', level: 'working', description: 'Works' }],
+    });
+    expect(Object.keys(await chrome.storage.session.get(null))).toEqual([
+      'pendingReceipt:/functionality-reports:service',
+    ]);
+  });
+
+  it('keys a correction receipt by service, not by url', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockRejectedValueOnce(new Error('lost response'));
+    vi.stubGlobal('fetch', fetcher);
+    await submitCorrection({
+      serviceId: 'service',
+      changes: [{ correctionType: 'description', proposedValue: 'Updated' }],
+      evidenceUrls: [],
+    });
+    expect(Object.keys(await chrome.storage.session.get(null))).toEqual(['pendingReceipt:/corrections:service']);
+  });
+});
+
+describe('two sites in a row', () => {
+  it('does not let one site lose its response and block another site', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(new Error('lost response'))
+      .mockResolvedValueOnce(Response.json({ id: 'b' }))
+      .mockResolvedValueOnce(Response.json({ id: 'a' }));
+    vi.stubGlobal('fetch', fetcher);
+    await submitService({ ...input, url: 'https://a.example', name: 'A' });
+    const other = await submitService({ ...input, url: 'https://b.example', name: 'B' });
+    expect(other.ok).toBe(true);
+    expect(keyOf(fetcher.mock.calls[1])).not.toBe(keyOf(fetcher.mock.calls[0]));
+    expect((await submitService({ ...input, url: 'https://a.example', name: 'A' })).ok).toBe(true);
+    expect(keyOf(fetcher.mock.calls[2])).toBe(keyOf(fetcher.mock.calls[0]));
+  });
+
+  it('does not let one site have its send received and block another site', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(new Error('lost response'))
+      .mockResolvedValueOnce(Response.json({ state: 'completed', status: 201 }))
+      .mockResolvedValueOnce(Response.json({ id: 'b' }));
+    vi.stubGlobal('fetch', fetcher);
+    await submitService({ ...input, url: 'https://a.example', name: 'A' });
+    const received = await submitService({ ...input, url: 'https://a.example', name: 'Changed' });
+    expect(received.ok === false && received.error.error).toBe('PREVIOUS_DELIVERY_CONFIRMED');
+    const other = await submitService({ ...input, url: 'https://b.example', name: 'B' });
+    expect(other.ok).toBe(true);
+  });
+});
+
+describe('a receipt left by an older build in the shared new-service slot', () => {
+  const legacy = 'pendingReceipt:/submissions:new-service';
+
+  /** Moves the pending receipt to where an older build would have kept it. */
+  const toLegacySlot = async () => {
+    const stored = await chrome.storage.session.get(null);
+    const receipt = stored['pendingReceipt:/submissions:https://example.com'];
+    if (receipt === undefined) throw new Error('no pending receipt to move');
+    await chrome.storage.session.set({ [legacy]: receipt });
+    await chrome.storage.session.remove('pendingReceipt:/submissions:https://example.com');
+  };
+
+  it('adopts it when the details match, keeping duplicate protection', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(new Error('lost response'))
+      .mockResolvedValueOnce(Response.json({ id: 'receipt' }));
+    vi.stubGlobal('fetch', fetcher);
+    await submitService(input);
+    await toLegacySlot();
+    expect((await submitService(input)).ok).toBe(true);
+    expect(keyOf(fetcher.mock.calls[1])).toBe(keyOf(fetcher.mock.calls[0]));
+    expect(await chrome.storage.session.get(null)).toEqual({});
+  });
+
+  it('keeps blocking with the shared slot when the details do not match', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(new Error('lost response'))
+      .mockResolvedValueOnce(Response.json({ state: 'unconfirmed' }));
+    vi.stubGlobal('fetch', fetcher);
+    await submitService(input);
+    await toLegacySlot();
+    const blocked = await submitService({ ...input, url: 'https://other.example' });
+    expect(blocked.ok).toBe(false);
+    if (!blocked.ok) {
+      expect(blocked.error.error).toBe('DELIVERY_UNCONFIRMED');
+      await blocked.error.discard?.();
+    }
     expect(await chrome.storage.session.get(null)).toEqual({});
   });
 });

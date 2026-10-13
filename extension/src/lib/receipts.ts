@@ -23,7 +23,9 @@ function isExpired(key: string): boolean {
  * the body, never the form contents. If the body changed since an uncertain
  * attempt, the old receipt is looked up instead of sending. A receipt the API
  * no longer knows (expired, or older than 24 hours) is dropped. One it can't
- * confirm stays until the user discards it.
+ * confirm stays until the user discards it. A new-service send keeps its
+ * receipt per submitted address; a receipt an older build left in one shared
+ * slot is adopted when the details match, and blocks as before when they don't.
  */
 export async function submitWithReceipt(
   path: string,
@@ -32,11 +34,26 @@ export async function submitWithReceipt(
 ): Promise<ApiResult<unknown>> {
   const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(body)));
   const fingerprint = Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, '0')).join('');
-  const slot = `pendingReceipt:${path}:${typeof body.serviceId === 'string' ? body.serviceId : 'new-service'}`;
+  const id =
+    typeof body.serviceId === 'string' ? body.serviceId : typeof body.url === 'string' ? body.url : 'new-service';
+  let slot = `pendingReceipt:${path}:${id}`;
   let receipt: PendingReceipt;
   let retained: boolean;
   try {
     let stored = (await chrome.storage.session.get(slot))[slot] as PendingReceipt | undefined;
+    if (stored === undefined && path === '/submissions') {
+      const sharedSlot = `pendingReceipt:${path}:new-service`;
+      const fallback = (await chrome.storage.session.get(sharedSlot))[sharedSlot] as PendingReceipt | undefined;
+      if (fallback !== undefined) {
+        if (fallback.fingerprint === fingerprint) {
+          await chrome.storage.session.set({ [slot]: fallback });
+          await chrome.storage.session.remove(sharedSlot);
+        } else {
+          slot = sharedSlot;
+        }
+        stored = fallback;
+      }
+    }
     if (stored !== undefined && isExpired(stored.key)) {
       await chrome.storage.session.remove(slot);
       stored = undefined;
