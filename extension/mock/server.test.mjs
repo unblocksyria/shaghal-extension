@@ -31,6 +31,20 @@ await import('./server.mjs');
 await ready();
 
 describe('the HTTP wrapper keeps answers intact (AC-2)', () => {
+  it('answers the reads with the query string the client sends', async () => {
+    for (const path of ['/functionalities?locale=ar', '/categories?locale=en']) {
+      const res = await fetch('http://localhost:8787' + path);
+      expect(res.status).toBe(200);
+      expect(Array.isArray((await res.json()).data)).toBe(true);
+    }
+  });
+
+  it('answers the service record with a query string too', async () => {
+    const res = await fetch('http://localhost:8787/services/netflix?locale=ar');
+    expect(res.status).toBe(200);
+    expect((await res.json()).data.id).toBe('svc-netflix');
+  });
+
   it('passes a JSON string body through without re-encoding', async () => {
     const res = await fetch('http://localhost:8787/services/netflix/vote', { method: 'POST' });
     const raw = await res.text();

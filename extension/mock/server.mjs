@@ -18,7 +18,15 @@ const server = http.createServer((req, res) => {
   req.on('data', (chunk) => chunks.push(chunk));
   req.on('end', () => {
     const rawBody = Buffer.concat(chunks).toString('utf8');
-    const { status, body, cors } = dispatch(req.method, req.url, rawBody, req.headers);
+    let answer;
+    try {
+      // The client appends ?locale= to reads; route on the pathname alone.
+      const { pathname } = new URL(req.url, 'http://localhost');
+      answer = dispatch(req.method, pathname, rawBody, req.headers);
+    } catch {
+      answer = { status: 400, body: { error: 'malformed request url' } };
+    }
+    const { status, body, cors } = answer;
     res.writeHead(status, {
       ...CORS,
       ...(cors ? {} : { 'Content-Type': 'application/json; charset=utf-8' }),

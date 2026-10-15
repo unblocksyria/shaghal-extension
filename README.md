@@ -112,8 +112,10 @@ The mock picks the card state from the page you open in the test tab:
 
 So try your change: open `netflix.com` for the matched card and the vote and
 report forms, `google.com` for the pick list and correction flow, and any other
-site for the not tracked state. Unknown routes answer 404 and malformed bodies
-answer 400, so the error paths behave like the real API.
+site for the not tracked state. The service you pick keeps its own name and
+identity in the forms; the rest of its record comes from one shared placeholder
+fixture. Unknown routes answer 404 and malformed bodies answer 400, so the
+error paths behave like the real API.
 
 ### Tests
 

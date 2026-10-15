@@ -65,6 +65,19 @@ export function matchAnswerFor(url) {
   return 'match-none';
 }
 
+// The services the fixtures know, so a fetched record can carry the picked
+// service's own identity. Seeded from match.json and the pick list.
+const KNOWN = (() => {
+  const known = new Map();
+  for (const name of ['match', 'match-many']) {
+    const payload = JSON.parse(fixture(name));
+    for (const entry of [payload.service, ...(payload.alternatives ?? [])]) {
+      if (entry) known.set(entry.slug, entry);
+    }
+  }
+  return known;
+})();
+
 const VERIFIED_FORMS = new Set(['/functionality-reports', '/corrections', '/submissions']);
 
 export function dispatch(method, pathname, rawBody, headers = {}) {
@@ -84,7 +97,15 @@ export function dispatch(method, pathname, rawBody, headers = {}) {
   if (method === 'GET' && pathname.startsWith('/services/')) {
     const slug = pathname.slice('/services/'.length);
     if (!slug || slug.includes('/')) return { status: 404, body: { error: 'not found' } };
-    return { status: 200, body: READ('service-details') };
+    const record = JSON.parse(fixture('service-details'));
+    const entry = KNOWN.get(slug);
+    if (entry) {
+      record.id = entry.id;
+      record.slug = entry.slug;
+      record.name = entry.name;
+      record.company = entry.company;
+    }
+    return { status: 200, body: JSON.stringify({ data: record }) };
   }
 
   if (method === 'GET' && pathname === '/functionalities') return { status: 200, body: READ('functionalities') };

@@ -125,3 +125,16 @@ describe('host parsing helpers', () => {
     expect(en.body).toBe(ar.body);
   });
 });
+
+describe('a fetched record carries the picked service identity (AC-2)', () => {
+  it('answers a known slug with its own identity fields', () => {
+    const { body } = dispatch('GET', '/services/google', '');
+    const record = JSON.parse(body).data;
+    expect(record).toMatchObject({ id: 'svc-google', slug: 'google', name: 'Google' });
+  });
+
+  it('keeps the placeholder record for an unknown slug', () => {
+    const { body } = dispatch('GET', '/services/unknown-thing', '');
+    expect(JSON.parse(body).data.id).toBe('svc-netflix');
+  });
+});
