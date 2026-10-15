@@ -85,6 +85,38 @@ npm run dev
 **Votes and submissions from this build are real**, so browse freely but don't
 send test submissions. The tests need neither API; they use a fake one.
 
+### Mock API
+
+You don't need the private API repo to click through your change. From `extension/`:
+
+```bash
+npm run dev:mock
+```
+
+That starts a zero dependency mock API on `http://localhost:8787` and the
+development build in one command; Ctrl+C stops both. The panel already points at
+`localhost:8787` in dev builds, and a local API skips Turnstile verification, so
+nothing real is ever sent: every answer is a fake from the same fixtures the
+tests use. Repeat a form send freely; to see the receipt check end to end,
+change the receipt key to end in `-completed` (sent), `-unconfirmed` (still
+pending), or anything else (expired). Votes keep a count in memory that moves
+when you vote and unvote, and resets when the mock restarts.
+
+The mock picks the card state from the page you open in the test tab:
+
+| Open a page on           | Card you get                               |
+| ------------------------ | ------------------------------------------ |
+| `netflix.com` (and subs) | One matched service, usable, vote count 13 |
+| `google.com` (and subs)  | A pick list of tracked services            |
+| anything else            | Not tracked, with the suggest form         |
+
+So try your change: open `netflix.com` for the matched card and the vote and
+report forms, `google.com` for the pick list and correction flow, and any other
+site for the not tracked state. The service you pick keeps its own name and
+identity in the forms; the rest of its record comes from one shared placeholder
+fixture. Unknown routes answer 404 and malformed bodies answer 400, so the
+error paths behave like the real API.
+
 ### Tests
 
 Run from `extension/`:
