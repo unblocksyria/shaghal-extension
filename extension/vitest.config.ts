@@ -10,7 +10,7 @@ export default defineConfig({
   test: {
     // React Testing Library needs globals to clean up after each test.
     globals: true,
-    include: ['src/**/*.test.{ts,tsx}'],
+    include: ['src/**/*.test.{ts,tsx}', 'mock/**/*.test.mjs'],
     setupFiles: ['src/testing/setup.ts'],
     testTimeout: 10_000,
     restoreMocks: true,
