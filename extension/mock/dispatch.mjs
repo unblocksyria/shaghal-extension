@@ -30,20 +30,36 @@ function hostOf(url) {
   }
 }
 
-// The vote counter starts a little under the seeded number and moves as the
-// panel votes and unvotes; it resets when the mock restarts (a map in memory,
-// nothing on disk).
+// The vote counter starts at the count the fixtures show for each slug (the
+// card's number) and moves one per vote. It resets when the mock restarts (a
+// map in memory, nothing on disk).
 const voteCounts = new Map();
 
-// POST adds one vote, DELETE removes one, never below zero. Seeded from
-// vote.json (the count the tests see) on the first vote for a slug.
+// Where a slug's count starts: its own fixture value (Netflix 12, Google 3,
+// YouTube 7), with vote.json as the fallback for slugs no fixture knows.
+const seedCount = (slug) => {
+  const entry = KNOWN.get(slug);
+  const shown = entry ? entry.voteCount : JSON.parse(fixture('vote')).voteCount;
+  return Number.isInteger(shown) ? shown : 0;
+};
+
+const currentCount = (slug) => {
+  if (!voteCounts.has(slug)) voteCounts.set(slug, seedCount(slug));
+  return voteCounts.get(slug);
+};
+
+// POST adds one vote, DELETE removes one, never below zero.
 function changeVote(slug, delta) {
-  if (!voteCounts.has(slug)) {
-    const seeded = JSON.parse(fixture('vote')).voteCount - 1;
-    voteCounts.set(slug, Number.isInteger(seeded) ? Math.max(seeded, 0) : 0);
-  }
-  voteCounts.set(slug, Math.max(voteCounts.get(slug) + delta, 0));
+  voteCounts.set(slug, Math.max(currentCount(slug) + delta, 0));
   return { voteCount: voteCounts.get(slug) };
+}
+
+// Lookups answer the live counter, so a vote survives a panel reload.
+function applyVoteCounts(match) {
+  for (const entry of [match.service, ...(match.alternatives ?? [])]) {
+    if (entry) entry.voteCount = currentCount(entry.slug);
+  }
+  return match;
 }
 
 // A test triplet the whole receipt flow can be driven through: the key you
@@ -91,7 +107,8 @@ export function dispatch(method, pathname, rawBody, headers = {}) {
   if (method === 'POST' && pathname === '/services/match') {
     const parsed = parseJson(rawBody);
     if (!parsed.ok || typeof parsed.value?.url !== 'string') return { status: 400, body: { error: 'malformed body' } };
-    return { status: 200, body: READ(matchAnswerFor(parsed.value.url)) };
+    const match = applyVoteCounts(JSON.parse(fixture(matchAnswerFor(parsed.value.url))));
+    return { status: 200, body: JSON.stringify({ data: match }) };
   }
 
   if (method === 'GET' && pathname.startsWith('/services/')) {

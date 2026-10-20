@@ -138,3 +138,19 @@ describe('a fetched record carries the picked service identity (AC-2)', () => {
     expect(JSON.parse(body).data.id).toBe('svc-netflix');
   });
 });
+
+describe('vote counts follow the fixture the card shows (AC-4)', () => {
+  it('moves a pick list count by one per vote, starting from its fixture value', () => {
+    const up = JSON.parse(dispatch('POST', '/services/youtube/vote', '').body).voteCount;
+    const down = JSON.parse(dispatch('DELETE', '/services/youtube/vote', '').body).voteCount;
+    expect(up).toBe(8);
+    expect(down).toBe(7);
+  });
+
+  it('answers lookups with the live count after a vote', () => {
+    const up = JSON.parse(dispatch('POST', '/services/google/vote', '').body).voteCount;
+    const match = JSON.parse(dispatch('POST', '/services/match', JSON.stringify({ url: 'https://google.com' })).body);
+    const entry = match.data.alternatives.find((alternative) => alternative.slug === 'google');
+    expect(entry.voteCount).toBe(up);
+  });
+});
