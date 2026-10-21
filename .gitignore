@@ -25,3 +25,6 @@ npm-debug.log*
 
 # Coverage reports
 coverage/
+
+# Local agent tooling preferences
+test-preferences.json

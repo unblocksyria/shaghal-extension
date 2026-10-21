@@ -10,13 +10,16 @@
 /** What `restoreFocus` managed to focus, if anything. */
 export type FocusGoal = 'opener' | 'fallback' | 'none';
 
-let opener: WeakRef<HTMLElement> | null = null;
+// Openers nest like the views do: a form over the card, then Settings over
+// the form. Each open pushes, each return pops, so a view always goes back to
+// the control that opened it, not to a control an overlay left behind.
+const openers: (WeakRef<HTMLElement> | null)[] = [];
 let fallback: WeakRef<HTMLElement> | null = null;
 
 /** Remembers the control that currently has focus, while it still does. */
 export function captureOpener(): void {
   const active = document.activeElement;
-  opener = active instanceof HTMLElement && active !== document.body ? new WeakRef(active) : null;
+  openers.push(active instanceof HTMLElement && active !== document.body ? new WeakRef(active) : null);
 }
 
 /**
@@ -29,7 +32,8 @@ export function rememberFallbackHeading(node: HTMLElement | null): void {
 
 /** Puts focus back on the opener, or on the fallback heading if the opener is gone. */
 export function restoreFocus(): FocusGoal {
-  const back = opener?.deref();
+  const ref = openers.pop();
+  const back = ref?.deref();
   if (back !== undefined && back.isConnected) {
     back.focus();
     return 'opener';

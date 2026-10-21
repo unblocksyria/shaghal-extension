@@ -70,4 +70,26 @@ describe('the queued restore', () => {
     expect(runQueuedFocus()).toBe('opener');
     expect(runQueuedFocus()).toBeNull();
   });
+
+  it('keeps the view opener when Settings opens over it, for the view to return to later', () => {
+    const report = mounted('button', true);
+    report.focus();
+    captureOpener();
+    const gear = mounted('button', true);
+    gear.focus();
+    captureOpener();
+    rememberFallbackHeading(null);
+    // Closing Settings returns to the gear.
+    queueRestore();
+    expect(runQueuedFocus()).toBe('opener');
+    expect(document.activeElement).toBe(gear);
+    // Back in the form then finds its own opener gone, so the card's heading.
+    report.remove();
+    rememberFallbackHeading(null);
+    const heading = mounted('h1', true);
+    rememberFallbackHeading(heading);
+    queueRestore();
+    expect(runQueuedFocus()).toBe('fallback');
+    expect(document.activeElement).toBe(heading);
+  });
 });

@@ -134,6 +134,26 @@ describe('focus as views open and close', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Settings' }));
   });
 
+  it('keeps the form opener under Settings, so a later Back still lands on the card', async () => {
+    const user = userEvent.setup();
+    fakeApi()
+      .on('POST', '/services/match', { data: match })
+      .on('GET', '/services/netflix', { data: serviceRecord })
+      .install();
+
+    await openPanel('https://nested-focus.example/');
+    await user.click(await screen.findByRole('button', { name: 'Report what works' }, { timeout: 3000 }));
+    await screen.findByRole('heading', { name: 'Report what works' });
+
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Settings' }));
+
+    // The report button is long gone, so Back lands on the card's name, not on Settings.
+    await user.click(screen.getByRole('button', { name: 'Back to Netflix' }));
+    expect(document.activeElement).toBe(await screen.findByRole('heading', { name: 'Netflix' }));
+  });
+
   it('never moves focus when the card follows the active tab', async () => {
     fakeApi().on('POST', '/services/match', { data: match }).install();
 
