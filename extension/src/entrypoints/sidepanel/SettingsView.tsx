@@ -134,7 +134,9 @@ export function SettingsView(props: { onBack: () => void }) {
           <Button variant="surface" size="sm" onClick={() => void save()} icon={<Check size={14} />}>
             {t('settings.saveEmail')}
           </Button>
-          {saved && <span style={{ fontSize: 12, color: 'var(--us-accent-text)' }}>{t('settings.saved')}</span>}
+          <div aria-live="polite" style={{ display: 'contents' }}>
+            {saved && <span style={{ fontSize: 12, color: 'var(--us-accent-text)' }}>{t('settings.saved')}</span>}
+          </div>
         </div>
       </div>
 

@@ -2,7 +2,15 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
 import { act, createEvent, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
-import { FormShell, ScreenshotField, emailError, useSavedEmail, useScreenshotLists, useScreenshots } from './FormParts';
+import {
+  FormShell,
+  SentState,
+  ScreenshotField,
+  emailError,
+  useSavedEmail,
+  useScreenshotLists,
+  useScreenshots,
+} from './FormParts';
 import { isEditorOpen } from '../../../lib/editorWindow';
 import { saveEmail } from '../../../lib/settings';
 import type { PendingEvidence } from '../../../lib/evidence';
@@ -42,6 +50,22 @@ it('still protects unsent form drafts on Back and unload', async () => {
   expect(screen.getByRole('dialog', { name: 'Discard this draft?' })).toBeDefined();
   await user.click(screen.getByRole('button', { name: 'Discard draft' }));
   expect(onBack).toHaveBeenCalledOnce();
+});
+
+it('puts focus on its heading as the view opens', () => {
+  render(
+    <FormShell backLabel="Back" onBack={vi.fn()} title="Report" intro="Describe the issue.">
+      <input aria-label="Description" />
+    </FormShell>,
+  );
+  const heading = screen.getByRole('heading', { name: 'Report' });
+  expect(document.activeElement).toBe(heading);
+});
+
+it('announces the sent screen politely and puts focus on its heading', () => {
+  render(<SentState title="Report sent" message="Thank you." actionLabel="Done" onAction={vi.fn()} />);
+  expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Report sent' }));
+  expect(screen.getByText('Thank you.').closest('[aria-live]')).not.toBeNull();
 });
 
 /** Opens the report-a-service form, whose page URL drives the screenshot site check. */

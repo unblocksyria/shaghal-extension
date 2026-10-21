@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { applyStoredLanguage } from '../../lib/i18n';
 import { apiErrorMessage } from '../../lib/api';
+import { captureOpener, queueRestore, runQueuedFocus } from '../../lib/focusFlow';
 import { getServiceBySlug, type CatalogService, type ServiceRecord } from '../../lib/endpoints';
 import { watchSavedLanguage } from '../../lib/settings';
 import { isOwnSite, normalizeServiceUrl } from '../../lib/url';
@@ -53,6 +54,7 @@ export function SidePanelApp() {
   const open = async (service: CatalogService, name: 'report' | 'correction') => {
     if (opening) return;
     setOpenFailure(null);
+    captureOpener();
     setOpening(true);
     const result = await getServiceBySlug(service.slug);
     setOpening(false);
@@ -67,7 +69,14 @@ export function SidePanelApp() {
     setView({ name, service: result.data, pageUrl: activeTab.url });
   };
 
-  const home = () => setView({ name: 'home' });
+  const home = () => {
+    queueRestore();
+    setView({ name: 'home' });
+  };
+  // Only a return asks for a restore, and it runs once the view it returns to is committed.
+  useEffect(() => {
+    runQueuedFocus();
+  }, [view, settingsOpen]);
 
   const page = () => {
     switch (view.name) {
@@ -90,20 +99,32 @@ export function SidePanelApp() {
             onCorrect={(service) => void open(service, 'correction')}
             onReportNew={() => {
               const url = normalizeServiceUrl(activeTab.url ?? '');
-              if (url !== null) setView({ name: 'report-service', url, pageTitle: activeTab.title });
+              if (url !== null) {
+                captureOpener();
+                setView({ name: 'report-service', url, pageTitle: activeTab.title });
+              }
             }}
           />
         );
     }
   };
 
+  const openSettings = () => {
+    captureOpener();
+    setSettingsOpen(true);
+  };
+  const closeSettings = () => {
+    queueRestore();
+    setSettingsOpen(false);
+  };
+
   return (
     <div className="us-app-container">
       <div className="us-app-content">
-        <BrandHeader onOpenSettings={() => setSettingsOpen(true)} />
+        <BrandHeader onOpenSettings={openSettings} />
         <main style={{ padding: '0 16px 24px 16px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 14 }}>
           <HostAccessNotice />
-          {settingsOpen && <SettingsView onBack={() => setSettingsOpen(false)} />}
+          {settingsOpen && <SettingsView onBack={closeSettings} />}
           <div
             style={{
               display: settingsOpen ? 'none' : 'grid',
@@ -111,8 +132,14 @@ export function SidePanelApp() {
               gap: 14,
             }}
           >
-            {openError !== null && <p style={{ ...hintStyle, color: 'var(--us-danger)' }}>{openError}</p>}
-            {opening ? <p style={hintStyle}>{t('app.opening')}</p> : page()}
+            {/* The two lines a reader is told about change without a click of their own. */}
+            <div aria-live="polite" style={{ display: 'contents' }}>
+              {openError !== null && <p style={{ ...hintStyle, color: 'var(--us-danger)' }}>{openError}</p>}
+            </div>
+            <div aria-live="polite" style={{ display: 'contents' }}>
+              {opening && <p style={hintStyle}>{t('app.opening')}</p>}
+            </div>
+            {!opening && page()}
           </div>
         </main>
       </div>
