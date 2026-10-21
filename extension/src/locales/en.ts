@@ -270,10 +270,10 @@ export const en = {
     uploadNoFile: 'The upload answered without a file address.',
     incompleteData: 'Unblock Syria sent incomplete or invalid data. Try again.',
     cooldown: 'This shared network is busy. Try again in {{wait}}. Keep this panel open to preserve your draft.',
-    cooldownSecond_one: 'second',
-    cooldownSecond_other: 'seconds',
-    cooldownMinute_one: 'minute',
-    cooldownMinute_other: 'minutes',
+    cooldownSecond_one: '{{count}} second',
+    cooldownSecond_other: '{{count}} seconds',
+    cooldownMinute_one: '{{count}} minute',
+    cooldownMinute_other: '{{count}} minutes',
   },
 
   votes: {

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { apiErrorMessage, formErrorMessage, apiRequest } from './api';
 import { API_BASE, IS_LOCAL_API } from './config';
-import { i18next } from './i18n';
+import { applyLanguage, i18next } from './i18n';
 
 function stubFetch(...responses: Array<Response | Error>) {
   const fetchMock = vi.fn<typeof fetch>();
@@ -177,6 +177,17 @@ it('explains shared-network cooldowns without losing the draft', () => {
   expect(formErrorMessage({ error: 'SERVICE_UNAVAILABLE', message: 'Temporarily unavailable', status: 503 })).toBe(
     'Temporarily unavailable',
   );
+});
+
+it('writes the Arabic dual in a shared-network cooldown', () => {
+  applyLanguage('ar');
+  try {
+    const message = formErrorMessage({ error: 'RATE_LIMITED', message: 'Limit', status: 429, retryAfterSeconds: 120 });
+    expect(message).toContain('بعد دقيقتين.');
+    expect(message).not.toMatch(/[A-Za-z]/);
+  } finally {
+    applyLanguage('en');
+  }
 });
 
 describe('visible request references', () => {

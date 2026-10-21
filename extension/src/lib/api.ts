@@ -26,8 +26,8 @@ export function formErrorMessage(error: ApiError): string {
   if (error.status !== 429) return apiErrorMessage(error);
   const seconds = Math.max(1, Math.ceil(error.retryAfterSeconds ?? 60));
   const amount = seconds < 60 ? seconds : Math.ceil(seconds / 60);
-  const unit = i18next.t(seconds < 60 ? 'api.cooldownSecond' : 'api.cooldownMinute', { count: amount });
-  return apiErrorMessage(error, i18next.t('api.cooldown', { wait: `${amount} ${unit}` }));
+  const wait = i18next.t(seconds < 60 ? 'api.cooldownSecond' : 'api.cooldownMinute', { count: amount });
+  return apiErrorMessage(error, i18next.t('api.cooldown', { wait }));
 }
 
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: ApiError };

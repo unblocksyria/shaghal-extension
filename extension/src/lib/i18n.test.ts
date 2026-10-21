@@ -87,6 +87,20 @@ describe('the catalogs', () => {
   const english = new Map(leaves(en));
   const arabic = new Map(leaves(ar));
 
+  it('give every Arabic plural key all six forms', () => {
+    const forms = ['zero', 'one', 'two', 'few', 'many', 'other'];
+    const bases = new Set(
+      [...arabic.keys()].flatMap((key) => {
+        const match = /^(.+)_(zero|one|two|few|many|other)$/.exec(key);
+        return match ? [match[1]] : [];
+      }),
+    );
+    const missing = [...bases].flatMap((base) =>
+      forms.map((form) => `${base}_${form}`).filter((key) => !arabic.has(key)),
+    );
+    expect(missing).toEqual([]);
+  });
+
   it('translate every English string into Arabic', () => {
     expect([...english.keys()].filter((key) => !arabic.has(key))).toEqual([]);
   });
@@ -100,16 +114,37 @@ describe('the catalogs', () => {
     const placeholders = (text: string) => [...text.matchAll(/\{\{(\w+)\}\}/g)].map((match) => match[1]).sort();
     for (const [key, text] of arabic) {
       const original = english.get(key);
-      if (original !== undefined) {
+      if (original !== undefined && !key.endsWith('_one')) {
         expect({ key, placeholders: placeholders(text) }).toEqual({ key, placeholders: placeholders(original) });
         continue;
       }
       // An extra plural form may leave a placeholder out ("no votes"), but never invent one.
-      const other = english.get(key.replace(/_(zero|two|few|many)$/, '_other')) ?? '';
+      const other = original ?? english.get(key.replace(/_(zero|two|few|many)$/, '_other')) ?? '';
       for (const name of placeholders(text))
         expect({ key, name, known: placeholders(other) }).toMatchObject({
           known: expect.arrayContaining([name]) as unknown,
         });
+    }
+  });
+});
+
+describe('cooldown waits', () => {
+  const wait = (key: 'api.cooldownSecond' | 'api.cooldownMinute', count: number) => i18next.t(key, { count });
+
+  it('read naturally in English', () => {
+    expect(wait('api.cooldownMinute', 1)).toBe('1 minute');
+    expect(wait('api.cooldownSecond', 30)).toBe('30 seconds');
+  });
+
+  it('use the Arabic dual, with no Latin text', () => {
+    applyLanguage('ar');
+    expect(wait('api.cooldownSecond', 2)).toBe('ثانيتين');
+    expect(wait('api.cooldownMinute', 2)).toBe('دقيقتين');
+    expect(wait('api.cooldownMinute', 1)).toBe('دقيقة واحدة');
+    expect(wait('api.cooldownMinute', 5)).toBe('5 دقائق');
+    expect(wait('api.cooldownSecond', 30)).toBe('30 ثانية');
+    for (const count of [1, 2, 3, 11, 30, 59]) {
+      expect(wait('api.cooldownSecond', count)).not.toMatch(/[A-Za-z]/);
     }
   });
 });
