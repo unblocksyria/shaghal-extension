@@ -5,6 +5,7 @@ import { apiErrorMessage } from '../../lib/api';
 import { getServiceBySlug, type CatalogService, type ServiceRecord } from '../../lib/endpoints';
 import { watchSavedLanguage } from '../../lib/settings';
 import { isOwnSite, normalizeServiceUrl } from '../../lib/url';
+import { isolate } from '../../lib/serviceName';
 import { SettingsView } from './SettingsView';
 import { useActiveTab } from './hooks/useActiveTab';
 import { useServiceMatch } from './hooks/useServiceMatch';
@@ -60,7 +61,7 @@ export function SidePanelApp() {
     if (!result.ok) {
       setOpenFailure({
         pageUrl: activeTab.url,
-        message: t('app.openFailed', { name: service.name, message: apiErrorMessage(result.error) }),
+        message: t('app.openFailed', { name: isolate(service.name), message: apiErrorMessage(result.error) }),
       });
       return;
     }
