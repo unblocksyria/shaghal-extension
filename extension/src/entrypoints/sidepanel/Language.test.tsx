@@ -177,13 +177,15 @@ describe('language', () => {
       .install();
 
     await openPanel('https://named.example/', { language: 'ar' });
-    expect(await screen.findByRole('heading', { name: 'Netflix (نتفليكس)' }, { timeout: 3000 })).toBeDefined();
+    expect(
+      await screen.findByRole('heading', { name: '\u2068Netflix\u2069 (نتفليكس)' }, { timeout: 3000 }),
+    ).toBeDefined();
 
     document.documentElement.dir = 'ltr';
     fakeApi().on('POST', '/services/match', { data: match }).install();
     await openPanel('https://unnamed.example/', { language: 'ar' });
     // `match.json` carries no nameAr, so there are no brackets to add.
-    expect(await screen.findByRole('heading', { name: 'Netflix' }, { timeout: 3000 })).toBeDefined();
+    expect(await screen.findByRole('heading', { name: '\u2068Netflix\u2069' }, { timeout: 3000 })).toBeDefined();
   });
 
   it('carries the active locale on the read routes', async () => {
@@ -205,7 +207,7 @@ describe('language', () => {
     expect(api.calls.find((call) => call.path === '/functionalities')?.url).toContain('locale=ar');
 
     // The back button includes the service name.
-    await user.click(screen.getByRole('button', { name: 'العودة إلى Netflix' }));
+    await user.click(screen.getByRole('button', { name: 'العودة إلى \u2068Netflix\u2069' }));
     await user.click(await screen.findByRole('button', { name: 'اقترح تصحيحاً' }));
     await screen.findByRole('heading', { name: 'اقترح تصحيحاً' });
     await user.click(screen.getByRole('checkbox', { name: 'الفئات' }));

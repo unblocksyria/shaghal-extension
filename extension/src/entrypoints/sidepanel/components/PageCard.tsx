@@ -4,7 +4,7 @@ import type { Availability, CatalogService, ServiceFunctionality } from '../../.
 import { SITE_BASE } from '../../../lib/config';
 import { rememberFallbackHeading } from '../../../lib/focusFlow';
 import { activeLanguage, i18next, intlLocale, sitePathSegment } from '../../../lib/i18n';
-import { serviceName } from '../../../lib/serviceName';
+import { isolate, serviceName } from '../../../lib/serviceName';
 import { hostOf } from '../../../lib/url';
 import { hasVoted, setVote, watchVote } from '../../../lib/votes';
 import type { MatchState } from '../hooks/useServiceMatch';
@@ -482,7 +482,7 @@ function ServiceView(props: {
         <StatusBadge availability={service.availability} />
         <p style={{ ...hintStyle, fontSize: 13 }}>
           {t(`card.status.${knownStatus(service.availability)}.meaning` as const)}
-          {props.parentDomain && ` ${t('card.subdomain', { name: service.name })}`}
+          {props.parentDomain && ` ${t('card.subdomain', { name: isolate(service.name) })}`}
         </p>
       </div>
 
