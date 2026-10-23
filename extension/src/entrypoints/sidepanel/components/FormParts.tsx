@@ -1,5 +1,5 @@
 import { formErrorMessage, type ApiError } from '../../../lib/api';
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   EVIDENCE_ACCEPT,
@@ -749,6 +749,9 @@ export function useFormError() {
 
 export function SentState(props: { title: string; message: string; actionLabel: string; onAction: () => void }) {
   // The sent screen takes focus, so the reader is told the form went through.
+  // The message rides along as the heading's description, since a live region
+  // that mounts with its content is not announced reliably.
+  const messageId = useId();
   const heading = useRef<HTMLHeadingElement>(null);
   useLayoutEffect(() => {
     heading.current?.focus();
@@ -758,10 +761,10 @@ export function SentState(props: { title: string; message: string; actionLabel: 
       <div className="us-toast-badge" style={{ width: 40, height: 40 }}>
         <Check size={20} strokeWidth={3} />
       </div>
-      <h1 ref={heading} tabIndex={-1} style={{ ...titleStyle, fontSize: 18 }}>
+      <h1 ref={heading} tabIndex={-1} aria-describedby={messageId} style={{ ...titleStyle, fontSize: 18 }}>
         {props.title}
       </h1>
-      <p aria-live="polite" style={{ ...hintStyle, fontSize: 13 }}>
+      <p id={messageId} style={{ ...hintStyle, fontSize: 13 }}>
         {props.message}
       </p>
       <Button variant="surface" size="md" onClick={props.onAction}>

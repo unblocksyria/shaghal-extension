@@ -62,10 +62,12 @@ it('puts focus on its heading as the view opens', () => {
   expect(document.activeElement).toBe(heading);
 });
 
-it('announces the sent screen politely and puts focus on its heading', () => {
+it('puts focus on the sent heading, with the message as its description', () => {
   render(<SentState title="Report sent" message="Thank you." actionLabel="Done" onAction={vi.fn()} />);
-  expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Report sent' }));
-  expect(screen.getByText('Thank you.').closest('[aria-live]')).not.toBeNull();
+  const heading = screen.getByRole('heading', { name: 'Report sent' });
+  expect(document.activeElement).toBe(heading);
+  // The message rides along as the focused heading's description.
+  expect(heading.getAttribute('aria-describedby')).toBe(screen.getByText('Thank you.').id);
 });
 
 /** Opens the report-a-service form, whose page URL drives the screenshot site check. */

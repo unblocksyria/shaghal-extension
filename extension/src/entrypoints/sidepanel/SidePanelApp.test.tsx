@@ -154,6 +154,24 @@ describe('focus as views open and close', () => {
     expect(document.activeElement).toBe(await screen.findByRole('heading', { name: 'Netflix' }));
   });
 
+  it('lands Back on the own-site home heading when the tab moved to Unblock Syria', async () => {
+    const user = userEvent.setup();
+    fakeApi()
+      .on('POST', '/services/match', { data: match })
+      .on('GET', '/services/netflix', { data: serviceRecord })
+      .install();
+
+    await openPanel('https://moved-away.example/');
+    await user.click(await screen.findByRole('button', { name: 'Report what works' }, { timeout: 3000 }));
+    await screen.findByRole('heading', { name: 'Report what works' });
+
+    // The tester's tab reaches Unblock Syria itself while the form is open.
+    await navigateTo(`${SITE_BASE}/en`);
+    await user.click(screen.getByRole('button', { name: 'Back to Netflix' }));
+
+    expect(document.activeElement).toBe(await screen.findByRole('heading', { name: 'How it works' }));
+  });
+
   it('never moves focus when the card follows the active tab', async () => {
     fakeApi().on('POST', '/services/match', { data: match }).install();
 
