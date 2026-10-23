@@ -114,7 +114,8 @@ describe('the page card', () => {
 
     // The first click asks for confirmation, the second withdraws the vote.
     await user.click(voted);
-    expect(screen.getByText('Click again to remove your vote.')).toBeDefined();
+    const confirmHint = screen.getByText('Click again to remove your vote.');
+    expect(confirmHint.closest('[aria-live]')).not.toBeNull();
     await user.click(screen.getByRole('button', { name: /Remove vote/ }));
     await screen.findByRole('button', { name: /I need this/ });
     expect(api.callsTo('DELETE', '/services/netflix/vote')).toHaveLength(1);
@@ -215,6 +216,7 @@ describe('a vote that does not go through', () => {
     await openPanel('https://refused.example/');
     await user.click(await screen.findByRole('button', { name: /I need this/ }, { timeout: 3000 }));
     await screen.findByText('Voting is paused');
+    expect(screen.getByText('Voting is paused').closest('[aria-live]')).not.toBeNull();
     expect(screen.getByRole('button', { name: /I need this/ }).getAttribute('aria-pressed')).toBe('false');
     expect(screen.queryByText('High-vote services get prioritized for outreach.')).toBeNull();
   });

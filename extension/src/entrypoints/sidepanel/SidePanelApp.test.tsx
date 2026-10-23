@@ -54,7 +54,7 @@ describe('opening a form', () => {
 
     // Once for the card's parts, once for the form that is opening.
     await waitFor(() => expect(api.callsTo('GET', '/services/netflix')).toHaveLength(2), { timeout: 3000 });
-    expect(screen.getByText('Opening…')).toBeDefined();
+    expect(screen.getByText('Opening…').closest('[aria-live]')).not.toBeNull();
     expect(screen.queryByRole('radiogroup', { name: 'Core use' })).toBeNull();
   });
 });
@@ -84,6 +84,104 @@ describe('settings over a form', () => {
     await screen.findByRole('heading', { name: 'Report a Service' });
     expect(screen.getByRole('textbox', { name: 'Service name' })).toHaveProperty('value', 'Kept Service');
     expect(screen.getByAltText('Evidence #1')).toBeDefined();
+  });
+});
+
+describe('focus as views open and close', () => {
+  it('puts focus on a form heading when it opens, and on the card when the opener is gone', async () => {
+    const user = userEvent.setup();
+    fakeApi()
+      .on('POST', '/services/match', { data: match })
+      .on('GET', '/services/netflix', { data: serviceRecord })
+      .install();
+
+    await openPanel('https://focus.example/');
+    await user.click(await screen.findByRole('button', { name: 'Report what works' }, { timeout: 3000 }));
+
+    expect(document.activeElement).toBe(await screen.findByRole('heading', { name: 'Report what works' }));
+
+    // The report button was removed with the card, so Back lands on the card's name.
+    await user.click(screen.getByRole('button', { name: 'Back to Netflix' }));
+    expect(document.activeElement).toBe(await screen.findByRole('heading', { name: 'Netflix' }));
+  });
+
+  it('returns focus to the Report a Service opener by way of the card heading', async () => {
+    const user = userEvent.setup();
+    fakeApi().on('POST', '/services/match', { data: matchNone }).install();
+
+    await openPanel('https://untracked-focus.example/');
+    await user.click(await screen.findByRole('button', { name: 'Report a Service' }, { timeout: 3000 }));
+
+    expect(document.activeElement).toBe(await screen.findByRole('heading', { name: 'Report a Service' }));
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(document.activeElement).toBe(
+      await screen.findByRole('heading', { name: "untracked-focus.example isn't tracked yet" }),
+    );
+  });
+
+  it('puts focus on Settings when it opens and back on its button when it closes', async () => {
+    const user = userEvent.setup();
+    fakeApi().on('POST', '/services/match', { data: match }).install();
+
+    await openPanel('https://settings-focus.example/');
+    await screen.findByRole('button', { name: 'Report what works' }, { timeout: 3000 });
+
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    expect(document.activeElement).toBe(await screen.findByRole('heading', { name: 'Settings' }));
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Settings' }));
+  });
+
+  it('keeps the form opener under Settings, so a later Back still lands on the card', async () => {
+    const user = userEvent.setup();
+    fakeApi()
+      .on('POST', '/services/match', { data: match })
+      .on('GET', '/services/netflix', { data: serviceRecord })
+      .install();
+
+    await openPanel('https://nested-focus.example/');
+    await user.click(await screen.findByRole('button', { name: 'Report what works' }, { timeout: 3000 }));
+    await screen.findByRole('heading', { name: 'Report what works' });
+
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Settings' }));
+
+    // The report button is long gone, so Back lands on the card's name, not on Settings.
+    await user.click(screen.getByRole('button', { name: 'Back to Netflix' }));
+    expect(document.activeElement).toBe(await screen.findByRole('heading', { name: 'Netflix' }));
+  });
+
+  it('lands Back on the own-site home heading when the tab moved to Unblock Syria', async () => {
+    const user = userEvent.setup();
+    fakeApi()
+      .on('POST', '/services/match', { data: match })
+      .on('GET', '/services/netflix', { data: serviceRecord })
+      .install();
+
+    await openPanel('https://moved-away.example/');
+    await user.click(await screen.findByRole('button', { name: 'Report what works' }, { timeout: 3000 }));
+    await screen.findByRole('heading', { name: 'Report what works' });
+
+    // The tester's tab reaches Unblock Syria itself while the form is open.
+    await navigateTo(`${SITE_BASE}/en`);
+    await user.click(screen.getByRole('button', { name: 'Back to Netflix' }));
+
+    expect(document.activeElement).toBe(await screen.findByRole('heading', { name: 'How it works' }));
+  });
+
+  it('never moves focus when the card follows the active tab', async () => {
+    fakeApi().on('POST', '/services/match', { data: match }).install();
+
+    await openPanel('https://follow.example/');
+    const gear = await screen.findByRole('button', { name: 'Settings' }, { timeout: 3000 });
+    gear.focus();
+    await navigateTo('https://moved.example/');
+
+    // A different page, the same focus: nothing in the panel claimed it.
+    expect(document.activeElement).toBe(gear);
   });
 });
 

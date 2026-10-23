@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Availability, CatalogService, ServiceFunctionality } from '../../../lib/endpoints';
 import { SITE_BASE } from '../../../lib/config';
+import { rememberFallbackHeading } from '../../../lib/focusFlow';
 import { activeLanguage, i18next, intlLocale, sitePathSegment } from '../../../lib/i18n';
 import { serviceName } from '../../../lib/serviceName';
 import { hostOf } from '../../../lib/url';
@@ -284,13 +285,16 @@ function VoteButton(props: { service: CatalogService }) {
         {current.label}
         <span style={{ ...countChip, backgroundColor: current.chip }}>{formatCount(count)}</span>
       </Button>
-      {message !== null ? (
-        <p style={{ ...hintStyle, color: 'var(--us-danger)' }}>{message}</p>
-      ) : (
-        <p style={{ ...hintStyle, textAlign: 'center' }}>
-          {state === 'confirm' ? t('card.voteConfirm') : t('card.votePriority')}
-        </p>
-      )}
+      {/* In place, because the message is there for the reader as much as the eye. */}
+      <div aria-live="polite" style={{ display: 'contents' }}>
+        {message !== null ? (
+          <p style={{ ...hintStyle, color: 'var(--us-danger)' }}>{message}</p>
+        ) : (
+          <p style={{ ...hintStyle, textAlign: 'center' }}>
+            {state === 'confirm' ? t('card.voteConfirm') : t('card.votePriority')}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -463,7 +467,9 @@ function ServiceView(props: {
       <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
         <ServiceLogo key={service.id} service={service} size={44} />
         <div style={{ minWidth: 0, flex: 1, display: 'grid', gap: 2 }}>
-          <h1 style={titleStyle}>{serviceName(service)}</h1>
+          <h1 ref={rememberFallbackHeading} tabIndex={-1} style={titleStyle}>
+            {serviceName(service)}
+          </h1>
           {(company !== null || checked !== null) && (
             <span style={{ fontSize: 12, color: 'var(--us-text-muted)' }}>
               {[company, checked].filter(Boolean).join(' · ')}
@@ -515,7 +521,9 @@ function PickView(props: {
   return (
     <section className="us-animate-fade" style={cardStyle}>
       <div style={{ display: 'grid', gap: 4 }}>
-        <h1 style={titleStyle}>{t('card.pickTitle')}</h1>
+        <h1 ref={rememberFallbackHeading} tabIndex={-1} style={titleStyle}>
+          {t('card.pickTitle')}
+        </h1>
         <p style={hintStyle}>{t('card.pickHint')}</p>
       </div>
       <div style={{ display: 'grid', gap: 6 }}>
@@ -536,7 +544,9 @@ function MessageView(props: { icon: React.ReactNode; title: string; detail: stri
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
         <span style={{ flexShrink: 0, marginTop: 3, color: 'var(--us-accent-text)' }}>{props.icon}</span>
         <div style={{ display: 'grid', gap: 4 }}>
-          <h1 style={{ ...titleStyle, fontSize: 17 }}>{props.title}</h1>
+          <h1 ref={rememberFallbackHeading} tabIndex={-1} style={{ ...titleStyle, fontSize: 17 }}>
+            {props.title}
+          </h1>
           <p style={{ ...hintStyle, fontSize: 13 }}>{props.detail}</p>
         </div>
       </div>

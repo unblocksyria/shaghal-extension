@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { rememberFallbackHeading } from '../../../lib/focusFlow';
 import { cardStyle, hintStyle, titleStyle } from './FormParts';
 import { ArrowUp, ClipboardCheck, Globe, PlusCircle, ShieldCheck } from 'lucide-react';
 
@@ -14,7 +15,9 @@ export function HowItWorks() {
   return (
     <section className="us-animate-fade" style={cardStyle}>
       <div style={{ display: 'grid', gap: 6 }}>
-        <h1 style={titleStyle}>{t('howItWorks.title')}</h1>
+        <h1 ref={rememberFallbackHeading} tabIndex={-1} style={titleStyle}>
+          {t('howItWorks.title')}
+        </h1>
         <p style={{ ...hintStyle, fontSize: 13 }}>{t('howItWorks.intro')}</p>
       </div>
 

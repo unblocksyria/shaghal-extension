@@ -19,6 +19,7 @@ it('leaves saved settings without a draft prompt or unload warning', async () =>
   await user.type(screen.getByRole('textbox', { name: 'Your email' }), 'tester@example.com');
   await user.click(screen.getByRole('button', { name: 'Save email' }));
   await screen.findByText('Saved');
+  expect(screen.getByText('Saved').closest('[aria-live]')).not.toBeNull();
   expect(await getSavedEmail()).toBe('tester@example.com');
 
   const unload = new Event('beforeunload', { cancelable: true });

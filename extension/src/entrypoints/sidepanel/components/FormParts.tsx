@@ -1,5 +1,5 @@
 import { formErrorMessage, type ApiError } from '../../../lib/api';
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   EVIDENCE_ACCEPT,
@@ -74,6 +74,11 @@ export function FormShell(props: {
   // Restored work never fires a change event, so it counts as work too.
   const dirty = props.restored === true || changed;
   const [confirming, setConfirming] = useState(false);
+  // The view that just opened starts here, so screen readers are told it did.
+  const heading = useRef<HTMLHeadingElement>(null);
+  useLayoutEffect(() => {
+    heading.current?.focus();
+  }, []);
   const discard = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     if (confirming) {
@@ -119,7 +124,9 @@ export function FormShell(props: {
         <Back size={14} /> {props.backLabel}
       </button>
       <div style={{ display: 'grid', gap: 6 }}>
-        <h1 style={titleStyle}>{props.title}</h1>
+        <h1 ref={heading} tabIndex={-1} style={titleStyle}>
+          {props.title}
+        </h1>
         <p style={{ ...hintStyle, fontSize: 13 }}>{props.intro}</p>
       </div>
       <fieldset
@@ -741,13 +748,25 @@ export function useFormError() {
 }
 
 export function SentState(props: { title: string; message: string; actionLabel: string; onAction: () => void }) {
+  // The sent screen takes focus, so the reader is told the form went through.
+  // The message rides along as the heading's description, since a live region
+  // that mounts with its content is not announced reliably.
+  const messageId = useId();
+  const heading = useRef<HTMLHeadingElement>(null);
+  useLayoutEffect(() => {
+    heading.current?.focus();
+  }, []);
   return (
     <section className="us-animate-fade" style={{ ...cardStyle, justifyItems: 'center', textAlign: 'center', gap: 12 }}>
       <div className="us-toast-badge" style={{ width: 40, height: 40 }}>
         <Check size={20} strokeWidth={3} />
       </div>
-      <h1 style={{ ...titleStyle, fontSize: 18 }}>{props.title}</h1>
-      <p style={{ ...hintStyle, fontSize: 13 }}>{props.message}</p>
+      <h1 ref={heading} tabIndex={-1} aria-describedby={messageId} style={{ ...titleStyle, fontSize: 18 }}>
+        {props.title}
+      </h1>
+      <p id={messageId} style={{ ...hintStyle, fontSize: 13 }}>
+        {props.message}
+      </p>
       <Button variant="surface" size="md" onClick={props.onAction}>
         {props.actionLabel}
       </Button>
