@@ -9,6 +9,7 @@ import { openPanel } from '../../../testing/panel';
 import match from '../../../testing/fixtures/match.json';
 import matchMany from '../../../testing/fixtures/match-many.json';
 import matchNone from '../../../testing/fixtures/match-none.json';
+import search from '../../../testing/fixtures/search.json';
 import serviceDetails from '../../../testing/fixtures/service-details.json';
 import vote from '../../../testing/fixtures/vote.json';
 
@@ -182,6 +183,122 @@ describe('what the card says about the service', () => {
     fakeApi().on('POST', '/services/match', { data: matchNone }).install();
     await openPanel('https://www.untracked.example/');
     await screen.findByRole('heading', { name: "untracked.example isn't tracked yet" }, { timeout: 3000 });
+  });
+
+  it('searches the catalogue when the site is not tracked, and opens the pick', async () => {
+    const user = userEvent.setup();
+    const api = fakeApi()
+      .on('POST', '/services/match', { data: matchNone })
+      .on('GET', '/services', { data: [search] })
+      .install();
+
+    await openPanel('https://search.example/');
+    const field = await screen.findByRole('searchbox', { name: 'Search the catalogue' }, { timeout: 3000 });
+    await user.type(field, 'netf');
+
+    const rows = await screen.findAllByRole('button', { name: /Netflix/ }, { timeout: 3000 });
+    expect(rows).toHaveLength(1);
+    expect(screen.getByText('Usable')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Report a Service' })).toBeDefined();
+
+    const sent = api.callsTo('GET', '/services');
+    expect(sent).toHaveLength(1);
+    expect(sent.at(0)?.url).toMatch(/\/services\?search=netf&limit=5&locale=en$/);
+
+    await user.click(rows.at(0) as HTMLElement);
+    expect(await screen.findByRole('heading', { name: 'Netflix' }, { timeout: 3000 })).toBeDefined();
+  });
+
+  it('answers the last term only, dropping the request a newer keystroke cancelled', async () => {
+    const staleService = { ...search, id: 'svc-stale', name: 'A stale answer' };
+    const api = fakeApi().on('POST', '/services/match', { data: matchNone }).install();
+    // Held, so the answer for the older term arrives after the newer request
+    // even faster typing would have replaced it.
+    const release = api.hold('GET', '/services', (call) =>
+      call.url.endsWith('search=netf') ? { data: [staleService] } : { data: [search] },
+    );
+
+    await openPanel('https://stale.example/');
+    const field = await screen.findByRole('searchbox', { name: 'Search the catalogue' }, { timeout: 3000 });
+
+    // Fake the clock to walk through the debounce by hand.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    fireEvent.change(field, { target: { value: 'netf' } });
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    fireEvent.change(field, { target: { value: 'netfl' } });
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    // The second keystroke replaced the first, but the first request still ran.
+    expect(api.callsTo('GET', '/services')).toHaveLength(2);
+    expect(api.callsTo('GET', '/services').at(0)?.url).toMatch(/search=netf/);
+    expect(api.callsTo('GET', '/services').at(1)?.url).toMatch(/search=netfl/);
+
+    // Both answers arrive at once; only the term still on the field shows.
+    release();
+    await act(async () => {
+      await vi.runAllTimersAsync();
+      await Promise.resolve();
+    });
+    expect(screen.queryByRole('button', { name: 'A stale answer' })).toBeNull();
+    expect(screen.getByRole('button', { name: /Netflix/ })).toBeDefined();
+  });
+
+  it('sends nothing under two characters, and clears what shorter typing hides', async () => {
+    const api = fakeApi()
+      .on('POST', '/services/match', { data: matchNone })
+      .on('GET', '/services', { data: [search] })
+      .install();
+
+    await openPanel('https://short.example/');
+    const field = await screen.findByRole('searchbox', { name: 'Search the catalogue' }, { timeout: 3000 });
+
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    fireEvent.change(field, { target: { value: 'netf' } });
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+    expect(api.callsTo('GET', '/services')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: /Netflix/ })).toBeDefined();
+
+    // Back below two characters: the rows go, and no request ever fires again.
+    fireEvent.change(field, { target: { value: 'n' } });
+    await act(async () => {
+      await vi.runAllTimersAsync();
+      await Promise.resolve();
+    });
+    expect(screen.queryByRole('button', { name: /Netflix/ })).toBeNull();
+    expect(api.callsTo('GET', '/services')).toHaveLength(1);
+  });
+
+  it('keeps the field and the report button when the catalogue finds nothing', async () => {
+    const user = userEvent.setup();
+    fakeApi().on('POST', '/services/match', { data: matchNone }).on('GET', '/services', { data: [] }).install();
+
+    await openPanel('https://empty.example/');
+    const field = await screen.findByRole('searchbox', { name: 'Search the catalogue' }, { timeout: 3000 });
+    await user.type(field, 'nothing-here');
+    await screen.findByText('Nothing found. If it really is a new service, report it below.', {}, { timeout: 3000 });
+    expect(screen.getByRole('button', { name: 'Report a Service' })).toBeDefined();
+    expect(screen.queryByRole('button', { name: /Netflix/ })).toBeNull();
+  });
+
+  it('keeps the field and the report button when the search fails', async () => {
+    const user = userEvent.setup();
+    fakeApi()
+      .on('POST', '/services/match', { data: matchNone })
+      .on('GET', '/services', { status: 500, json: { error: 'BOOM', message: 'Search is down' } })
+      .install();
+
+    await openPanel('https://failed-search.example/');
+    const field = await screen.findByRole('searchbox', { name: 'Search the catalogue' }, { timeout: 3000 });
+    await user.type(field, 'netf');
+    await screen.findByText('The search could not finish. Try again.', {}, { timeout: 3000 });
+    expect(screen.getByText('The search could not finish. Try again.').closest('[aria-live]')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Report a Service' })).toBeDefined();
+    expect(screen.queryByRole('button', { name: /Netflix/ })).toBeNull();
   });
 
   it('asks again on Try again, and shows the card once the API answers', async () => {
