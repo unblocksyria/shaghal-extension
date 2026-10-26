@@ -111,7 +111,7 @@ test('searches the catalogue when the page is not tracked, and opens the pick', 
   await page.goto(`${TEST_PAGE_ORIGIN}/`);
   await page.bringToFront();
 
-  const field = panel.getByRole('searchbox', { name: 'Search the catalogue' });
+  const field = panel.getByRole('searchbox', { name: 'Search for a service' });
   await expect(field).toBeVisible({ timeout: 15_000 });
   await field.fill('netf');
 

@@ -193,7 +193,7 @@ describe('what the card says about the service', () => {
       .install();
 
     await openPanel('https://search.example/');
-    const field = await screen.findByRole('searchbox', { name: 'Search the catalogue' }, { timeout: 3000 });
+    const field = await screen.findByRole('searchbox', { name: 'Search for a service' }, { timeout: 3000 });
     await user.type(field, 'netf');
 
     const rows = await screen.findAllByRole('button', { name: /Netflix/ }, { timeout: 3000 });
@@ -219,7 +219,7 @@ describe('what the card says about the service', () => {
     );
 
     await openPanel('https://stale.example/');
-    const field = await screen.findByRole('searchbox', { name: 'Search the catalogue' }, { timeout: 3000 });
+    const field = await screen.findByRole('searchbox', { name: 'Search for a service' }, { timeout: 3000 });
 
     // Fake the clock to walk through the debounce by hand.
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
@@ -253,7 +253,7 @@ describe('what the card says about the service', () => {
       .install();
 
     await openPanel('https://short.example/');
-    const field = await screen.findByRole('searchbox', { name: 'Search the catalogue' }, { timeout: 3000 });
+    const field = await screen.findByRole('searchbox', { name: 'Search for a service' }, { timeout: 3000 });
 
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     fireEvent.change(field, { target: { value: 'netf' } });
@@ -278,7 +278,7 @@ describe('what the card says about the service', () => {
     fakeApi().on('POST', '/services/match', { data: matchNone }).on('GET', '/services', { data: [] }).install();
 
     await openPanel('https://empty.example/');
-    const field = await screen.findByRole('searchbox', { name: 'Search the catalogue' }, { timeout: 3000 });
+    const field = await screen.findByRole('searchbox', { name: 'Search for a service' }, { timeout: 3000 });
     await user.type(field, 'nothing-here');
     await screen.findByText('Nothing found. If it really is a new service, report it below.', {}, { timeout: 3000 });
     expect(screen.getByRole('button', { name: 'Report a Service' })).toBeDefined();
@@ -293,7 +293,7 @@ describe('what the card says about the service', () => {
       .install();
 
     await openPanel('https://failed-search.example/');
-    const field = await screen.findByRole('searchbox', { name: 'Search the catalogue' }, { timeout: 3000 });
+    const field = await screen.findByRole('searchbox', { name: 'Search for a service' }, { timeout: 3000 });
     await user.type(field, 'netf');
     await screen.findByText('The search could not finish. Try again.', {}, { timeout: 3000 });
     expect(screen.getByText('The search could not finish. Try again.').closest('[aria-live]')).not.toBeNull();
