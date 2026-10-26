@@ -591,7 +591,9 @@ function UntrackedView(props: { host: string; onPick: (service: CatalogService) 
           <PlusCircle size={20} />
         </span>
         <div style={{ display: 'grid', gap: 4 }}>
-          <h1 style={{ ...titleStyle, fontSize: 17 }}>{t('card.untrackedTitle', { host: props.host })}</h1>
+          <h1 ref={rememberFallbackHeading} tabIndex={-1} style={{ ...titleStyle, fontSize: 17 }}>
+            {t('card.untrackedTitle', { host: props.host })}
+          </h1>
           <p style={{ ...hintStyle, fontSize: 13 }}>{t('card.untrackedDetail')}</p>
           <p style={{ ...hintStyle, fontSize: 13 }}>{t('card.searchHint')}</p>
         </div>
