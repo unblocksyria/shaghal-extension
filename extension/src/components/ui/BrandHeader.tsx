@@ -1,6 +1,8 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Settings } from 'lucide-react';
+import { SITE_BASE } from '../../lib/config';
+import { activeLanguage, sitePathSegment } from '../../lib/i18n';
 
 export const BrandHeader: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSettings }) => {
   const { t } = useTranslation();
@@ -16,7 +18,7 @@ export const BrandHeader: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSe
       }}
     >
       <a
-        href="https://unblocksyria.com"
+        href={`${SITE_BASE}${sitePathSegment(activeLanguage())}`}
         target="_blank"
         rel="noreferrer"
         style={{
