@@ -94,6 +94,40 @@ test('sends a report from the panel against the stubbed API', async ({ page, pan
   expect(api.unstubbed).toEqual([]);
 });
 
+test('searches the catalogue when the page is not tracked, and opens the pick', async ({
+  page,
+  panel,
+  context,
+  api,
+}) => {
+  // No match for the test page: the card turns to the untracked search.
+  await context.route('https://api.unblocksyria.com/services/match', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: { service: null, matchType: null, alternatives: [] } }),
+    }),
+  );
+  await page.goto(`${TEST_PAGE_ORIGIN}/`);
+  await page.bringToFront();
+
+  const field = panel.getByRole('searchbox', { name: 'Search for a service' });
+  await expect(field).toBeVisible({ timeout: 15_000 });
+  await field.fill('netf');
+
+  const row = panel.getByRole('button', { name: /Netflix/ });
+  await expect(row).toBeVisible({ timeout: 15_000 });
+  await expect(panel.getByRole('button', { name: 'Report a Service' })).toBeVisible();
+
+  const sent = api.calls.find((call) => call.method === 'GET' && call.path === '/services');
+  expect(sent).toBeDefined();
+  expect(sent?.body).toBeNull();
+
+  await row.click();
+  await expect(panel.getByRole('heading', { name: 'Netflix' })).toBeVisible();
+  expect(api.unstubbed).toEqual([]);
+});
+
 test('fits a narrow panel in both themes and keeps Settings labels attached to visible controls', async ({
   page,
   panel,

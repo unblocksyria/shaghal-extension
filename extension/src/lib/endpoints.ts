@@ -191,6 +191,21 @@ export async function matchService(url: string, signal?: AbortSignal): Promise<A
   });
 }
 
+/** The search may return at most this many candidates, as many as the pick list shows. */
+export const SEARCH_LIMIT = 5;
+
+/**
+ * Finds services by name for the "not tracked" card's search, as
+ * `GET /services?search=` returns them in `data`.
+ */
+export async function searchServices(query: string, signal?: AbortSignal): Promise<ApiResult<CatalogService[]>> {
+  const params = new URLSearchParams({ search: query, limit: String(SEARCH_LIMIT), locale: activeLanguage() });
+  return apiRequest<CatalogService[]>(`/services?${params}`, {
+    signal,
+    expect: expectation(listOf(isCatalogService)),
+  });
+}
+
 interface VotePayload {
   voteCount: number;
 }

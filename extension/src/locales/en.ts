@@ -92,6 +92,12 @@ export const en = {
     errorTitle: 'Could not check this site',
     untrackedTitle: "{{host}} isn't tracked yet",
     untrackedDetail: 'If it blocks Syria, tell us about it. We verify it, then track it.',
+    searchHint: 'Or search for the service.',
+    searchLabel: 'Search for a service',
+    searchPlaceholder: 'Service name…',
+    searching: 'Searching…',
+    searchEmpty: 'Nothing found. If it really is a new service, report it below.',
+    searchFailed: 'The search could not finish. Try again.',
   },
 
   report: {

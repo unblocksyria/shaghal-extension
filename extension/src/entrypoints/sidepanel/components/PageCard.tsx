@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Availability, CatalogService, ServiceFunctionality } from '../../../lib/endpoints';
+import { searchServices } from '../../../lib/endpoints';
 import { SITE_BASE } from '../../../lib/config';
 import { rememberFallbackHeading } from '../../../lib/focusFlow';
 import { activeLanguage, i18next, intlLocale, sitePathSegment } from '../../../lib/i18n';
@@ -10,6 +11,7 @@ import { hasVoted, setVote, watchVote } from '../../../lib/votes';
 import type { MatchState } from '../hooks/useServiceMatch';
 import { useServiceDetails, type DetailsState } from '../hooks/useServiceDetails';
 import { Button } from '../../../components/ui/Button';
+import { Input } from '../../../components/ui/Input';
 import { cardStyle, hintStyle, titleStyle } from './FormParts';
 import {
   ArrowDown,
@@ -538,6 +540,98 @@ function PickView(props: {
   );
 }
 
+/** The pause after a keystroke before the card searches, so typing stays cheap. */
+const SEARCH_DELAY_MS = 300;
+/** The shortest search: below it, the picker would ask for the whole catalogue. */
+const SEARCH_MIN_CHARS = 2;
+
+/**
+ * The "not tracked" card. The catalogue may still track the service under
+ * another address, so the card searches by name and offers what it finds,
+ * with reporting a new service as the last resort.
+ */
+function UntrackedView(props: { host: string; onPick: (service: CatalogService) => void; onNew: () => void }) {
+  const { t } = useTranslation();
+  const [query, setQuery] = useState('');
+  const [answer, setAnswer] = useState<
+    | { term: string; state: 'searching' }
+    | { term: string; state: 'ready'; items: CatalogService[] }
+    | { term: string; state: 'failed' }
+    | null
+  >(null);
+
+  const term = query.trim();
+  const activeTerm = term.length >= SEARCH_MIN_CHARS ? term : '';
+  // An answer belongs to the term on the field, so a reply for an older term
+  // that arrives late is dropped rather than shown.
+  const shown = answer !== null && answer.term === activeTerm ? answer : null;
+
+  useEffect(() => {
+    if (activeTerm === '') return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      setAnswer({ term: activeTerm, state: 'searching' });
+      void searchServices(activeTerm, controller.signal).then((outcome) => {
+        if (outcome.ok) setAnswer({ term: activeTerm, state: 'ready', items: outcome.data });
+        else setAnswer({ term: activeTerm, state: 'failed' });
+      });
+    }, SEARCH_DELAY_MS);
+    // A newer keystroke owns the request, so the older one is cancelled.
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [activeTerm]);
+
+  const rows = shown?.state === 'ready' ? shown.items : [];
+  return (
+    <section className="us-animate-fade" style={cardStyle}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+        <span style={{ flexShrink: 0, marginTop: 3, color: 'var(--us-accent-text)' }}>
+          <PlusCircle size={20} />
+        </span>
+        <div style={{ display: 'grid', gap: 4 }}>
+          <h1 ref={rememberFallbackHeading} tabIndex={-1} style={{ ...titleStyle, fontSize: 17 }}>
+            {t('card.untrackedTitle', { host: props.host })}
+          </h1>
+          <p style={{ ...hintStyle, fontSize: 13 }}>{t('card.untrackedDetail')}</p>
+          <p style={{ ...hintStyle, fontSize: 13 }}>{t('card.searchHint')}</p>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gap: 6 }}>
+        <Input
+          label={t('card.searchLabel')}
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={t('card.searchPlaceholder')}
+          autoComplete="off"
+          autoCapitalize="none"
+          spellCheck={false}
+          aria-busy={shown?.state === 'searching'}
+        />
+        {/* Announced, because the rows and the refusals replace one another below the field. */}
+        <div aria-live="polite" style={{ display: 'contents' }}>
+          {rows.length > 0 ? (
+            rows.map((service) => (
+              <ServiceRow key={service.id} service={service} onPick={() => props.onPick(service)} />
+            ))
+          ) : shown?.state === 'failed' ? (
+            <p style={{ ...hintStyle, color: 'var(--us-danger)' }}>{t('card.searchFailed')}</p>
+          ) : shown?.state === 'ready' && rows.length === 0 ? (
+            <p style={hintStyle}>{t('card.searchEmpty')}</p>
+          ) : shown?.state === 'searching' ? (
+            <p style={hintStyle}>{t('card.searching')}</p>
+          ) : null}
+        </div>
+      </div>
+      <Button variant="primary" size="md" fullWidth onClick={props.onNew} icon={<PlusCircle size={16} />}>
+        {t('common.reportAService')}
+      </Button>
+    </section>
+  );
+}
+
 function MessageView(props: { icon: React.ReactNode; title: string; detail: string; action?: React.ReactNode }) {
   return (
     <section className="us-animate-fade" style={cardStyle}>
@@ -621,17 +715,10 @@ export function PageCard(props: {
     return <PickView alternatives={state.match.alternatives} onPick={props.onPick} onNew={props.onReportNew} />;
   }
   return (
-    <MessageView
-      icon={<PlusCircle size={20} />}
-      title={t('card.untrackedTitle', {
-        host: hostOf(props.pageUrl ?? '').replace(/^www\./, ''),
-      })}
-      detail={t('card.untrackedDetail')}
-      action={
-        <Button variant="primary" size="md" fullWidth onClick={props.onReportNew} icon={<PlusCircle size={16} />}>
-          {t('common.reportAService')}
-        </Button>
-      }
+    <UntrackedView
+      host={hostOf(props.pageUrl ?? '').replace(/^www\./, '')}
+      onPick={props.onPick}
+      onNew={props.onReportNew}
     />
   );
 }

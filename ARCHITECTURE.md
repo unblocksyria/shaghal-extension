@@ -116,6 +116,7 @@ The reference is ordinary selectable text so it can be copied into a bug report.
 | Route                                                         | Used for                                                     |
 | ------------------------------------------------------------- | ------------------------------------------------------------ |
 | `POST /services/match`                                        | Matching the page to a service.                              |
+| `GET /services?search=name`                                   | The untracked card's search by service name.                 |
 | `GET /services/:slug`                                         | The full record for the report and correction forms.         |
 | `GET /functionalities`, `GET /categories`                     | Part and category names for the report and correction forms. |
 | `POST`, `DELETE /services/:slug/vote`                         | Casting or removing a vote. Verified.                        |

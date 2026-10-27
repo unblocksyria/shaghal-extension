@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   uploadEvidence,
   matchService,
+  searchServices,
   getCategories,
   getFunctionalities,
   getServiceBySlug,
@@ -9,6 +10,7 @@ import {
 } from './endpoints';
 import { fakeApi } from '../testing/fakeApi';
 import match from '../testing/fixtures/match.json';
+import search from '../testing/fixtures/search.json';
 import serviceDetails from '../testing/fixtures/service-details.json';
 import upload from '../testing/fixtures/upload.json';
 
@@ -80,6 +82,9 @@ describe('untrusted API data', () => {
       () => getServiceBySlug('x'),
       { id: 'x', name: 'X', url: null, alternatives: [{ ...match.service, voteCount: 1.5 }] },
     ],
+    ['GET', '/services', () => searchServices('net'), null],
+    ['GET', '/services', () => searchServices('net'), [{}]],
+    ['GET', '/services', () => searchServices('net'), [{ ...search, voteCount: 1.5 }]],
   ] as const)('rejects malformed data from %s %s', async (method, path, request, data) => {
     fakeApi().on(method, path, { data }).install();
     expect(await request()).toMatchObject({ ok: false, error: { error: 'BAD_RESPONSE' } });
@@ -87,6 +92,20 @@ describe('untrusted API data', () => {
   it.each([null, {}, { voteCount: -1 }, { voteCount: '12' }])('rejects malformed vote receipts', async (json) => {
     fakeApi().on('POST', '/services/x/vote', { json }).install();
     expect(await voteForService('x')).toMatchObject({ ok: false, error: { error: 'BAD_RESPONSE' } });
+  });
+});
+
+describe('searchServices', () => {
+  it('asks for at most five services by name in the active language, and answers with the rows', async () => {
+    let sent: string | undefined;
+    fakeApi()
+      .on('GET', '/services', (call) => {
+        sent = call.url;
+        return { data: [search] };
+      })
+      .install();
+    expect(await searchServices('net')).toEqual({ ok: true, data: [search] });
+    expect(sent).toContain('/services?search=net&limit=5&locale=en');
   });
 });
 

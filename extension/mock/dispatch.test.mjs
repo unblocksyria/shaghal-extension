@@ -39,6 +39,7 @@ describe('lookup dispatch by page host (AC-3)', () => {
   it('reads every fixture as valid JSON, wrapped in data (AC-2)', () => {
     const reads = [
       dispatch('GET', '/services/svc-netflix', ''),
+      dispatch('GET', '/services', ''),
       dispatch('GET', '/functionalities', ''),
       dispatch('GET', '/categories', ''),
     ];
@@ -46,6 +47,12 @@ describe('lookup dispatch by page host (AC-3)', () => {
       expect(answer.status).toBe(200);
       expect(JSON.parse(answer.body).data).toBeDefined();
     }
+  });
+
+  it("answers the untracked card's search with one service row to pick", () => {
+    const { body } = dispatch('GET', '/services', '');
+    const row = JSON.parse(body).data.at(0);
+    expect(row).toMatchObject({ id: 'svc-netflix', slug: 'netflix' });
   });
 });
 

@@ -102,6 +102,12 @@ export const ar: Arabic<Catalog> = {
     errorTitle: 'تعذّر فحص هذا الموقع',
     untrackedTitle: 'لا يُتتبع {{host}} بعد',
     untrackedDetail: 'إذا كان يحظر سوريا، أخبرنا عنه. نتحقق منه ثم نتتبعه.',
+    searchHint: 'أو ابحث عن الخدمة.',
+    searchLabel: 'ابحث عن خدمة',
+    searchPlaceholder: 'اسم الخدمة…',
+    searching: 'جارٍ البحث…',
+    searchEmpty: 'لم نجد شيئاً. إن كانت فعلاً خدمة جديدة، أبلغ عنها أدناه.',
+    searchFailed: 'تعذّر إكمال البحث. حاول مرة أخرى.',
   },
 
   report: {
