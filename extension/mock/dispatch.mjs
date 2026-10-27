@@ -111,6 +111,10 @@ export function dispatch(method, pathname, rawBody, headers = {}) {
     return { status: 200, body: JSON.stringify({ data: match }) };
   }
 
+  // The untracked card's search by name: one row, so the pick lands on Netflix.
+  if (method === 'GET' && pathname === '/services')
+    return { status: 200, body: JSON.stringify({ data: [JSON.parse(fixture('search'))] }) };
+
   if (method === 'GET' && pathname.startsWith('/services/')) {
     const slug = pathname.slice('/services/'.length);
     if (!slug || slug.includes('/')) return { status: 404, body: { error: 'not found' } };
