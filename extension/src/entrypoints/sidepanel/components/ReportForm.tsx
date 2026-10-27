@@ -59,6 +59,12 @@ interface ReportDraftFields {
   touched: Record<string, boolean>;
   notes: Record<string, string>;
   email?: string;
+  /**
+   * The host the report was started on, so a restored draft keeps its notes
+   * and screenshots with the address they came from. Absent in drafts saved
+   * before this field existed.
+   */
+  testedHost?: string | null;
 }
 
 function LevelPicker(props: { name: string; value: Level; onChange: (level: Level) => void }) {
@@ -114,7 +120,10 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
   const screenshots = useScreenshotLists(props.pageUrl);
   // `pageUrl` is the page the form was opened on and does not follow later
   // navigation, so this is the host the tester was on when they chose to report.
-  const testedHost = testedHostOf(props.pageUrl);
+  // A restored draft replaces it with the host the draft was started on: its
+  // marks, notes and screenshots were gathered there, even when the panel is
+  // reopened on another of the service's addresses.
+  const [testedHost, setTestedHost] = useState<string | null>(() => testedHostOf(props.pageUrl));
 
   // Parts a stored draft named that the catalogue had not confirmed yet.
   const pendingParts = useRef<string[]>([]);
@@ -161,13 +170,17 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
     setNotes(storedStrings(fields.notes));
     // Through the saved email's own setter, which stops it overwriting this with the stored one.
     if (typeof fields.email === 'string') setEmail(fields.email);
+    // A draft without a readable host, including one saved before hosts were
+    // kept, sends none rather than the current page's, which may not be where
+    // its evidence came from.
+    setTestedHost(typeof fields.testedHost === 'string' ? testedHostOf(`https://${fields.testedHost}/`) : null);
     screenshots.restore(Object.fromEntries(shots.map((group) => [group.partSlug ?? SINGLE_LIST_KEY, group.items])));
   };
 
   const draft = useDraft<ReportDraftFields>({
     form: 'report',
     serviceKey: props.service.id,
-    fields: { partSlugs: parts.map((part) => part.slug), levels, touched, notes, email },
+    fields: { partSlugs: parts.map((part) => part.slug), levels, touched, notes, email, testedHost },
     shots: Object.entries(screenshots.entries()).map(([partSlug, items]) => ({ partSlug, items })),
     onRestore,
   });

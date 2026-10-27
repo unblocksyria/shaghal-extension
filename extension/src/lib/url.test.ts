@@ -104,6 +104,11 @@ describe('testedHostOf', () => {
     expect(testedHostOf('https://موقع.example/')).toBe('xn--4gbrim.example');
   });
 
+  it('is null for a host that is not a domain name, even when browsers accept it', () => {
+    // Underscores pass the URL parser but are not valid in a domain name.
+    expect(testedHostOf('https://under_score.example/')).toBeNull();
+  });
+
   it('is null for pages that are not public web addresses', () => {
     for (const url of [
       null,
