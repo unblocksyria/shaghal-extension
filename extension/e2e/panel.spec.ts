@@ -90,6 +90,7 @@ test('sends a report from the panel against the stubbed API', async ({ page, pan
     items: [{ slug: 'core_use', level: 'working', description: 'Worked from Syria without a VPN.' }],
     submitterEmail: null,
     locale: 'en',
+    testedHost: 'stream.test',
   });
   expect(api.unstubbed).toEqual([]);
 });

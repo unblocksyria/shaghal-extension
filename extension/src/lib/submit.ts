@@ -49,6 +49,8 @@ export interface SubmitFunctionalityReportInput {
     evidenceUrls?: string[];
   }[];
   submitterEmail?: string;
+  /** The host of the page the form was opened on (see testedHostOf). Left out when there is none. */
+  testedHost?: string;
 }
 
 export async function submitFunctionalityReport(input: SubmitFunctionalityReportInput) {
@@ -59,6 +61,7 @@ export async function submitFunctionalityReport(input: SubmitFunctionalityReport
       items: input.items,
       submitterEmail: input.submitterEmail ?? null,
       locale: activeLanguage(),
+      ...(input.testedHost ? { testedHost: input.testedHost } : {}),
     },
     'report',
   );

@@ -4,6 +4,7 @@ import { RadioGroup } from '../../../components/ui/RadioGroup';
 import { getFunctionalities, type FunctionalityItem, type ServiceRecord } from '../../../lib/endpoints';
 import { submitFunctionalityReport } from '../../../lib/submit';
 import { SITE_BASE } from '../../../lib/config';
+import { testedHostOf } from '../../../lib/url';
 import { activeLanguage, sitePathSegment } from '../../../lib/i18n';
 import { serviceName } from '../../../lib/serviceName';
 import { Textarea } from '../../../components/ui/Textarea';
@@ -111,6 +112,9 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
   const [sent, setSent] = useState(false);
 
   const screenshots = useScreenshotLists(props.pageUrl);
+  // `pageUrl` is the page the form was opened on and does not follow later
+  // navigation, so this is the host the tester was on when they chose to report.
+  const testedHost = testedHostOf(props.pageUrl);
 
   // Parts a stored draft named that the catalogue had not confirmed yet.
   const pendingParts = useRef<string[]>([]);
@@ -297,6 +301,7 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
       serviceId: props.service.id,
       items,
       submitterEmail: email.trim().length > 0 ? email.trim() : undefined,
+      testedHost: testedHost ?? undefined,
     });
     setBusy(false);
     if (!result.ok) {
@@ -460,6 +465,12 @@ export function ReportForm(props: { service: ServiceRecord; pageUrl: string | nu
       )}
 
       <EmailField value={email} onChange={setEmail} />
+
+      {testedHost !== null && (
+        <p style={hintStyle}>
+          {t('report.testedOn')} <bdi dir="ltr">{testedHost}</bdi>
+        </p>
+      )}
 
       <FormFooter
         label={t('report.send')}

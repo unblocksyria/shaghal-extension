@@ -48,6 +48,25 @@ describe('the report form', () => {
       items: [{ slug: 'core_use', level: 'working', description: 'The login page opened first try.' }],
       submitterEmail: null,
       locale: 'en',
+      testedHost: 'watch.example',
+    });
+  });
+
+  it('shows the host the report will name as tested, without www. or the path', async () => {
+    const user = userEvent.setup();
+    const api = await openReport(user, 'https://www.Web.Watch.example/films/42?ref=home');
+
+    expect(screen.getByText('web.watch.example')).toBeDefined();
+    expect(screen.getByText(/Tested on/)).toBeDefined();
+
+    const coreUse = screen.getByRole('radiogroup', { name: 'Core use' });
+    await user.click(within(coreUse).getByRole('radio', { name: 'Works' }));
+    await user.type(screen.getByPlaceholderText('What happened?'), 'Loads.');
+    await user.click(screen.getByRole('button', { name: 'Send report' }));
+    await screen.findByRole('heading', { name: 'Report sent' });
+
+    expect(api.callsTo('POST', '/functionality-reports').at(0)?.json).toMatchObject({
+      testedHost: 'web.watch.example',
     });
   });
 

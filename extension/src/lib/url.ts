@@ -51,6 +51,16 @@ export function isOwnSite(rawUrl: string | null): boolean {
   return parsed.origin === new URL(SITE_BASE).origin;
 }
 
+/** IP literals, local names and reserved local domains, which no catalogue entry can name. */
+function isLocalHost(host: string): boolean {
+  return (
+    !host.includes('.') ||
+    host.startsWith('[') ||
+    /^[0-9.]+$/.test(host) ||
+    ['localhost', 'local', 'internal', 'home.arpa'].some((suffix) => host === suffix || host.endsWith(`.${suffix}`))
+  );
+}
+
 /**
  * The page URL to send for matching, with path and query kept but credentials
  * and fragment removed. Null for non-web, local or over-long URLs.
@@ -61,14 +71,7 @@ export function matchUrl(rawUrl: string | null): string | null {
     const parsed = new URL(rawUrl);
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
     const host = parsed.hostname.toLowerCase().replace(/\.$/, '');
-    // The catalogue cannot match IP literals, local names, or reserved local domains.
-    if (
-      !host.includes('.') ||
-      host.startsWith('[') ||
-      /^[0-9.]+$/.test(host) ||
-      ['localhost', 'local', 'internal', 'home.arpa'].some((suffix) => host === suffix || host.endsWith(`.${suffix}`))
-    )
-      return null;
+    if (isLocalHost(host)) return null;
     parsed.username = '';
     parsed.password = '';
     parsed.hash = '';
@@ -77,4 +80,30 @@ export function matchUrl(rawUrl: string | null): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * The host a report says it was tested on: lowercased, without `www.` or a
+ * trailing dot, for example `web.telegram.org`. Never the path or query. Null
+ * when the page is not a public web address (a browser page, an IP address or
+ * a local name), so the report leaves the field out rather than send a host
+ * the API would refuse.
+ */
+export function testedHostOf(rawUrl: string | null): string | null {
+  if (rawUrl === null) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+  const host = parsed.hostname
+    .toLowerCase()
+    .replace(/\.$/, '')
+    .replace(/^www\./, '');
+  if (isLocalHost(host)) return null;
+  // Letters, digits and hyphens in dot-separated labels, the last one starting
+  // with a letter. Browsers give international names in this punycode form.
+  return /^(?:[a-z0-9-]+\.)+[a-z][a-z0-9-]*$/.test(host) ? host : null;
 }

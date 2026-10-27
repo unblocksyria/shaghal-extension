@@ -218,6 +218,11 @@ three seconds. Services marked Available can't be voted for; Usable ones can.
 
 - A report sends only the parts you marked, each with a note or a screenshot. It
   can have up to 30 parts and 100 screenshots, five per part.
+- A report also sends `testedHost`, the host of the page the form was opened on,
+  lowercased and without `www.` ([`testedHostOf`](extension/src/lib/url.ts)). One
+  service can span hosts that behave differently from Syria, so reviewers need to
+  know which one was tested. The form shows the host, and leaves the field out
+  for a page that is not a public web address.
 - A correction sends all changed fields in one submission. Categories go as a
   JSON array of up to ten IDs.
 - A new service needs a name (up to 200 characters); the description is capped at

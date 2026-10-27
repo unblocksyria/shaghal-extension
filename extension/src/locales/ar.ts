@@ -138,6 +138,7 @@ export const ar: Arabic<Catalog> = {
     sending: 'جارٍ الإرسال...',
     blocker: 'حدّد واحدة على الأقل بأنها تعمل أو لا تعمل.',
     note: 'كل ما تحدّده يُراجَع قبل أن يغيّر السجل.',
+    testedOn: 'جرى الفحص على',
   },
 
   correction: {
