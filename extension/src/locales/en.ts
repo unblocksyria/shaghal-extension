@@ -128,6 +128,7 @@ export const en = {
     sending: 'Sending…',
     blocker: 'Mark at least one as working or failing.',
     note: 'Anything you mark is reviewed before it changes the record.',
+    testedOn: 'Tested on',
   },
 
   correction: {

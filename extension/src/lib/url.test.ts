@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SITE_BASE } from './config';
-import { hostOf, isOwnSite, matchUrl, normalizeServiceUrl, siteOf } from './url';
+import { hostOf, isOwnSite, matchUrl, normalizeServiceUrl, siteOf, testedHostOf } from './url';
 
 describe('siteOf', () => {
   it('lowercases and drops www. and the port', () => {
@@ -91,5 +91,37 @@ describe('addresses that are not a page to look up', () => {
 
   it('are sent with the host lowercased and the path and query kept', () => {
     expect(matchUrl('HTTPS://Play.Google.COM/store?id=1')).toBe('https://play.google.com/store?id=1');
+  });
+});
+
+describe('testedHostOf', () => {
+  it('keeps only the host, lowercased, without www. or a trailing dot', () => {
+    expect(testedHostOf('https://WWW.Web.Telegram.org./a/#chat?x=1')).toBe('web.telegram.org');
+    expect(testedHostOf('http://user:pass@accounts.example.com:8443/login?next=/')).toBe('accounts.example.com');
+  });
+
+  it('keeps an international name in the punycode form browsers report', () => {
+    expect(testedHostOf('https://موقع.example/')).toBe('xn--4gbrim.example');
+  });
+
+  it('is null for a host that is not a domain name, even when browsers accept it', () => {
+    // Underscores pass the URL parser but are not valid in a domain name.
+    expect(testedHostOf('https://under_score.example/')).toBeNull();
+  });
+
+  it('is null for pages that are not public web addresses', () => {
+    for (const url of [
+      null,
+      'not a url',
+      'chrome://extensions',
+      'file:///tmp/a.html',
+      'http://192.168.1.1/',
+      'http://[::1]/',
+      'http://localhost:3000/',
+      'http://printer.local/',
+      'https://intranet/',
+    ]) {
+      expect(testedHostOf(url)).toBeNull();
+    }
   });
 });

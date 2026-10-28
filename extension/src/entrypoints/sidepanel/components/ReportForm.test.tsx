@@ -48,6 +48,25 @@ describe('the report form', () => {
       items: [{ slug: 'core_use', level: 'working', description: 'The login page opened first try.' }],
       submitterEmail: null,
       locale: 'en',
+      testedHost: 'watch.example',
+    });
+  });
+
+  it('shows the host the report will name as tested, without www. or the path', async () => {
+    const user = userEvent.setup();
+    const api = await openReport(user, 'https://www.Web.Watch.example/films/42?ref=home');
+
+    expect(screen.getByText('web.watch.example')).toBeDefined();
+    expect(screen.getByText(/Tested on/)).toBeDefined();
+
+    const coreUse = screen.getByRole('radiogroup', { name: 'Core use' });
+    await user.click(within(coreUse).getByRole('radio', { name: 'Works' }));
+    await user.type(screen.getByPlaceholderText('What happened?'), 'Loads.');
+    await user.click(screen.getByRole('button', { name: 'Send report' }));
+    await screen.findByRole('heading', { name: 'Report sent' });
+
+    expect(api.callsTo('POST', '/functionality-reports').at(0)?.json).toMatchObject({
+      testedHost: 'web.watch.example',
     });
   });
 
@@ -360,6 +379,50 @@ describe('keeping the report across a closed panel', () => {
     await user.click(await screen.findByRole('button', { name: 'Discard draft' }));
     expect(await storedReport()).toBeUndefined();
     await screen.findByRole('button', { name: 'Report what works' });
+  });
+
+  it('keeps the host the report was started on when it is reopened on another address', async () => {
+    const user = userEvent.setup();
+    const api = await openReport(user, 'https://web.started.example/chat');
+    await markAndNote(user, 'Messages load.');
+    await waitForDraft();
+
+    await reopenPanel(user, 'https://started.example/');
+    expect(screen.getByText('web.started.example')).toBeDefined();
+    expect(screen.queryByText('started.example')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Send report' }));
+    await screen.findByRole('heading', { name: 'Report sent' });
+    expect(api.callsTo('POST', '/functionality-reports').at(-1)?.json).toMatchObject({
+      testedHost: 'web.started.example',
+    });
+  });
+
+  it('sends no host for a draft saved without one', async () => {
+    const user = userEvent.setup();
+    const api = await openReport(user, 'https://older.example/');
+    await chrome.storage.session.set({
+      'draft:report:svc-netflix': {
+        schema: 1,
+        form: 'report',
+        serviceKey: 'svc-netflix',
+        savedAt: Date.now(),
+        fields: {
+          partSlugs: ['core_use'],
+          levels: { core_use: 'working' },
+          touched: { core_use: true },
+          notes: { core_use: 'Saved by an earlier version.' },
+        },
+        shots: [],
+      },
+    });
+
+    await reopenPanel(user, 'https://older.example/');
+    expect(screen.queryByText(/Tested on/)).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Send report' }));
+    await screen.findByRole('heading', { name: 'Report sent' });
+    expect(api.callsTo('POST', '/functionality-reports').at(-1)?.json).not.toHaveProperty('testedHost');
   });
 
   it("leaves another service's stored report alone", async () => {

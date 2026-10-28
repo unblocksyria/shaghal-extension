@@ -40,6 +40,11 @@ public listings directly. The panel is available in English and Arabic.
   editor crops and covers details with solid black boxes; the upload is a new
   image without the removed pixels. Anyone with a submitted screenshot's address
   can open it, so remove personal details first.
+- **Tested address.** A report includes the host of the page you started it on,
+  for example `web.telegram.org`, so reviewers know which of a service's
+  addresses you tested. A report reopened from a draft keeps that host. The form
+  shows it before you send. The path, query and fragment are never included, and
+  browser or local pages send no host.
 - **Email.** Optional. It's saved in the browser for later forms and can be
   changed or cleared in Settings.
 - **Other requests.** Report forms check your connection's country to warn when

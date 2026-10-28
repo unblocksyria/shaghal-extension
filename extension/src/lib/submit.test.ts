@@ -97,3 +97,21 @@ it.each(forms)('tags a $name submission with the language the panel is in', asyn
   const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as { locale?: unknown }) : {};
   expect(body.locale).toBe('ar');
 });
+
+it('sends the tested host with a report, and leaves the field out without one', async () => {
+  const fetcher = vi.fn<typeof fetch>().mockImplementation(() => Promise.resolve(Response.json({ id: 'receipt' })));
+  vi.stubGlobal('fetch', fetcher);
+  const item = (description: string) => ({ slug: 'core_use', level: 'working' as const, description });
+
+  expect(
+    (await submitFunctionalityReport({ serviceId: 'service', items: [item('Works')], testedHost: 'web.example.com' }))
+      .ok,
+  ).toBe(true);
+  expect((await submitFunctionalityReport({ serviceId: 'service', items: [item('Again')] })).ok).toBe(true);
+
+  const bodies = fetcher.mock.calls
+    .map(([, init]) => (typeof init?.body === 'string' ? (JSON.parse(init.body) as Record<string, unknown>) : {}))
+    .filter((body) => 'serviceId' in body);
+  expect(bodies[0]?.testedHost).toBe('web.example.com');
+  expect(bodies[1]).not.toHaveProperty('testedHost');
+});
