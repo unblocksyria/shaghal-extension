@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react';
-import { browsingCountry } from '../../../lib/geo';
+import { browsingCountry, knownBrowsingCountry } from '../../../lib/geo';
 
-/** The tester's country, checked when the form opens and again on `recheck`. */
+/**
+ * The tester's country. A country checked in the last few minutes shows at
+ * once; otherwise it is checked on mount, and again on `recheck`.
+ */
 export function useBrowsingCountry(): { country: string | null; checking: boolean; recheck: () => void } {
-  const [country, setCountry] = useState<string | null>(null);
-  const [checking, setChecking] = useState(true);
+  const [country, setCountry] = useState<string | null>(knownBrowsingCountry);
+  const [checking, setChecking] = useState(() => knownBrowsingCountry() === null);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    void browsingCountry().then((code) => {
+    void browsingCountry({ force: attempt > 0 }).then((code) => {
       if (cancelled) return;
       setCountry(code);
       setChecking(false);

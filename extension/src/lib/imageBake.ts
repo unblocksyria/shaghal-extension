@@ -1,4 +1,4 @@
-import { shrinkToFit } from './evidence';
+import { fitScreenshot } from './evidence';
 import { i18next } from './i18n';
 import { intersect, type ImageEdits } from './imageEdits';
 
@@ -43,5 +43,5 @@ export async function bakeEdits(image: EditableImage, edits: ImageEdits): Promis
     const part = intersect(box, crop);
     if (part !== null) context.fillRect(part.x - crop.x, part.y - crop.y, part.width, part.height);
   }
-  return shrinkToFit(await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.9 }));
+  return fitScreenshot(await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.9 }));
 }

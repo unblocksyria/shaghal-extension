@@ -48,7 +48,8 @@ test('keeps the request reference when a report fails', async ({ page, panel, co
     }),
   );
   await panel.getByRole('button', { name: 'Report what works' }).click();
-  await panel.getByRole('radiogroup', { name: 'Core use' }).getByRole('radio', { name: 'Works' }).click();
+  await panel.getByRole('button', { name: 'Core use', pressed: false }).click();
+  await panel.getByRole('radiogroup', { name: 'Core use' }).getByRole('radio', { name: 'Works now' }).click();
   await panel.getByPlaceholder('What happened?').fill('Works without a VPN.');
   await panel.getByRole('button', { name: 'Send report' }).click();
   await expect(panel.getByText('Review the report. Reference: report-123')).toBeVisible();
@@ -76,11 +77,15 @@ test('sends a report from the panel against the stubbed API', async ({ page, pan
   await panel.getByRole('button', { name: 'Report what works' }).click();
   await expect(panel.getByRole('heading', { name: 'Report what works' })).toBeVisible();
 
-  await panel.getByRole('radiogroup', { name: 'Core use' }).getByRole('radio', { name: 'Works' }).click();
+  // Nothing is chosen at first; the tester picks what they tried.
+  await expect(panel.getByRole('button', { name: 'Send report' })).toBeDisabled();
+  await panel.getByRole('button', { name: 'Core use', pressed: false }).click();
+  await panel.getByRole('radiogroup', { name: 'Core use' }).getByRole('radio', { name: 'Works now' }).click();
   await panel.getByPlaceholder('What happened?').fill('Worked from Syria without a VPN.');
   await panel.getByRole('button', { name: 'Send report' }).click();
 
   await expect(panel.getByRole('heading', { name: 'Report sent' })).toBeVisible();
+  await expect(panel.getByText('Core use: Works')).toBeVisible();
 
   const sent = api.calls.find((call) => call.method === 'POST' && call.path === '/functionality-reports');
   expect(sent).toBeDefined();
@@ -157,7 +162,7 @@ test('fits a narrow panel in both themes and keeps Settings labels attached to v
   await panel.screenshot({ path: 'test-results/review-report-dark.png', fullPage: true, animations: 'disabled' });
 });
 
-test('an interactive verification is modal and Escape cancels without a vote', async ({
+test('an interactive verification shows under the vote button, and Escape cancels without a vote', async ({
   page,
   panel,
   context,
@@ -174,11 +179,22 @@ test('an interactive verification is modal and Escape cancels without a vote', a
   );
   await browseToTestPage(page, panel);
   await panel.getByRole('button', { name: /I need this/ }).click();
-  const dialog = panel.getByRole('dialog', { name: 'Confirm you are human' });
-  await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
+  const challenge = panel.getByRole('group', { name: 'Confirm you are human' });
+  await expect(challenge).toBeVisible();
+  // In the card, right below the button that asked, not over the whole panel.
+  await expect(panel.getByRole('dialog')).toHaveCount(0);
+  const slot = panel.locator('.us-verify-slot').filter({ has: challenge });
+  const voteButton = slot.locator('button[aria-pressed]');
+  await expect(voteButton).toHaveCount(1);
+  expect(
+    await voteButton.evaluate(
+      (button, box) => (button.compareDocumentPosition(box!) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+      await challenge.elementHandle(),
+    ),
+  ).toBe(true);
+  await expect(challenge.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
   await panel.keyboard.press('Escape');
-  await expect(dialog).toHaveCount(0);
+  await expect(challenge).toHaveCount(0);
   await expect(panel.getByText('Verification cancelled.')).toBeVisible();
   expect(api.calls.some((call) => call.path.endsWith('/vote'))).toBe(false);
 });
@@ -202,7 +218,8 @@ test('keeps a report intact after a shared-network 429 and lets the user retry',
   });
   await browseToTestPage(page, panel);
   await panel.getByRole('button', { name: 'Report what works' }).click();
-  const choice = panel.getByRole('radiogroup', { name: 'Core use' }).getByRole('radio', { name: 'Works' });
+  await panel.getByRole('button', { name: 'Core use', pressed: false }).click();
+  const choice = panel.getByRole('radiogroup', { name: 'Core use' }).getByRole('radio', { name: 'Works now' });
   await choice.click();
   await panel.getByPlaceholder('What happened?').fill('Worked from Syria without a VPN.');
   await panel.getByRole('button', { name: 'Send report' }).click();

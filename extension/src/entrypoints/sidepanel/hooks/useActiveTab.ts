@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 export interface ActiveTabInfo {
   url: string | null;
   title: string | null;
+  /** True while the tab is still loading, when a redirect may yet change the address. */
+  loading?: boolean;
 }
 
 const DEV_FALLBACK: ActiveTabInfo = { url: 'https://example.com', title: 'Example' };
@@ -39,7 +41,15 @@ function useFollowedTab(enabled: boolean): ActiveTabInfo {
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         const error = chrome.runtime.lastError;
         if (disposed || request !== sequence) return;
-        setTab(error ? { url: null, title: null } : { url: tabs[0]?.url ?? null, title: tabs[0]?.title ?? null });
+        setTab(
+          error
+            ? { url: null, title: null }
+            : {
+                url: tabs[0]?.url ?? null,
+                title: tabs[0]?.title ?? null,
+                ...(tabs[0]?.status === 'loading' ? { loading: true } : {}),
+              },
+        );
       });
     };
     // Only the shown tab's address and title matter, not loading, favicon or audio updates.

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "svc-wise",
+    "name": "Wise",
+    "slug": "wise",
+    "url": "https://wise.com",
+    "logoUrl": null,
+    "availability": "blocked",
+    "voteCount": 705,
+    "statusCheckedAt": "2026-02-09T18:03:12.000Z",
+    "needsRetesting": true,
+    "company": null
+  },
+  {
+    "id": "svc-coursera",
+    "name": "Coursera",
+    "slug": "coursera",
+    "url": "https://www.coursera.org",
+    "logoUrl": null,
+    "availability": "blocked",
+    "voteCount": 895,
+    "statusCheckedAt": "2026-02-22T02:29:00.000Z",
+    "needsRetesting": true,
+    "company": null
+  }
+]

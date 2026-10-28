@@ -1,8 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { CategoryItem } from '../../../lib/endpoints';
 import { ChevronDown, Search } from 'lucide-react';
 
+/**
+ * A searchable list of category checkboxes behind a toggle. The list comes
+ * after its toggle in the page, for keyboard and screen reader order, and is
+ * drawn above it. Escape, a click outside or tabbing away closes it; Escape
+ * also gives focus back to the toggle.
+ */
 export function CategoryPicker(props: {
   options: CategoryItem[];
   selected: Set<string>;
@@ -11,6 +17,18 @@ export function CategoryPicker(props: {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const listId = useId();
+  const wrapper = useRef<HTMLDivElement>(null);
+  const toggleButton = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: PointerEvent) => {
+      if (!wrapper.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', outside);
+    return () => document.removeEventListener('pointerdown', outside);
+  }, [open]);
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -31,9 +49,72 @@ export function CategoryPicker(props: {
   );
 
   return (
-    <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 6, minWidth: 0 }}>
+    <div
+      ref={wrapper}
+      style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 6, minWidth: 0 }}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape' || !open) return;
+        // Only the list closes, not a dialog the picker sits in.
+        event.stopPropagation();
+        setOpen(false);
+        toggleButton.current?.focus();
+      }}
+      onBlur={(event) => {
+        const next = event.relatedTarget as Node | null;
+        if (open && next !== null && !wrapper.current?.contains(next)) setOpen(false);
+      }}
+    >
+      <button
+        ref={toggleButton}
+        type="button"
+        aria-expanded={open}
+        aria-controls={listId}
+        onClick={() => setOpen((current) => !current)}
+        style={{
+          width: '100%',
+          minHeight: 44,
+          backgroundColor: 'var(--us-input-bg)',
+          border: '1px solid var(--us-border)',
+          borderRadius: 'var(--us-radius-control)',
+          padding: '0 12px',
+          color: 'var(--us-text-primary)',
+          fontSize: 13,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+        }}
+      >
+        <span
+          style={{
+            flex: 1,
+            minWidth: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            textAlign: 'start',
+            color: props.selected.size === 0 ? 'var(--us-text-dim)' : 'var(--us-text-primary)',
+          }}
+        >
+          {props.selected.size === 0
+            ? t('categoryPicker.select')
+            : t('categoryPicker.selected', {
+                n: props.selected.size,
+                names: `${selectedNames.slice(0, 3).join(', ')}${selectedNames.length > 3 ? '…' : ''}`,
+              })}
+        </span>
+        <ChevronDown
+          size={14}
+          color="var(--us-text-muted)"
+          style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease', flexShrink: 0 }}
+        />
+      </button>
       {open && (
         <div
+          id={listId}
+          role="group"
+          aria-label={t('categoryPicker.listLabel')}
           style={{
             position: 'absolute',
             bottom: '100%',
@@ -60,6 +141,8 @@ export function CategoryPicker(props: {
             />
             <input
               autoFocus
+              type="search"
+              aria-label={t('categoryPicker.searchLabel')}
               placeholder={t('categoryPicker.search')}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -106,50 +189,6 @@ export function CategoryPicker(props: {
           </div>
         </div>
       )}
-
-      <button
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        style={{
-          width: '100%',
-          minHeight: 44,
-          backgroundColor: 'var(--us-input-bg)',
-          border: '1px solid var(--us-border)',
-          borderRadius: 'var(--us-radius-control)',
-          padding: '0 12px',
-          color: 'var(--us-text-primary)',
-          fontSize: 13,
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 8,
-        }}
-      >
-        <span
-          style={{
-            flex: 1,
-            minWidth: 0,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            textAlign: 'start',
-            color: props.selected.size === 0 ? 'var(--us-text-dim)' : 'var(--us-text-primary)',
-          }}
-        >
-          {props.selected.size === 0
-            ? t('categoryPicker.select')
-            : t('categoryPicker.selected', {
-                n: props.selected.size,
-                names: `${selectedNames.slice(0, 3).join(', ')}${selectedNames.length > 3 ? '…' : ''}`,
-              })}
-        </span>
-        <ChevronDown
-          size={14}
-          color="var(--us-text-muted)"
-          style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease', flexShrink: 0 }}
-        />
-      </button>
     </div>
   );
 }

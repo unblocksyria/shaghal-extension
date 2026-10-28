@@ -25,14 +25,16 @@ on the add-ons page. From the panel you can:
 - **Report a service** that isn't tracked yet.
 
 Reports and corrections go to Unblock Syria's review queue; they don't change
-public listings directly. The panel is available in English and Arabic.
+public listings directly. The panel is available in English, Arabic and Kurdish.
 
 ## Privacy
 
 - **Page addresses.** While the panel is open, it sends the active page's URL,
   including path and query, to the Unblock Syria API to find the matching service.
   Credentials and fragments are removed, and browser and local pages are skipped.
-  Close the panel to stop lookups.
+  Answers are kept for up to 30 minutes in the browser's session storage, which
+  stays in memory and empties when the browser closes, so a reopened panel shows
+  them at once. Close the panel to stop lookups.
 - **Screenshots.** Taken only when you ask, kept in memory, and uploaded only when
   you press Send. While a form is unfinished they are also held in the browser's
   memory only session storage, so closing the panel does not lose them; sending
@@ -47,9 +49,14 @@ public listings directly. The panel is available in English and Arabic.
   browser or local pages send no host.
 - **Email.** Optional. It's saved in the browser for later forms and can be
   changed or cleared in Settings.
-- **Other requests.** Report forms check your connection's country to warn when
-  you appear to be outside Syria; the warning never blocks a report. Sends are
-  verified with Cloudflare Turnstile.
+- **What you sent.** After a send, the browser keeps the service, the parts and
+  their levels, and the date, with no notes, screenshots or email, so the panel
+  can mark what you reported and list it in Settings, where you can clear it.
+- **Other requests.** The panel checks your connection's country to say when you
+  appear to be outside Syria, since tests sent from elsewhere are not recorded;
+  the check never blocks a report. Sends are verified with Cloudflare Turnstile.
+  Where the panel offers services to check, it asks the API for the most voted
+  ones; that request carries nothing about you.
 
 See Unblock Syria's [privacy policy](https://unblocksyria.com/privacy) and, for the
 details, [ARCHITECTURE.md](ARCHITECTURE.md).

@@ -1,5 +1,5 @@
 import { formErrorMessage, type ApiError } from '../../../lib/api';
-import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useEffectEvent, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   EVIDENCE_ACCEPT,
@@ -12,6 +12,7 @@ import {
 import { directionOf, activeLanguage, i18next } from '../../../lib/i18n';
 import { getSavedEmail, watchSavedEmail } from '../../../lib/settings';
 import { siteOf } from '../../../lib/url';
+import { prefetchTurnstileToken, type TurnstileAction } from '../../../lib/turnstile';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import {
@@ -25,6 +26,8 @@ import {
 import type { EditedScreenshot } from '../../../lib/imageEdits';
 import { ScreenshotEditor } from '../../../components/editor/ScreenshotEditor';
 import { EvidenceThumbs } from './EvidenceThumbs';
+import { VerificationSlot } from './VerificationSlot';
+import { TestQueue } from './TestQueue';
 import { ArrowLeft, ArrowRight, Camera, Check, Upload } from 'lucide-react';
 
 export const cardStyle: React.CSSProperties = {
@@ -134,9 +137,12 @@ export function FormShell(props: {
         onClickCapture={(event) => {
           if ((event.target as HTMLElement).closest('button')) touch();
         }}
-        // A dropped file adds work without a change event, so it counts as touched.
+        // A dropped or pasted file adds work without a change event, so it counts as touched.
         onDropCapture={(event) => {
           if (Array.from(event.dataTransfer?.types ?? []).includes('Files')) touch();
+        }}
+        onPasteCapture={(event) => {
+          if ((event.clipboardData?.files.length ?? 0) > 0) touch();
         }}
         disabled={props.busy}
         style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: 'grid', gap: 18 }}
@@ -360,10 +366,17 @@ export function useScreenshots(pageUrl?: string | null): ScreenshotList & {
  * Upload URLs are kept in the list, so a resend after a refusal reuses them.
  * Refuses while a capture or editor is open, since that screenshot would go unedited.
  */
+/**
+ * Uploads every screenshot in `lists`, in order, and returns their addresses
+ * per list. Each upload needs its own verification, so the next one is
+ * fetched while the current file uploads, and the last upload fetches the
+ * token for `then`, the form send that follows.
+ */
 export async function uploadScreenshots(
-  screenshots: ScreenshotList,
+  lists: ScreenshotList[],
   type: 'submission' | 'correction' | 'functionality_report',
-): Promise<{ ok: true; urls: string[] } | { ok: false; message: string }> {
+  then?: TurnstileAction,
+): Promise<{ ok: true; urls: string[][] } | { ok: false; message: string }> {
   if (pendingCaptures > 0 || inlineEditors.size > 0) {
     return { ok: false, message: i18next.t('form.finishCapturing') };
   }
@@ -371,13 +384,19 @@ export async function uploadScreenshots(
     focusEditorWindow();
     return { ok: false, message: i18next.t('form.editorOpen') };
   }
-  const urls: string[] = [];
-  for (const item of screenshots.items) {
-    const result = await uploadPendingEvidence(item, type);
+  const queue = lists.flatMap((list, index) => list.items.map((item) => ({ list, index, item })));
+  const urls: string[][] = lists.map(() => []);
+  for (const [position, { list, index, item }] of queue.entries()) {
+    // Starting the upload claims any token fetched ahead for it before the next one is asked for.
+    const upload = uploadPendingEvidence(item, type);
+    const following = queue.slice(position + 1).find((next) => next.item.uploadedUrl === undefined);
+    if (following !== undefined) prefetchTurnstileToken('upload');
+    else if (then !== undefined) prefetchTurnstileToken(then);
+    const result = await upload;
     if (!result.ok)
       return { ok: false, message: i18next.t('form.uploadFailed', { message: formErrorMessage(result.error) }) };
-    if (result.data !== item) screenshots.replace(result.data);
-    urls.push(result.data.uploadedUrl as string);
+    if (result.data !== item) list.replace(result.data);
+    urls[index]!.push(result.data.uploadedUrl as string);
   }
   return { ok: true, urls };
 }
@@ -398,6 +417,11 @@ export function ScreenshotField(props: {
   hint?: string;
   max?: number;
   locked?: boolean;
+  /**
+   * Takes a pasted image anywhere in the element around the field, such as a
+   * report part with its note, instead of in the field alone.
+   */
+  pasteFromParent?: boolean;
 }) {
   const { t } = useTranslation();
   const { items, error, take, add, remove, edit } = props.screenshots;
@@ -523,6 +547,27 @@ export function ScreenshotField(props: {
     return null;
   };
 
+  // A pasted image goes in like a dropped one (issue 46). A paste without an
+  // image, such as text into a note, is left alone.
+  const onPaste = useEffectEvent((event: ClipboardEvent) => {
+    const files = Array.from(event.clipboardData?.files ?? []).filter((file) => file.type.startsWith('image/'));
+    if (locked || files.length === 0) return;
+    event.preventDefault();
+    const refusal = dropRefusal();
+    setRefusal(refusal);
+    if (refusal !== null) return;
+    pick(files);
+  });
+  const wrapper = useRef<HTMLDivElement>(null);
+  const pasteFromParent = props.pasteFromParent === true;
+  useEffect(() => {
+    const target = pasteFromParent ? (wrapper.current?.parentElement ?? null) : wrapper.current;
+    if (target === null) return;
+    const listener = (event: Event) => onPaste(event as ClipboardEvent);
+    target.addEventListener('paste', listener);
+    return () => target.removeEventListener('paste', listener);
+  }, [pasteFromParent]);
+
   const discard = (id: string) => {
     if (editing?.item.id === id) {
       if (editing.where === 'window') closeEditorWindow();
@@ -543,6 +588,7 @@ export function ScreenshotField(props: {
 
   return (
     <div
+      ref={wrapper}
       style={{
         display: 'grid',
         gap: 8,
@@ -684,6 +730,11 @@ export function FormFooter(props: {
   label: string;
   busyLabel: string;
   busy: boolean;
+  /**
+   * The first verified request a send makes: an upload when screenshots are
+   * waiting, else the form itself. Fetched as the pointer reaches Send.
+   */
+  verify?: TurnstileAction;
   /** Why the form can't be sent yet, or null if it can. */
   blocker: string | null;
   note: string;
@@ -705,15 +756,19 @@ export function FormFooter(props: {
           {t('receipts.discard')}
         </Button>
       )}
-      <Button
-        variant="primary"
-        size="lg"
-        fullWidth
-        disabled={props.busy || props.blocker !== null}
-        onClick={props.onSubmit}
-      >
-        {props.busy ? props.busyLabel : props.label}
-      </Button>
+      <VerificationSlot>
+        <Button
+          variant="primary"
+          size="lg"
+          fullWidth
+          disabled={props.busy || props.blocker !== null}
+          onClick={props.onSubmit}
+          onPointerEnter={() => props.blocker === null && props.verify && prefetchTurnstileToken(props.verify)}
+          onFocus={() => props.blocker === null && props.verify && prefetchTurnstileToken(props.verify)}
+        >
+          {props.busy ? props.busyLabel : props.label}
+        </Button>
+      </VerificationSlot>
       <p style={{ ...hintStyle, textAlign: 'center' }}>{props.blocker ?? props.note}</p>
     </div>
   );
@@ -747,7 +802,43 @@ export function useFormError() {
   return { error, setError, showApiError, onDiscard };
 }
 
-export function SentState(props: { title: string; message: string; actionLabel: string; onAction: () => void }) {
+/**
+ * Asked once when a form that reviewers verify by screenshot is sent without
+ * one: add a screenshot, or send anyway. `fieldId` names the screenshot field
+ * that "Add a screenshot" takes the tester to.
+ */
+export function NoEvidencePrompt(props: { message: string; fieldId: string; onSendAnyway: () => void }) {
+  const { t } = useTranslation();
+  const toField = () => {
+    const field = document.getElementById(props.fieldId);
+    field?.scrollIntoView?.({ block: 'center' });
+    field?.querySelector('button')?.focus();
+  };
+  return (
+    <div className="us-callout us-callout-gold" role="alert" style={{ display: 'grid', gap: 10 }}>
+      <span>{props.message}</span>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        <Button variant="primary" size="sm" onClick={toField} icon={<Camera size={13} />}>
+          {t('form.addScreenshotFirst')}
+        </Button>
+        <Button variant="surface" size="sm" onClick={props.onSendAnyway}>
+          {t('form.sendAnyway')}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+export function SentState(props: {
+  title: string;
+  message: string;
+  actionLabel: string;
+  onAction: () => void;
+  /** A second way on, such as testing another part. */
+  secondary?: { label: string; onAction: () => void };
+  /** What was sent, shown under the message. */
+  children?: React.ReactNode;
+}) {
   // The sent screen takes focus, so the reader is told the form went through.
   // The message rides along as the heading's description, since a live region
   // that mounts with its content is not announced reliably.
@@ -757,24 +848,37 @@ export function SentState(props: { title: string; message: string; actionLabel: 
     heading.current?.focus();
   }, []);
   return (
-    <section className="us-animate-fade" style={{ ...cardStyle, justifyItems: 'center', textAlign: 'center', gap: 12 }}>
-      <div className="us-toast-badge" style={{ width: 40, height: 40 }}>
-        <Check size={20} strokeWidth={3} />
-      </div>
-      <h1 ref={heading} tabIndex={-1} aria-describedby={messageId} style={{ ...titleStyle, fontSize: 18 }}>
-        {props.title}
-      </h1>
-      <p id={messageId} style={{ ...hintStyle, fontSize: 13 }}>
-        {props.message}
-      </p>
-      <Button variant="surface" size="md" onClick={props.onAction}>
-        {props.actionLabel}
-      </Button>
-    </section>
+    <>
+      <section
+        className="us-animate-fade"
+        style={{ ...cardStyle, justifyItems: 'center', textAlign: 'center', gap: 12 }}
+      >
+        <div className="us-toast-badge" style={{ width: 40, height: 40 }}>
+          <Check size={20} strokeWidth={3} />
+        </div>
+        <h1 ref={heading} tabIndex={-1} aria-describedby={messageId} style={{ ...titleStyle, fontSize: 18 }}>
+          {props.title}
+        </h1>
+        <p id={messageId} style={{ ...hintStyle, fontSize: 13 }}>
+          {props.message}
+        </p>
+        {props.children}
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8 }}>
+          {props.secondary !== undefined && (
+            <Button variant="primary" size="md" onClick={props.secondary.onAction}>
+              {props.secondary.label}
+            </Button>
+          )}
+          <Button variant="surface" size="md" onClick={props.onAction}>
+            {props.actionLabel}
+          </Button>
+        </div>
+      </section>
+      <TestQueue />
+    </>
   );
 }
 
-/** Validate before uploading screenshots or spending a verification token. */
 export function emailError(email: string): string | null {
   const value = email.trim();
   return value === '' || (value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))

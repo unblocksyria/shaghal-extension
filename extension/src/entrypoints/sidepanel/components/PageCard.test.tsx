@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { SITE_BASE } from '../../../lib/config';
-import { fakeApi } from '../../../testing/fakeApi';
+import { fakeApi, type FakeApi } from '../../../testing/fakeApi';
 import { openPanel } from '../../../testing/panel';
 import match from '../../../testing/fixtures/match.json';
 import matchMany from '../../../testing/fixtures/match-many.json';
@@ -14,6 +14,12 @@ import serviceDetails from '../../../testing/fixtures/service-details.json';
 import vote from '../../../testing/fixtures/vote.json';
 
 // Each test mounts the full panel, so every state is reached as a tester would reach it.
+
+/** Name searches only: the "help check these" list asks the same route with other filters. */
+function searchesIn(api: FakeApi) {
+  return api.callsTo('GET', '/services').filter((call) => new URL(call.url).searchParams.has('search'));
+}
+
 describe('the page card', () => {
   it('asks for a page when the tab has no address', async () => {
     await openPanel(null);
@@ -201,7 +207,7 @@ describe('what the card says about the service', () => {
     expect(screen.getByText('Usable')).toBeDefined();
     expect(screen.getByRole('button', { name: 'Report a Service' })).toBeDefined();
 
-    const sent = api.callsTo('GET', '/services');
+    const sent = searchesIn(api);
     expect(sent).toHaveLength(1);
     expect(sent.at(0)?.url).toMatch(/\/services\?search=netf&limit=5&locale=en$/);
 
@@ -232,9 +238,9 @@ describe('what the card says about the service', () => {
       vi.advanceTimersByTime(300);
     });
     // The second keystroke replaced the first, but the first request still ran.
-    expect(api.callsTo('GET', '/services')).toHaveLength(2);
-    expect(api.callsTo('GET', '/services').at(0)?.url).toMatch(/search=netf/);
-    expect(api.callsTo('GET', '/services').at(1)?.url).toMatch(/search=netfl/);
+    expect(searchesIn(api)).toHaveLength(2);
+    expect(searchesIn(api).at(0)?.url).toMatch(/search=netf/);
+    expect(searchesIn(api).at(1)?.url).toMatch(/search=netfl/);
 
     // Both answers arrive at once; only the term still on the field shows.
     release();
@@ -260,7 +266,7 @@ describe('what the card says about the service', () => {
     await act(async () => {
       await vi.runAllTimersAsync();
     });
-    expect(api.callsTo('GET', '/services')).toHaveLength(1);
+    expect(searchesIn(api)).toHaveLength(1);
     expect(screen.getByRole('button', { name: /Netflix/ })).toBeDefined();
 
     // Back below two characters: the rows go, and no request ever fires again.
@@ -270,7 +276,7 @@ describe('what the card says about the service', () => {
       await Promise.resolve();
     });
     expect(screen.queryByRole('button', { name: /Netflix/ })).toBeNull();
-    expect(api.callsTo('GET', '/services')).toHaveLength(1);
+    expect(searchesIn(api)).toHaveLength(1);
   });
 
   it('keeps the field and the report button when the catalogue finds nothing', async () => {

@@ -1,8 +1,10 @@
-import { render, type RenderResult } from '@testing-library/react';
+import { render, screen, type RenderResult } from '@testing-library/react';
+import type { UserEvent } from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { SidePanelApp } from '../entrypoints/sidepanel/SidePanelApp';
 import { applyStoredLanguage } from '../lib/i18n';
+import type { LanguagePreference } from '../lib/settings';
 import { stubSession } from './session';
 
 /**
@@ -15,7 +17,7 @@ import { stubSession } from './session';
  */
 export async function openPanel(
   url: string | null,
-  options: { language?: 'system' | 'en' | 'ar'; uiLanguage?: string; keepSession?: boolean } = {},
+  options: { language?: LanguagePreference; uiLanguage?: string; keepSession?: boolean } = {},
 ): Promise<RenderResult> {
   // Typed as void, but fakeBrowser.reset() returns a promise.
   await Promise.resolve(fakeBrowser.reset());
@@ -37,4 +39,14 @@ export function stubScreenshot(): void {
   URL.createObjectURL = () => 'blob:fake-evidence';
   URL.revokeObjectURL = () => undefined;
   fakeBrowser.tabs.captureVisibleTab = () => Promise.resolve('data:image/jpeg;base64,aGVsbG8=');
+}
+
+/**
+ * Presses a form's send button and, when the form asks about a missing
+ * screenshot, "Send anyway", as a tester sending without one would.
+ */
+export async function pressSend(user: UserEvent, name: string): Promise<void> {
+  await user.click(screen.getByRole('button', { name }));
+  const anyway = screen.queryByRole('button', { name: /^(Send anyway|أرسل على أي حال|Dîsa jî bişîne)$/ });
+  if (anyway !== null) await user.click(anyway);
 }

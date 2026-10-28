@@ -1,11 +1,12 @@
 /** @vitest-environment jsdom */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
 import { screen, waitFor, within } from '@testing-library/react';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
-import { i18next } from '../../lib/i18n';
+import { i18next, type Language } from '../../lib/i18n';
+import { LANGUAGES } from '../../lib/settings';
 import { fakeApi } from '../../testing/fakeApi';
-import { openPanel, stubScreenshot } from '../../testing/panel';
+import { openPanel, stubScreenshot, pressSend } from '../../testing/panel';
 import categories from '../../testing/fixtures/categories.json';
 import functionalities from '../../testing/fixtures/functionalities.json';
 import match from '../../testing/fixtures/match.json';
@@ -19,23 +20,30 @@ const LANGUAGE_LABELS = {
     title: 'Settings',
     back: 'Back',
     language: 'Language',
-    pick: { en: 'English', ar: 'Arabic' },
+    pick: { en: 'English', ar: 'Arabic', ku: 'Kurdish' },
   },
   ar: {
     settings: 'الإعدادات',
     title: 'الإعدادات',
     back: 'رجوع',
     language: 'اللغة',
-    pick: { en: 'الإنجليزية', ar: 'العربية' },
+    pick: { en: 'الإنجليزية', ar: 'العربية', ku: 'الكردية' },
   },
-} as const;
+  ku: {
+    settings: 'Mîheng',
+    title: 'Mîheng',
+    back: 'Vegere',
+    language: 'Ziman',
+    pick: { en: 'Îngilîzî', ar: 'Erebî', ku: 'Kurdî' },
+  },
+} as const satisfies Record<Language, unknown>;
 
 /**
  * Picks a language in Settings and closes Settings. Labels are looked up for the
  * current language, read from `<html lang>`.
  */
-async function switchLanguage(user: UserEvent, pick: 'en' | 'ar'): Promise<void> {
-  const from = document.documentElement.lang === 'ar' ? 'ar' : 'en';
+async function switchLanguage(user: UserEvent, pick: Language): Promise<void> {
+  const from = LANGUAGES.find((language) => language === document.documentElement.lang) ?? 'en';
   const before = LANGUAGE_LABELS[from];
   const after = LANGUAGE_LABELS[pick];
   await user.click(screen.getByRole('button', { name: before.settings }));
@@ -111,6 +119,7 @@ describe('language', () => {
     expect(within(languages).getByRole('radio', { name: 'System' })).toBeDefined();
     expect(within(languages).getByRole('radio', { name: 'English' })).toBeDefined();
     expect(within(languages).getByRole('radio', { name: 'Arabic' })).toBeDefined();
+    expect(within(languages).getByRole('radio', { name: 'Kurdish' })).toBeDefined();
 
     await user.click(within(languages).getByRole('radio', { name: 'Arabic' }));
 
@@ -126,6 +135,78 @@ describe('language', () => {
     expect(document.documentElement.dir).toBe('rtl');
   });
 
+  it('opens in Kurdish, left to right, when the browser UI language is Kurdish and nothing is saved', async () => {
+    fakeApi().on('POST', '/services/match', { data: match }).install();
+
+    await openPanel('https://kurdish.example/', { uiLanguage: 'ku' });
+
+    expect(document.documentElement.lang).toBe('ku');
+    expect(document.documentElement.dir).toBe('ltr');
+    await screen.findByRole('button', { name: 'Ragihîne ka çi dixebite' }, { timeout: 3000 });
+  });
+
+  it('switches to Kurdish from Settings, left to right, with site links on the Kurdish site', async () => {
+    const user = userEvent.setup();
+    fakeApi().on('POST', '/services/match', { data: match }).install();
+
+    await openPanel('https://kurdi.example/');
+    await screen.findByRole('button', { name: 'Report what works' }, { timeout: 3000 });
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    const languages = await screen.findByRole('radiogroup', { name: 'Language' });
+    await user.click(within(languages).getByRole('radio', { name: 'Kurdish' }));
+
+    await screen.findByRole('heading', { name: 'Mîheng' });
+    expect(document.documentElement.lang).toBe('ku');
+    expect(document.documentElement.dir).toBe('ltr');
+    expect((await fakeBrowser.storage.local.get('language')).language).toBe('ku');
+    const kurdishRow = screen.getByRole('radiogroup', { name: 'Ziman' });
+    expect(within(kurdishRow).getByRole('radio', { name: 'Kurdî' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('link', { name: /Polîtîkaya taybetmendî/ }).getAttribute('href')).toMatch(/\/ku\/privacy$/);
+
+    await user.click(screen.getByRole('button', { name: 'Vegere' }));
+    await screen.findByRole('button', { name: 'Ragihîne ka çi dixebite' });
+    expect(document.documentElement.dir).toBe('ltr');
+  });
+
+  it('asks the API for Kurdish and points the service and guide links at the Kurdish path', async () => {
+    const user = userEvent.setup();
+    const api = fakeApi()
+      .on('POST', '/services/match', { data: match })
+      .on('GET', '/services/netflix', { data: serviceRecord })
+      .on('GET', '/functionalities', { data: functionalities })
+      .install();
+
+    await openPanel('https://kurdish-links.example/', { language: 'ku' });
+    const serviceLink = await screen.findByRole('link', { name: /Li ser Sûriye bê Qedexe bibîne/ }, { timeout: 3000 });
+    expect(serviceLink.getAttribute('href')).toContain('/ku/services/netflix');
+    expect(api.calls.find((call) => call.path === '/services/match')?.json).toMatchObject({ locale: 'ku' });
+
+    await user.click(screen.getByRole('button', { name: 'Ragihîne ka çi dixebite' }));
+    const guide = await screen.findByRole('link', { name: /Rêberê bixwîne/ });
+    expect(guide.getAttribute('href')).toContain('/ku/articles/how-to-test-a-service-from-syria');
+    expect(api.calls.find((call) => call.path === '/services/netflix')?.url).toContain('locale=ku');
+    expect(api.calls.find((call) => call.path === '/functionalities')?.url).toContain('locale=ku');
+  });
+
+  it('formats dates with Kurdish month names in Kurdish', async () => {
+    fakeApi().on('POST', '/services/match', { data: match }).install();
+
+    await openPanel('https://kurdish-dates.example/', { language: 'ku' });
+    const checked = await screen.findByText(/de hat kontrolkirin/, {}, { timeout: 3000 });
+    // The fixture date is 1 September 2026. The Kurdish month name is not "Sep".
+    expect(checked.textContent).toContain('2026');
+    expect(checked.textContent).not.toContain('Sep');
+  });
+
+  it('writes dates in English inside the Kurdish text where the browser has no Kurdish dates', async () => {
+    vi.spyOn(Intl.DateTimeFormat, 'supportedLocalesOf').mockReturnValue([]);
+    fakeApi().on('POST', '/services/match', { data: match }).install();
+
+    await openPanel('https://kurdish-fallback.example/', { language: 'ku' });
+    const checked = await screen.findByText(/de hat kontrolkirin/, {}, { timeout: 3000 });
+    expect(checked.textContent).toMatch(/Di 1 Sept? 2026 de hat kontrolkirin$/);
+  });
+
   it('steps the arrow keys in the direction they point when the panel runs right to left', async () => {
     const user = userEvent.setup();
     fakeApi().on('POST', '/services/match', { data: match }).install();
@@ -136,8 +217,8 @@ describe('language', () => {
 
     await user.click(screen.getByRole('button', { name: LANGUAGE_LABELS.ar.settings }));
     const languages = await screen.findByRole('radiogroup', { name: LANGUAGE_LABELS.ar.language });
-    // DOM order is System, English, Arabic. Mirrored, System is rightmost, so
-    // ArrowLeft moves to English instead of wrapping to Arabic.
+    // DOM order is System, English, Arabic, Kurdish. Mirrored, System is rightmost,
+    // so ArrowLeft moves to English instead of wrapping to Kurdish.
     const [system, english] = within(languages).getAllByRole('radio');
     if (system === undefined || english === undefined) throw new Error('The language row lost an option');
     system.focus();
@@ -334,10 +415,12 @@ describe('language', () => {
     await screen.findByRole('heading', { name: 'الإعدادات' });
     await user.click(screen.getByRole('button', { name: 'رجوع' }));
 
-    // The same two categories, still ticked, under their Arabic names.
-    expect(await screen.findByText('بث', {}, { timeout: 3000 })).toBeDefined();
-    expect(screen.getByText('ترفيه')).toBeDefined();
-    expect(screen.getByRole('button', { name: /2: بث, ترفيه/ })).toBeDefined();
+    // The same two categories, still ticked, under their Arabic names. Opening
+    // Settings was a click outside the picker, so it is opened again.
+    const toggle = await screen.findByRole('button', { name: /2: بث, ترفيه/ }, { timeout: 3000 });
+    await user.click(toggle);
+    expect(screen.getByRole('checkbox', { name: 'بث' })).toHaveProperty('checked', true);
+    expect(screen.getByRole('checkbox', { name: 'ترفيه' })).toHaveProperty('checked', true);
     // The recorded line reads those names too, not the ones the form opened with.
     expect(screen.getByText('بث, ترفيه')).toBeDefined();
   });
@@ -352,7 +435,7 @@ describe('language', () => {
     await openPanel('https://writes.example/', { language: 'ar' });
     await user.click(await screen.findByRole('button', { name: 'أبلغ عن خدمة' }, { timeout: 3000 }));
     await user.type(screen.getByRole('textbox', { name: 'اسم الخدمة' }), 'خدمة غير متتبعة');
-    await user.click(screen.getByRole('button', { name: 'إرسال البلاغ' }));
+    await pressSend(user, 'إرسال البلاغ');
 
     await screen.findByRole('heading', { name: 'تم استلام البلاغ' });
     expect(api.callsTo('POST', '/submissions').at(0)?.json).toMatchObject({ locale: 'ar' });
@@ -413,8 +496,9 @@ describe('language', () => {
     await user.click(await screen.findByRole('button', { name: 'Report what works' }, { timeout: 3000 }));
 
     // A level that contradicts the record, with a note and a screenshot.
+    await user.click(screen.getByRole('button', { name: 'Sign up', pressed: false }));
     const group = screen.getByRole('radiogroup', { name: 'Sign up' });
-    await user.click(within(group).getByRole('radio', { name: 'Fails' }));
+    await user.click(within(group).getByRole('radio', { name: 'Fails now' }));
     await user.type(screen.getByPlaceholderText('What happened?'), 'The sign up form never opened.');
     await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
     await screen.findByAltText('Evidence #1');
@@ -423,7 +507,7 @@ describe('language', () => {
 
     // Level, note and screenshot survive under the Arabic part name.
     const renamed = await screen.findByRole('radiogroup', { name: 'التسجيل' }, { timeout: 3000 });
-    expect(within(renamed).getByRole('radio', { name: 'لا يعمل' }).getAttribute('aria-checked')).toBe('true');
+    expect(within(renamed).getByRole('radio', { name: 'لم يعد يعمل' }).getAttribute('aria-checked')).toBe('true');
     expect(screen.getByRole('textbox', { name: 'ملاحظات التسجيل' })).toHaveProperty(
       'value',
       'The sign up form never opened.',
@@ -453,8 +537,11 @@ describe('language', () => {
     expect(await screen.findByText('Sign up', {}, { timeout: 3000 })).toBeDefined();
     expect(screen.queryByText('التسجيل')).toBeNull();
     expect(document.documentElement.dir).toBe('ltr');
-    // The names come from a catalogue requested in English.
-    expect(api.callsTo('GET', '/functionalities').at(-1)?.url).toContain('locale=en');
+    // The English catalogue it already holds names them, so only Arabic was asked for again.
+    expect(api.callsTo('GET', '/functionalities').map((call) => new URL(call.url).searchParams.get('locale'))).toEqual([
+      'en',
+      'ar',
+    ]);
   });
 
   it('keeps the loaded category names through a failed refetch and catches up on the next switch', async () => {

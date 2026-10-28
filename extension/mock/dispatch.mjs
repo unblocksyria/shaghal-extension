@@ -96,7 +96,11 @@ const KNOWN = (() => {
 
 const VERIFIED_FORMS = new Set(['/functionality-reports', '/corrections', '/submissions']);
 
-export function dispatch(method, pathname, rawBody, headers = {}) {
+/**
+ * Answers one request. `search` is the query string, which only the service
+ * list reads: a name search, or a queue of services to check.
+ */
+export function dispatch(method, pathname, rawBody, headers = {}, search = '') {
   // CORS preflight: permissive, nothing real is reachable through the mock.
   if (method === 'OPTIONS') {
     return { status: 204, body: '', cors: true };
@@ -111,9 +115,19 @@ export function dispatch(method, pathname, rawBody, headers = {}) {
     return { status: 200, body: JSON.stringify({ data: match }) };
   }
 
-  // The untracked card's search by name: one row, so the pick lands on Netflix.
-  if (method === 'GET' && pathname === '/services')
+  if (method === 'GET' && pathname === '/services') {
+    const query = new URLSearchParams(search);
+    // The "help check these" queues: rechecks, and services nobody has tested.
+    if (query.get('needs_retesting') === 'true')
+      return { status: 200, body: JSON.stringify({ data: JSON.parse(fixture('queue')) }) };
+    if (query.get('availability') === 'unknown') return { status: 200, body: JSON.stringify({ data: [] }) };
+    // The untracked card's search by name: one row, so the pick lands on Netflix.
     return { status: 200, body: JSON.stringify({ data: [JSON.parse(fixture('search'))] }) };
+  }
+
+  // Nothing the mock knows was sent before, so every site is new.
+  if (method === 'GET' && pathname === '/check-duplicate')
+    return { status: 200, body: JSON.stringify({ hasDuplicate: false, duplicateType: 'none' }) };
 
   if (method === 'GET' && pathname.startsWith('/services/')) {
     const slug = pathname.slice('/services/'.length);
@@ -126,6 +140,10 @@ export function dispatch(method, pathname, rawBody, headers = {}) {
       record.name = entry.name;
       record.company = entry.company;
     }
+    // Outreach progress and a support page, so the card shows both.
+    record.progressStatus = 'contacted';
+    record.timelineSummary = 'Unblock Syria asked the company to serve Syria. No answer yet.';
+    record.supportUrl = 'https://example.com/support';
     return { status: 200, body: JSON.stringify({ data: record }) };
   }
 

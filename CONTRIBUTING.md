@@ -33,9 +33,10 @@ update tests for any behavior you change.
   for example `fix(evidence): keep the crop when a capture is resized`.
 - Update the docs and comments that your change makes wrong. Comments describe
   how the code works now, not how it got there.
-- Add every new string in English and Arabic, in `extension/src/locales/` (panel)
-  or `extension/public/_locales/` (store listing). If you can't write the Arabic,
-  say so in the pull request.
+- Add every new panel string in English, Arabic and Kurdish, in
+  `extension/src/locales/`, and every new store listing string in English and
+  Arabic, in `extension/public/_locales/`. If you can't write a translation, say
+  so in the pull request.
 - Don't commit credentials, `.env` files or build output.
 
 Contributions are licensed under the [MIT License](LICENSE).

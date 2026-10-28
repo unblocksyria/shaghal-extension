@@ -20,9 +20,10 @@ const server = http.createServer((req, res) => {
     const rawBody = Buffer.concat(chunks).toString('utf8');
     let answer;
     try {
-      // The client appends ?locale= to reads; route on the pathname alone.
-      const { pathname } = new URL(req.url, 'http://localhost');
-      answer = dispatch(req.method, pathname, rawBody, req.headers);
+      // The client appends ?locale= to reads. Routes go by pathname; the
+      // service list also reads the query.
+      const { pathname, search } = new URL(req.url, 'http://localhost');
+      answer = dispatch(req.method, pathname, rawBody, req.headers, search);
     } catch {
       answer = { status: 400, body: { error: 'malformed request url' } };
     }

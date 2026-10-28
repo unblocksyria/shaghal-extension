@@ -83,6 +83,11 @@ export function fakeApi(): FakeApi {
     // The card asks for the record behind a matched service as soon as it
     // matches. This answer carries no parts and no alternatives, so a test that
     // wants either answers this route itself. Routes registered later win.
+    // The "help check these" list on empty, untracked and sent screens. Empty,
+    // so it shows nothing unless a test answers it. Searches answer it too.
+    { method: 'GET', path: '/services', answer: { data: [] } },
+    // The new-service form checks whether the site was already sent.
+    { method: 'GET', path: '/check-duplicate', answer: { json: { hasDuplicate: false, duplicateType: 'none' } } },
     {
       method: 'GET',
       path: /^\/services\/[^/]+$/,

@@ -1,46 +1,42 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Availability, CatalogService, ServiceFunctionality } from '../../../lib/endpoints';
-import { searchServices } from '../../../lib/endpoints';
+import type { CatalogService, ProgressStatus, ServiceFunctionality, ServiceRecord } from '../../../lib/endpoints';
+import { partChecks, searchServices } from '../../../lib/endpoints';
 import { SITE_BASE } from '../../../lib/config';
 import { rememberFallbackHeading } from '../../../lib/focusFlow';
-import { activeLanguage, i18next, intlLocale, sitePathSegment } from '../../../lib/i18n';
+import { countryName } from '../../../lib/geo';
+import { recentlyReported, sentHistory, watchSentHistory, type SentEntry } from '../../../lib/history';
+import { activeLanguage, directionOf, i18next, intlLocale, sitePathSegment } from '../../../lib/i18n';
+import { loadFunctionalities } from '../../../lib/reads';
+import { needsRecheck, RETEST_SINCE } from '../../../lib/retest';
 import { isolate, serviceName } from '../../../lib/serviceName';
-import { hostOf } from '../../../lib/url';
+import { hostOf, webUrl } from '../../../lib/url';
 import { hasVoted, setVote, watchVote } from '../../../lib/votes';
+import { prefetchTurnstileToken } from '../../../lib/turnstile';
 import type { MatchState } from '../hooks/useServiceMatch';
+import { useBrowsingCountry } from '../hooks/useBrowsingCountry';
 import { useServiceDetails, type DetailsState } from '../hooks/useServiceDetails';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { cardStyle, hintStyle, titleStyle } from './FormParts';
+import { knownStatus, ServiceLogo, ServiceRow, StatusBadge } from './ServiceRow';
+import { TestQueue } from './TestQueue';
+import { VerificationSlot } from './VerificationSlot';
 import {
   ArrowDown,
+  ArrowLeft,
+  ArrowRight,
   ArrowUp,
   ArrowUpRight,
-  Ban,
   Check,
-  CircleCheckBig,
-  CircleHelp,
   ClipboardCheck,
   Globe,
   LoaderCircle,
+  Mail,
   PlusCircle,
   RefreshCw,
-  Star,
+  WifiOff,
 } from 'lucide-react';
-
-/** Badge colour and icon per status. Labels come from the locale catalog. */
-const STATUS: Record<Availability, { fill: string; icon: typeof Ban }> = {
-  available: { fill: 'var(--us-status-available)', icon: Star },
-  usable: { fill: 'var(--us-status-available)', icon: CircleCheckBig },
-  blocked: { fill: 'var(--us-status-blocked)', icon: Ban },
-  unknown: { fill: 'var(--us-status-unknown)', icon: CircleHelp },
-};
-
-/** A status this build doesn't know renders as unknown. */
-function knownStatus(availability: Availability): Availability {
-  return Object.hasOwn(STATUS, availability) ? availability : 'unknown';
-}
 
 function formatCount(count: number): string {
   return count.toLocaleString(intlLocale(activeLanguage()));
@@ -80,70 +76,6 @@ const LEVEL_LABEL = {
   failing: 'report.levelFailing',
   unknown: 'report.levelUnknown',
 } as const;
-
-function StatusBadge(props: { availability: Availability; small?: boolean }) {
-  const { t } = useTranslation();
-  const status = knownStatus(props.availability);
-  const { fill, icon: Icon } = STATUS[status];
-  const label = t(`card.status.${status}.label` as const);
-  return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 5,
-        fontSize: props.small === true ? 11.5 : 12.5,
-        fontWeight: 500,
-        padding: props.small === true ? '2px 8px' : '3px 10px',
-        borderRadius: 'var(--us-radius-badge)',
-        color: 'var(--us-on-color)',
-        backgroundColor: fill,
-        boxShadow: props.availability === 'available' ? 'inset 0 0 0 2px rgba(255, 255, 255, 0.4)' : undefined,
-        whiteSpace: 'nowrap',
-      }}
-    >
-      <Icon
-        size={props.small === true ? 12 : 13}
-        fill={props.availability === 'available' ? 'currentColor' : 'none'}
-        aria-hidden="true"
-      />
-      {label}
-    </span>
-  );
-}
-
-function ServiceLogo(props: { service: CatalogService; size: number }) {
-  const [failed, setFailed] = useState(false);
-  const box: React.CSSProperties = {
-    width: props.size,
-    height: props.size,
-    borderRadius: 'var(--us-radius-control)',
-    flexShrink: 0,
-    backgroundColor: 'var(--us-card-nested)',
-    border: '1px solid var(--us-border)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    color: 'var(--us-accent-text)',
-    fontWeight: 500,
-    fontSize: props.size * 0.42,
-  };
-  if (props.service.logoUrl === null || failed) {
-    return <div style={box}>{props.service.name.slice(0, 1).toUpperCase()}</div>;
-  }
-  return (
-    <div style={box}>
-      <img
-        src={props.service.logoUrl}
-        alt=""
-        referrerPolicy="no-referrer"
-        onError={() => setFailed(true)}
-        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-      />
-    </div>
-  );
-}
 
 const countChip: React.CSSProperties = {
   // Logical property, so the chip stays at the end of the row in RTL.
@@ -213,23 +145,31 @@ function VoteButton(props: { service: CatalogService }) {
     );
   }
 
+  // The button shows the outcome at once and the request catches up. A refusal
+  // puts the button and the count back and says why.
   const send = async (wantVoted: boolean) => {
+    const before = { voted, count };
     setBusy(true);
     setMessage(null);
+    setVoted(wantVoted);
+    setCount((current) => Math.max(0, current + (wantVoted ? 1 : -1)));
     const outcome = await setVote(props.service.slug, wantVoted);
     setBusy(false);
     if (!outcome.ok) {
+      setVoted(before.voted);
+      setCount(before.count);
       setMessage(outcome.message);
       return;
     }
     setVoted(outcome.voted);
-    if (outcome.voteCount !== null) {
-      latestVoteCounts.set(props.service.slug, outcome.voteCount);
-      setCount(outcome.voteCount);
-    }
+    // No count means the server was already in that state, so the count before still holds.
+    const settled = outcome.voteCount ?? before.count;
+    if (outcome.voteCount !== null) latestVoteCounts.set(props.service.slug, settled);
+    setCount(settled);
   };
 
   const click = () => {
+    if (busy) return;
     if (voted !== true) {
       void send(true);
       return;
@@ -244,7 +184,7 @@ function VoteButton(props: { service: CatalogService }) {
     void send(false);
   };
 
-  const state = busy ? 'busy' : voted === true ? (confirming ? 'confirm' : 'voted') : 'idle';
+  const state = voted === true ? (confirming ? 'confirm' : 'voted') : 'idle';
   const look: Record<
     typeof state,
     { variant: 'gold' | 'primary' | 'danger'; icon: React.ReactNode; label: string; chip: string }
@@ -262,31 +202,31 @@ function VoteButton(props: { service: CatalogService }) {
       label: t('card.voteRemove'),
       chip: 'rgba(255, 255, 255, 0.2)',
     },
-    busy: {
-      variant: voted === true ? 'primary' : 'gold',
-      icon: <LoaderCircle size={16} style={{ animation: 'spin 1s linear infinite' }} />,
-      label: voted === true ? t('card.voteRemoving') : t('card.voteVoting'),
-      chip: 'rgba(255, 255, 255, 0.2)',
-    },
   };
   const current = look[state];
 
   return (
     <div style={{ display: 'grid', gap: 6 }}>
-      <Button
-        variant={current.variant}
-        size="md"
-        fullWidth
-        onClick={click}
-        disabled={busy || voted === null}
-        icon={current.icon}
-        aria-pressed={voted === true}
-        title={state === 'voted' ? t('card.voteRemoveHint') : undefined}
-        style={{ justifyContent: 'flex-start' }}
-      >
-        {current.label}
-        <span style={{ ...countChip, backgroundColor: current.chip }}>{formatCount(count)}</span>
-      </Button>
+      <VerificationSlot>
+        <Button
+          variant={current.variant}
+          size="md"
+          fullWidth
+          onClick={click}
+          // Starts verification on the way to a click, so the vote goes out sooner.
+          onPointerEnter={() => voted !== null && prefetchTurnstileToken('vote')}
+          onFocus={() => voted !== null && prefetchTurnstileToken('vote')}
+          disabled={voted === null}
+          aria-busy={busy}
+          icon={busy ? <LoaderCircle size={16} style={{ animation: 'spin 1s linear infinite' }} /> : current.icon}
+          aria-pressed={voted === true}
+          title={state === 'voted' ? t('card.voteRemoveHint') : undefined}
+          style={{ justifyContent: 'flex-start' }}
+        >
+          {current.label}
+          <span style={{ ...countChip, backgroundColor: current.chip }}>{formatCount(count)}</span>
+        </Button>
+      </VerificationSlot>
       {/* In place, because the message is there for the reader as much as the eye. */}
       <div aria-live="polite" style={{ display: 'contents' }}>
         {message !== null ? (
@@ -317,59 +257,49 @@ const linkStyle: React.CSSProperties = {
   textDecorationColor: 'var(--us-border-hover)',
 };
 
-/** One service in a list: a candidate to pick, or an alternative to open. */
-const rowStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 10,
-  textAlign: 'start',
-  backgroundColor: 'var(--us-card)',
-  border: '1px solid var(--us-border)',
-  borderRadius: 'var(--us-radius-control)',
-  padding: '8px 10px',
-  cursor: 'pointer',
-  color: 'inherit',
-  fontFamily: 'inherit',
-  textDecoration: 'none',
-};
-
-function ServiceRow(props: { service: CatalogService; onPick?: () => void; href?: string }) {
-  const [hovered, setHovered] = useState(false);
-  const style: React.CSSProperties = hovered
-    ? { ...rowStyle, borderColor: 'var(--us-border-hover)', backgroundColor: 'var(--us-hover-tint)' }
-    : rowStyle;
-  const hover = {
-    onMouseEnter: () => setHovered(true),
-    onMouseLeave: () => setHovered(false),
-  };
-  const body = (
-    <>
-      <ServiceLogo service={props.service} size={28} />
-      <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 500, color: 'var(--us-text-primary)' }}>
-        {serviceName(props.service)}
-      </span>
-      <StatusBadge availability={props.service.availability} small />
-      {props.href !== undefined && (
-        <ArrowUpRight size={14} aria-hidden="true" style={{ flexShrink: 0, color: 'var(--us-text-muted)' }} />
-      )}
-    </>
-  );
-  if (props.href !== undefined) {
-    return (
-      <a href={props.href} target="_blank" rel="noreferrer" style={style} {...hover}>
-        {body}
-      </a>
-    );
-  }
-  return (
-    <button type="button" onClick={props.onPick} style={style} {...hover}>
-      {body}
-    </button>
-  );
+/** The parts this browser reported for a service in the last 30 days, by slug, kept current. */
+function useReportedParts(slug: string): Map<string, number> {
+  const [history, setHistory] = useState<SentEntry[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void sentHistory().then((list) => {
+      if (!cancelled) setHistory(list);
+    });
+    const stop = watchSentHistory(setHistory);
+    return () => {
+      cancelled = true;
+      stop();
+    };
+  }, []);
+  return recentlyReported(history, slug);
 }
 
-/** The site's "What works" table, as stacked rows the narrow panel can hold. */
-function WorksSection(props: { parts: ServiceFunctionality[] }) {
+const actionStyle: React.CSSProperties = {
+  background: 'none',
+  border: 'none',
+  padding: 0,
+  font: 'inherit',
+  fontSize: 12,
+  fontWeight: 600,
+  color: 'var(--us-link)',
+  cursor: 'pointer',
+  textDecoration: 'underline',
+  textUnderlineOffset: 3,
+  textDecorationColor: 'var(--us-border-hover)',
+};
+
+/**
+ * The site's "What works" table, as stacked rows the narrow panel can hold.
+ * The gaps are where a tester helps most, so an unchecked part offers "Test
+ * this", a failing part due a recheck offers "Still fails?", and both open the
+ * report with that part already added.
+ */
+function WorksSection(props: {
+  parts: ServiceFunctionality[];
+  recheck: boolean;
+  reported: Map<string, number>;
+  onTest: (slug: string) => void;
+}) {
   const { t } = useTranslation();
   return (
     <section style={{ display: 'grid', gap: 10 }}>
@@ -379,8 +309,20 @@ function WorksSection(props: { parts: ServiceFunctionality[] }) {
       </div>
       <div style={{ display: 'grid', borderTop: '1px solid var(--us-border)' }}>
         {props.parts.map((part, index) => {
-          const since = sinceText(part.changedAt);
+          // "Since" is when the level last changed. An unchecked part never had one.
+          const since = part.level === 'unknown' ? null : sinceText(part.changedAt);
           const checked = checkedText(part.lastObservedAt ?? null);
+          const reportedAt = props.reported.get(part.slug);
+          const action =
+            reportedAt !== undefined
+              ? null
+              : part.level === 'unknown'
+                ? t('card.testThis')
+                : props.recheck && needsRecheck(part)
+                  ? t('card.stillFails')
+                  : null;
+          // The newest check is the part's current state. The ones before it are history.
+          const earlier = partChecks(part).slice(1, 3);
           return (
             <div
               key={part.slug}
@@ -406,16 +348,182 @@ function WorksSection(props: { parts: ServiceFunctionality[] }) {
                 </span>
               </div>
               {part.description != null && part.description !== '' && (
-                <p style={{ ...hintStyle, fontSize: 12.5 }}>{part.description}</p>
+                <p dir="auto" style={{ ...hintStyle, fontSize: 12.5, textAlign: 'start' }}>
+                  {part.description}
+                </p>
               )}
-              {(since !== null || checked !== null) && (
-                <p style={{ ...hintStyle, fontSize: 11.5 }}>{[since, checked].filter(Boolean).join(' · ')}</p>
+              {(since !== null || checked !== null || action !== null || reportedAt !== undefined) && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '2px 10px' }}>
+                  {(since !== null || checked !== null) && (
+                    <span style={{ ...hintStyle, fontSize: 11.5 }}>{[since, checked].filter(Boolean).join(' · ')}</span>
+                  )}
+                  {reportedAt !== undefined && (
+                    <span style={{ ...hintStyle, fontSize: 11.5, color: 'var(--us-accent-text)' }}>
+                      <Check size={11} aria-hidden="true" style={{ verticalAlign: '-1px', marginInlineEnd: 3 }} />
+                      {t('card.reportedOn', { date: shortDate(new Date(reportedAt).toISOString()) })}
+                    </span>
+                  )}
+                  {action !== null && (
+                    <button
+                      type="button"
+                      style={{ ...actionStyle, marginInlineStart: 'auto' }}
+                      onClick={() => props.onTest(part.slug)}
+                      onPointerEnter={() => void loadFunctionalities()}
+                      aria-label={`${action} ${part.name}`}
+                    >
+                      {action}
+                    </button>
+                  )}
+                </div>
+              )}
+              {earlier.length > 0 && (
+                <details>
+                  <summary style={{ ...hintStyle, fontSize: 11.5, cursor: 'pointer', width: 'fit-content' }}>
+                    {t('card.earlierChecks')}
+                  </summary>
+                  <ul style={{ listStyle: 'none', margin: '6px 0 0', padding: 0, display: 'grid', gap: 6 }}>
+                    {earlier.map((check) => (
+                      <li key={check.observedAt} style={{ display: 'grid', gap: 2 }}>
+                        <span style={{ ...hintStyle, fontSize: 11.5 }}>
+                          {shortDate(check.observedAt)} ·{' '}
+                          <span style={{ fontWeight: 700, color: LEVEL_COLOR[check.level] }}>
+                            {t(LEVEL_LABEL[check.level])}
+                          </span>
+                        </span>
+                        {check.description != null && check.description !== '' && (
+                          <p dir="auto" style={{ ...hintStyle, textAlign: 'start' }}>
+                            {check.description}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
               )}
             </div>
           );
         })}
       </div>
     </section>
+  );
+}
+
+/** Asks for the recheck that clears `needsRetesting`, naming the parts that need it. */
+function RecheckPrompt(props: { parts: ServiceFunctionality[]; onTest: (slugs: string[]) => void }) {
+  const { t } = useTranslation();
+  const date = shortDate(RETEST_SINCE);
+  const names = new Intl.ListFormat(intlLocale(activeLanguage()), { type: 'conjunction' }).format(
+    props.parts.map((part) => part.name),
+  );
+  return (
+    <div className="us-callout us-callout-gold" role="note">
+      <RefreshCw size={16} aria-hidden="true" />
+      <span style={{ display: 'grid', gap: 6, justifyItems: 'start' }}>
+        <span>
+          <strong style={{ fontWeight: 600 }}>{t('card.retestTitle')} </strong>
+          {props.parts.length > 0
+            ? t('card.retestParts', { count: props.parts.length, parts: names, date })
+            : t('card.retestGeneric', { date })}
+        </span>
+        {props.parts.length > 0 && (
+          <button
+            type="button"
+            style={actionStyle}
+            onClick={() => props.onTest(props.parts.map((part) => part.slug))}
+            onPointerEnter={() => void loadFunctionalities()}
+          >
+            {t('card.retestAction')}
+          </button>
+        )}
+      </span>
+    </div>
+  );
+}
+
+const PROGRESS: ProgressStatus[] = [
+  'no_outreach',
+  'contacted',
+  'no_response',
+  'in_review',
+  'partially_resolved',
+  'unblocked',
+  'declined',
+];
+
+/** How far outreach to the company has gone, and the story so far (issue 47). */
+function OutreachSection(props: { record: ServiceRecord }) {
+  const { t } = useTranslation();
+  const status = PROGRESS.find((value) => value === props.record.progressStatus);
+  const summary = props.record.timelineSummary?.trim();
+  if (status === undefined && (summary === undefined || summary === '')) return null;
+  return (
+    <section style={{ display: 'grid', gap: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <h2 style={{ ...titleStyle, fontSize: 15 }}>{t('card.outreachTitle')}</h2>
+        {status !== undefined && <span className="us-tag">{t(`card.progress.${status}` as const)}</span>}
+      </div>
+      {summary !== undefined && summary !== '' ? (
+        <p dir="auto" className="us-clamp" style={{ ...hintStyle, fontSize: 12.5, textAlign: 'start' }}>
+          {summary}
+        </p>
+      ) : (
+        status !== undefined && (
+          <p style={{ ...hintStyle, fontSize: 12.5 }}>{t(`card.progressHint.${status}` as const)}</p>
+        )
+      )}
+    </section>
+  );
+}
+
+/** Where to ask the company about the block (issue 41). */
+function ContactRow(props: { name: string; record: ServiceRecord }) {
+  const { t } = useTranslation();
+  const page = webUrl(props.record.supportUrl);
+  const email = props.record.supportEmail?.trim();
+  const mail = email !== undefined && /^[^\s@]+@[^\s@]+$/.test(email) ? email : null;
+  if (page === null && mail === null) return null;
+  return (
+    <section style={{ display: 'grid', gap: 6 }}>
+      <h2 style={{ ...titleStyle, fontSize: 15 }}>{t('card.contact', { name: props.name })}</h2>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px' }}>
+        {page !== null && (
+          <a href={page} target="_blank" rel="noreferrer" style={linkStyle}>
+            {t('card.supportPage')} <ArrowUpRight size={13} aria-hidden="true" />
+          </a>
+        )}
+        {mail !== null && (
+          <a href={`mailto:${mail}`} style={linkStyle}>
+            <Mail size={13} aria-hidden="true" /> <bdi dir="ltr">{mail}</bdi>
+          </a>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Tests only count from a Syrian connection, so a tester abroad or on a VPN
+ * hears it here, before writing a report, and is pointed at the vote.
+ */
+function AbroadNotice(props: { country: string; checking: boolean; recheck: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <div className="us-callout us-callout-warning" role="status">
+      <WifiOff size={16} aria-hidden="true" />
+      <span>
+        <strong style={{ fontWeight: 600 }}>{t('card.abroadTitle')} </strong>
+        {t('card.abroadBody', { country: countryName(props.country, intlLocale(activeLanguage())) })}{' '}
+        <button
+          type="button"
+          className="us-text-link"
+          onClick={props.recheck}
+          disabled={props.checking}
+          style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}
+        >
+          {props.checking ? t('vpn.checking') : t('vpn.checkAgain')}
+        </button>
+      </span>
+    </div>
   );
 }
 
@@ -442,11 +550,20 @@ function AlternativesSection(props: { service: CatalogService; alternatives: Cat
   );
 }
 
+/** A way off a card that may not be the service the tester is using. */
+interface CardExit {
+  label: string;
+  onLeave: () => void;
+  /** `back` shows as a back link above the card; `notThis` as a question under the status. */
+  kind: 'back' | 'notThis';
+}
+
 function ServiceView(props: {
   service: CatalogService;
   details: DetailsState;
   parentDomain: boolean;
-  onReport: () => void;
+  exit: CardExit | null;
+  onReport: (parts?: string[]) => void;
   onCorrect: () => void;
 }) {
   const { t } = useTranslation();
@@ -455,17 +572,49 @@ function ServiceView(props: {
   // Show the company only when it differs from the service name.
   const company = service.company !== null && service.company.name !== service.name ? service.company.name : null;
   const siteLanguage = sitePathSegment(activeLanguage());
-  const parts = details.status === 'ready' ? (details.record.functionalities ?? []) : [];
+  const record = details.status === 'ready' ? details.record : null;
+  const parts = record?.functionalities ?? [];
+  const status = knownStatus(service.availability);
+  const reported = useReportedParts(service.slug);
+  const location = useBrowsingCountry();
+  const abroad = location.country !== null && location.country !== 'SY';
   // Only what works from Syria is worth pointing a blocked service's tester at.
-  const alternatives =
-    details.status === 'ready'
-      ? (details.record.alternatives ?? []).filter(
-          (item) => item.slug !== service.slug && (item.availability === 'available' || item.availability === 'usable'),
-        )
-      : [];
-  const offerAlternatives = knownStatus(service.availability) === 'blocked' && alternatives.length > 0;
+  const alternatives = (record?.alternatives ?? []).filter(
+    (item) => item.slug !== service.slug && (item.availability === 'available' || item.availability === 'usable'),
+  );
+  const offerAlternatives = status === 'blocked' && alternatives.length > 0;
+  const needsRetesting = service.needsRetesting === true || record?.needsRetesting === true;
+  const recheckParts = needsRetesting ? parts.filter((part) => needsRecheck(part) && !reported.has(part.slug)) : [];
+  // Nobody has checked core use, so a test is worth more than a vote, unless tests can't count from here.
+  const testFirst = status === 'unknown' && !abroad;
+  const Back = directionOf(activeLanguage()) === 'rtl' ? ArrowRight : ArrowLeft;
+
+  const reportButton = (
+    <Button
+      variant={testFirst ? 'primary' : 'outline'}
+      size="md"
+      fullWidth
+      onClick={() => props.onReport(testFirst ? ['core_use', 'landing_page'] : undefined)}
+      // The report form needs the parts catalogue; start fetching it on the way to a click.
+      onPointerEnter={() => void loadFunctionalities()}
+      onFocus={() => void loadFunctionalities()}
+      icon={<ClipboardCheck size={16} />}
+    >
+      {testFirst ? t('card.testIt') : t('card.reportWhatWorks')}
+    </Button>
+  );
+
   return (
     <section className="us-animate-fade" style={cardStyle}>
+      {props.exit?.kind === 'back' && (
+        <button
+          type="button"
+          onClick={props.exit.onLeave}
+          style={{ ...linkStyle, justifySelf: 'start', textDecoration: 'none' }}
+        >
+          <Back size={14} aria-hidden="true" /> {props.exit.label}
+        </button>
+      )}
       <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
         <ServiceLogo key={service.id} service={service} size={44} />
         <div style={{ minWidth: 0, flex: 1, display: 'grid', gap: 2 }}>
@@ -483,19 +632,40 @@ function ServiceView(props: {
       <div style={{ display: 'grid', gap: 8, justifyItems: 'start' }}>
         <StatusBadge availability={service.availability} />
         <p style={{ ...hintStyle, fontSize: 13 }}>
-          {t(`card.status.${knownStatus(service.availability)}.meaning` as const)}
+          {t(`card.status.${status}.meaning` as const)}
           {props.parentDomain && ` ${t('card.subdomain', { name: isolate(service.name) })}`}
         </p>
+        {props.exit?.kind === 'notThis' && (
+          <button type="button" onClick={props.exit.onLeave} style={linkStyle}>
+            {props.exit.label}
+          </button>
+        )}
       </div>
 
+      {abroad && location.country !== null && (
+        <AbroadNotice country={location.country} checking={location.checking} recheck={location.recheck} />
+      )}
+      {needsRetesting && !abroad && (details.status !== 'loading' || recheckParts.length > 0) && (
+        <RecheckPrompt parts={recheckParts} onTest={(slugs) => props.onReport(slugs)} />
+      )}
+
+      {testFirst && reportButton}
       <VoteButton key={service.slug} service={service} />
+      {!testFirst && reportButton}
 
-      <Button variant="outline" size="md" fullWidth onClick={props.onReport} icon={<ClipboardCheck size={16} />}>
-        {t('card.reportWhatWorks')}
-      </Button>
-
-      {parts.length > 0 && <WorksSection parts={parts} />}
+      {parts.length > 0 && (
+        <WorksSection
+          parts={parts}
+          recheck={needsRetesting}
+          reported={reported}
+          onTest={(slug) => props.onReport([slug])}
+        />
+      )}
+      {record !== null && status !== 'available' && <OutreachSection record={record} />}
       {offerAlternatives && <AlternativesSection service={service} alternatives={alternatives} />}
+      {record !== null && (status === 'blocked' || status === 'usable') && (
+        <ContactRow name={serviceName(service)} record={record} />
+      )}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
         <button type="button" onClick={props.onCorrect} style={linkStyle}>
@@ -550,7 +720,13 @@ const SEARCH_MIN_CHARS = 2;
  * another address, so the card searches by name and offers what it finds,
  * with reporting a new service as the last resort.
  */
-function UntrackedView(props: { host: string; onPick: (service: CatalogService) => void; onNew: () => void }) {
+function UntrackedView(props: {
+  host: string;
+  onPick: (service: CatalogService) => void;
+  onNew: () => void;
+  /** Set when the tester said the matched service was not the one they use. */
+  onBack?: { label: string; onLeave: () => void };
+}) {
   const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [answer, setAnswer] = useState<
@@ -584,8 +760,18 @@ function UntrackedView(props: { host: string; onPick: (service: CatalogService) 
   }, [activeTerm]);
 
   const rows = shown?.state === 'ready' ? shown.items : [];
+  const Back = directionOf(activeLanguage()) === 'rtl' ? ArrowRight : ArrowLeft;
   return (
     <section className="us-animate-fade" style={cardStyle}>
+      {props.onBack !== undefined && (
+        <button
+          type="button"
+          onClick={props.onBack.onLeave}
+          style={{ ...linkStyle, justifySelf: 'start', textDecoration: 'none' }}
+        >
+          <Back size={14} aria-hidden="true" /> {props.onBack.label}
+        </button>
+      )}
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
         <span style={{ flexShrink: 0, marginTop: 3, color: 'var(--us-accent-text)' }}>
           <PlusCircle size={20} />
@@ -652,23 +838,35 @@ function MessageView(props: { icon: React.ReactNode; title: string; detail: stri
 export function PageCard(props: {
   pageUrl: string | null;
   state: MatchState;
-  /** A service picked from the candidate list. Overrides the match. */
+  /** A service picked from the candidate list or the search. Overrides the match. */
   picked: CatalogService | null;
   onPick: (service: CatalogService) => void;
+  /** Forgets the pick, back to the list or the search it came from. */
+  onUnpick: () => void;
   onRetry: () => void;
-  onReport: (service: CatalogService) => void;
+  /** Opens the report, with `parts` already added when the tester came for them. */
+  onReport: (service: CatalogService, parts?: string[]) => void;
   onCorrect: (service: CatalogService) => void;
   onReportNew: () => void;
 }) {
   const { state } = props;
   const { t } = useTranslation();
+  // The page on which the tester said the matched service isn't theirs.
+  const [notThisOn, setNotThisOn] = useState<string | null>(null);
+  const rejected = notThisOn !== null && notThisOn === props.pageUrl;
   // Hooks first: the card asks for the record behind whatever it is showing.
-  const matched = state.status === 'ready' ? state.match.service : null;
+  const matched = state.status === 'ready' && !rejected ? state.match.service : null;
   const service = props.picked ?? matched;
   const details = useServiceDetails(service === null ? null : service.slug);
+  const queue = <TestQueue />;
 
   if (state.status === 'no-page') {
-    return <MessageView icon={<Globe size={20} />} title={t('card.emptyTitle')} detail={t('card.emptyDetail')} />;
+    return (
+      <>
+        <MessageView icon={<Globe size={20} />} title={t('card.emptyTitle')} detail={t('card.emptyDetail')} />
+        {queue}
+      </>
+    );
   }
   if (state.status === 'loading') {
     return (
@@ -700,25 +898,49 @@ export function PageCard(props: {
     );
   }
 
+  const fromList = state.match.alternatives.length > 0;
   if (service !== null) {
+    const parentDomain = props.picked === null && state.match.matchType === 'parent_domain';
+    const exit: CardExit | null =
+      props.picked !== null
+        ? { kind: 'back', label: fromList ? t('card.backToList') : t('card.backToSearch'), onLeave: props.onUnpick }
+        : parentDomain
+          ? {
+              kind: 'notThis',
+              label: t('card.notThis', { name: isolate(serviceName(service)) }),
+              onLeave: () => setNotThisOn(props.pageUrl),
+            }
+          : null;
     return (
       <ServiceView
         service={service}
         details={details}
-        parentDomain={props.picked === null && state.match.matchType === 'parent_domain'}
-        onReport={() => props.onReport(service)}
+        parentDomain={parentDomain}
+        exit={exit}
+        onReport={(parts) => props.onReport(service, parts)}
         onCorrect={() => props.onCorrect(service)}
       />
     );
   }
-  if (state.match.alternatives.length > 0) {
+  if (fromList) {
     return <PickView alternatives={state.match.alternatives} onPick={props.onPick} onNew={props.onReportNew} />;
   }
   return (
-    <UntrackedView
-      host={hostOf(props.pageUrl ?? '').replace(/^www\./, '')}
-      onPick={props.onPick}
-      onNew={props.onReportNew}
-    />
+    <>
+      <UntrackedView
+        host={hostOf(props.pageUrl ?? '').replace(/^www\./, '')}
+        onPick={props.onPick}
+        onNew={props.onReportNew}
+        onBack={
+          rejected && state.match.service !== null
+            ? {
+                label: t('common.backTo', { name: serviceName(state.match.service) }),
+                onLeave: () => setNotThisOn(null),
+              }
+            : undefined
+        }
+      />
+      {queue}
+    </>
   );
 }

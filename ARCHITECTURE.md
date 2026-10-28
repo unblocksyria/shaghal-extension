@@ -47,7 +47,7 @@ verification page alone (see [Human verification](#human-verification)).
 | [evidence.ts](extension/src/lib/evidence.ts), [editorWindow.ts](extension/src/lib/editorWindow.ts), [imageEdits.ts](extension/src/lib/imageEdits.ts), [imageBake.ts](extension/src/lib/imageBake.ts) | Capture, resizing and upload; the editor window's messages; crop and box geometry; drawing edits into a new JPEG.                                                                |
 | [settings.ts](extension/src/lib/settings.ts), [votes.ts](extension/src/lib/votes.ts), [theme.ts](extension/src/lib/theme.ts), [i18n.ts](extension/src/lib/i18n.ts)                                   | Saved email and language, vote hints, the theme, and the active language and direction.                                                                                          |
 | [drafts.ts](extension/src/lib/drafts.ts), [useDraft.ts](extension/src/entrypoints/sidepanel/hooks/useDraft.ts)                                                                                       | Saving a half finished form, screenshots included, to session storage and putting it back when the panel reopens.                                                                |
-| [locales](extension/src/locales)                                                                                                                                                                     | English and Arabic panel text. The store name and description are in [public/\_locales](extension/public/_locales).                                                              |
+| [locales](extension/src/locales)                                                                                                                                                                     | English, Arabic and Kurdish panel text. The store name and description are in [public/\_locales](extension/public/_locales).                                                     |
 | [theme.css](extension/src/styles/theme.css)                                                                                                                                                          | Shared styles and light/dark tokens.                                                                                                                                             |
 | [testing](extension/src/testing)                                                                                                                                                                     | Unit test helpers: a fake API that refuses real hosts, JSON fixtures, and `openPanel`, which mounts the panel on a fake tab.                                                     |
 | [e2e](extension/e2e)                                                                                                                                                                                 | Browser tests of the production bundle, with external requests stubbed.                                                                                                          |
@@ -70,9 +70,11 @@ flowchart TD
     Supported -->|no| NoPage["Ask to open a website"]
     Supported -->|yes| Failed{"Lookup already failed<br/>for this address?"}
     Failed -->|yes| Retry["Show the error and Try again"]
-    Failed -->|no| Cached{"Answer cached<br/>under five minutes?"}
+    Failed -->|no| Cached{"Answer kept<br/>under five minutes?"}
     Cached -->|yes| Answer
-    Cached -->|no| Wait["Wait 350 ms,<br/>a new navigation cancels"]
+    Cached -->|no| Loading{"Tab still<br/>loading?"}
+    Loading -->|yes| Wait["Wait 350 ms,<br/>a new navigation cancels"]
+    Loading -->|no| Match
     Wait --> Match["POST /services/match"]
     Match -->|failure| Retry
     Match -->|answer| Answer{"What matched?"}
@@ -94,10 +96,38 @@ single-label hosts, common local domains, and addresses longer than the API's
 matching. Sending the address in a POST body keeps it out of URL logs, but the
 query can still hold private data.
 
-The cache holds up to 100 successful answers in memory and evicts the oldest. The
-panel never polls: an unchanged page is not looked up again, and a failed one
+A loaded page, a tab switch or a reopened panel is looked up at once; only a
+tab that is still loading waits 350 ms, so a redirect chain costs one lookup.
+
+The panel never polls: an unchanged page is not looked up again, and a failed one
 waits for Try again. **None of these** and the new-service offer open a form
 prefilled with the site's scheme and host (without `www.`) and the tab title.
+
+A parent-domain match or a service picked from the list or the search carries
+a way off the card: **Not this?** opens the search, and **Back to the list**
+returns to the pick without a new lookup.
+
+### Kept answers
+
+[cache.ts](extension/src/lib/cache.ts) and [reads.ts](extension/src/lib/reads.ts)
+keep each successful read, so the panel asks for it once. Concurrent asks share
+one request. Answers live in memory and in `chrome.storage.session`, which is also
+held in memory and emptied when the browser closes, so a closed and reopened
+panel starts warm without anything reaching the disk.
+
+| Answer                         | Used as is | Shown while asking again | At most     |
+| ------------------------------ | ---------- | ------------------------ | ----------- |
+| Page lookups, by address       | 5 minutes  | 30 minutes               | 50 pages    |
+| Service records, by language   | 5 minutes  | 30 minutes               | 20 records  |
+| Parts and categories catalogue | 1 hour     | 24 hours                 | 3 languages |
+| Services to check              | 10 minutes | 1 hour                   | 6 lists     |
+| Country check                  | 10 minutes | 10 minutes               | 1           |
+
+The card loads the full record as soon as it matches a service, so the report
+and correction forms open with it at once. Pointing at **Report what works**
+starts loading the parts catalogue. At startup the panel also opens connections
+to the API and the verification host ([preconnect.ts](extension/src/lib/preconnect.ts)),
+which saves the DNS and TLS round trips on the first request.
 
 ## API boundary
 
@@ -113,16 +143,18 @@ notice with its status code. Visible API errors include the server's request
 reference when present, including vote notices, form cooldowns and upload errors.
 The reference is ordinary selectable text so it can be copied into a bug report.
 
-| Route                                                         | Used for                                                     |
-| ------------------------------------------------------------- | ------------------------------------------------------------ |
-| `POST /services/match`                                        | Matching the page to a service.                              |
-| `GET /services?search=name`                                   | The untracked card's search by service name.                 |
-| `GET /services/:slug`                                         | The full record for the report and correction forms.         |
-| `GET /functionalities`, `GET /categories`                     | Part and category names for the report and correction forms. |
-| `POST`, `DELETE /services/:slug/vote`                         | Casting or removing a vote. Verified.                        |
-| `POST /uploads/evidence`                                      | Uploading one screenshot. Verified.                          |
-| `POST /functionality-reports`, `/corrections`, `/submissions` | Sending a form. Verified, with an `Idempotency-Key`.         |
-| `POST /submission-receipts`                                   | Asking what happened to an earlier, unconfirmed send.        |
+| Route                                                          | Used for                                                     |
+| -------------------------------------------------------------- | ------------------------------------------------------------ |
+| `POST /services/match`                                         | Matching the page to a service.                              |
+| `GET /services?search=name`                                    | The untracked card's search by service name.                 |
+| `GET /services?needs_retesting=true` / `?availability=unknown` | The "help check these" list, most voted first.               |
+| `GET /services/:slug`                                          | The full record behind the card and the forms.               |
+| `GET /check-duplicate?url=`                                    | Whether a new service was already sent.                      |
+| `GET /functionalities`, `GET /categories`                      | Part and category names for the report and correction forms. |
+| `POST`, `DELETE /services/:slug/vote`                          | Casting or removing a vote. Verified.                        |
+| `POST /uploads/evidence`                                       | Uploading one screenshot. Verified.                          |
+| `POST /functionality-reports`, `/corrections`, `/submissions`  | Sending a form. Verified, with an `Idempotency-Key`.         |
+| `POST /submission-receipts`                                    | Asking what happened to an earlier, unconfirmed send.        |
 
 [receipts.ts](extension/src/lib/receipts.ts) protects form sends from being
 written twice. Each send gets a random key, stored in session storage with a hash
@@ -150,8 +182,10 @@ Any build whose API is on `localhost` or `127.0.0.1` skips client verification.
 
 The country check bypasses the API client: [geo.ts](extension/src/lib/geo.ts)
 fetches `https://api.unblocksyria.com/cdn-cgi/trace` in every build, with a
-10-second timeout. It only drives the VPN warning in the report and new-service
-forms.
+10-second timeout. It drives the notice on the card and the VPN warning in the
+report and new-service forms: review records a test only when it comes from a
+Syrian network, so a tester elsewhere hears it before writing one. The answer is
+kept for ten minutes and shared by every view.
 
 ## Human verification
 
@@ -168,7 +202,7 @@ sequenceDiagram
     P->>V: hidden frame with the action and a random nonce
     alt Turnstile needs a click
         V-->>P: interactive
-        Note over P: shows the frame in a modal<br/>(Cancel or Escape stops)
+        Note over P: shows the frame under the button<br/>that asked (Cancel or Escape stops)
     end
     V-->>P: solved, with a token (to the extension's origin only;<br/>on Firefox, through the content script)
     Note over P: checks origin, frame, nonce and action,<br/>then removes the frame
@@ -178,6 +212,18 @@ sequenceDiagram
 
 Every write needs its own token: each vote change, each screenshot upload and the
 form itself. Builds with a loopback API skip verification.
+
+The frame is created where it will be shown, since moving a frame reloads it.
+The vote button and each form's send button sit in a
+[VerificationSlot](extension/src/entrypoints/sidepanel/components/VerificationSlot.tsx);
+the frame lies invisible over the newest visible slot, still on screen so the
+challenge runs at full speed, and joins the layout under the button only when a
+click is needed. With no slot on screen, it shows in a dialog over the panel.
+
+Tokens are fetched ahead where the next request is known: when the pointer
+reaches the vote or send button, and while one screenshot uploads, for the next
+upload or the form. A token fetched ahead keeps any click it needs hidden until
+the request claims it, and is replaced once it is four minutes old.
 
 The panel accepts messages only from its own frame, from the exact verification
 origin, with the expected nonce and action. It ignores a token that is blank or
@@ -211,13 +257,24 @@ credentials, and the Firefox add-on has no equivalent.
 [votes.ts](extension/src/lib/votes.ts) keeps a local hint of which services this
 browser voted for. The API is the source of truth: `ALREADY_VOTED` and
 `NO_VOTE_FOUND` answers correct the hint, and a failure to save the hint never
-turns an accepted vote into an error. Removing a vote takes a second click within
-three seconds. Services marked Available can't be voted for; Usable ones can.
+turns an accepted vote into an error. The button shows the new state and count
+at once, and a refusal puts both back with the reason. Removing a vote takes a
+second click within three seconds. Services marked Available can't be voted for;
+Usable ones can.
 
 ### Forms
 
-- A report sends only the parts you marked, each with a note or a screenshot. It
-  can have up to 30 parts and 100 screenshots, five per part.
+- A report starts with nothing chosen, or with the part whose **Test this** or
+  **Still fails?** opened it. It sends only the parts the tester chose and
+  answered, each with a note or a screenshot, as the API requires. It can have
+  up to 30 parts and 100 screenshots, five per part. A part the tester names
+  goes as `proposedName`, never as a slug; the catalogue's catch-all part is not
+  offered. Parts that count as failing once sign-in fails need no answer of
+  their own. An optional connection type goes as `submitterNote`.
+- After a confirmed send, [history.ts](extension/src/lib/history.ts) records the
+  service, the parts and their levels in local storage (no notes, screenshots or
+  email), so the card can mark parts reported in the last 30 days and Settings
+  can list what was sent. Settings clears it.
 - A report also sends `testedHost`, the host of the page the form was opened on,
   lowercased and without `www.` ([`testedHostOf`](extension/src/lib/url.ts)). One
   service can span hosts that behave differently from Syria, so reviewers need to
@@ -228,7 +285,11 @@ three seconds. Services marked Available can't be voted for; Usable ones can.
 - A correction sends all changed fields in one submission. Categories go as a
   JSON array of up to ten IDs.
 - A new service needs a name (up to 200 characters); the description is capped at
-  2,000.
+  2,000 and opens with what happens from Syria when the tester picks it. The form
+  checks `GET /check-duplicate` once and says when the site is already waiting
+  for review; it never blocks the send.
+- Corrections and new services are verified by their screenshots, so a send
+  without one asks once: add a screenshot, or send anyway.
 - Corrections and new services take up to ten screenshots.
 
 ### Screenshots
@@ -240,8 +301,11 @@ on a successful send, when the tester confirms the discard dialog, or when the
 browser restarts. Nothing is ever written to disk.
 
 1. **Capture.** In the report and new-service forms, a page on a different site
-   from the form's needs a second click. The capture is resized to fit the API's
-   5 MiB limit, and dropped if the tab or its URL changed meanwhile.
+   from the form's needs a second click. A capture over 600 KB is redrawn as a
+   JPEG at most 2048 pixels on its longest side, usually a third of the bytes,
+   which matters on a slow upload; it is also resized to fit the API's 5 MiB
+   limit, and dropped if the tab or its URL changed meanwhile. A picked, dropped
+   or pasted image keeps its own bytes.
 2. **Edit.** A popup window opens the editor over a `BroadcastChannel` with a
    random session ID. Only one editor is open at a time. If the window can't be
    created, the editor opens inside the panel instead.
@@ -329,9 +393,12 @@ typing can still be lost.
 
 [i18n.ts](extension/src/lib/i18n.ts) sets up i18next with the catalogs in
 [locales](extension/src/locales). `en.ts` defines every key. `ar.ts` adds Arabic
-plural forms, and any key it leaves out falls back to English. The `system` choice
-follows the browser's language. The active language sets `lang` and `dir` on the
-page, the `/en` or `/ar` path of site links, and the `locale` sent to the API.
+plural forms, `ku.ts` is Kurdish (Kurmanji, in Latin script), and any key a catalog
+leaves out falls back to English. The `system` choice follows the browser's
+language. The active language sets `lang` and `dir` on the page (only Arabic runs
+right to left), the `/en`, `/ar` or `/ku` path of site links, and the `locale` sent
+to the API. Dates, counts and country names use its `Intl` formats; Kurdish uses
+en-GB ones in a browser without Kurdish locale data.
 
 [theme.ts](extension/src/lib/theme.ts) stores the System, Light or Dark choice and
 sets `data-theme` on the page; [theme.css](extension/src/styles/theme.css) resolves

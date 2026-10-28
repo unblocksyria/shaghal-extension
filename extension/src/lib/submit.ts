@@ -39,16 +39,20 @@ export async function submitService(input: SubmitServiceInput) {
   );
 }
 
+/** A catalogue part by `slug`, or one the tester named, by `proposedName`. Never both. */
+export type ReportItem = ({ slug: string } | { proposedName: string }) & {
+  level: 'working' | 'failing';
+  description?: string;
+  evidenceUrls?: string[];
+};
+
 export interface SubmitFunctionalityReportInput {
   serviceId: string;
   /** The API rejects an item with neither a description nor evidence. */
-  items: {
-    slug: string;
-    level: 'working' | 'failing';
-    description?: string;
-    evidenceUrls?: string[];
-  }[];
+  items: ReportItem[];
   submitterEmail?: string;
+  /** Context for the whole report, such as how the tester was connected. */
+  submitterNote?: string;
   /** The host of the page the form was opened on (see testedHostOf). Left out when there is none. */
   testedHost?: string;
 }
@@ -61,6 +65,7 @@ export async function submitFunctionalityReport(input: SubmitFunctionalityReport
       items: input.items,
       submitterEmail: input.submitterEmail ?? null,
       locale: activeLanguage(),
+      ...(input.submitterNote ? { submitterNote: input.submitterNote } : {}),
       ...(input.testedHost ? { testedHost: input.testedHost } : {}),
     },
     'report',

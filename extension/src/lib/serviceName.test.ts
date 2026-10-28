@@ -30,4 +30,10 @@ describe('serviceName', () => {
     await i18next.changeLanguage('en');
     expect(isolate('Disney+')).toBe('Disney+');
   });
+
+  it('shows the plain English name in Kurdish, which runs left to right like English', async () => {
+    await i18next.changeLanguage('ku');
+    expect(serviceName({ name: 'Disney+', nameAr: 'ديزني+' })).toBe('Disney+');
+    expect(isolate('Disney+')).toBe('Disney+');
+  });
 });

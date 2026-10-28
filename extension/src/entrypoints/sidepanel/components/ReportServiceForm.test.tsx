@@ -7,7 +7,7 @@ import { ReportServiceForm } from './ReportServiceForm';
 import { SidePanelApp } from '../SidePanelApp';
 import { API_BASE } from '../../../lib/config';
 import { fakeApi, type FakeApi } from '../../../testing/fakeApi';
-import { openPanel, stubScreenshot } from '../../../testing/panel';
+import { openPanel, stubScreenshot, pressSend } from '../../../testing/panel';
 import { closeEditorWindows } from '../../../testing/editorWindows';
 import { stubSession } from '../../../testing/session';
 import matchNone from '../../../testing/fixtures/match-none.json';
@@ -30,7 +30,7 @@ describe('the report a service form', () => {
     const api = await openReportService(user, 'https://untracked.example/download');
 
     await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Untracked Download');
-    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+    await pressSend(user, 'Submit Report');
 
     await screen.findByRole('heading', { name: 'Report received' });
     const sent = api.callsTo('POST', '/submissions');
@@ -70,7 +70,7 @@ describe('the report a service form', () => {
     await screen.findByRole('heading', { name: 'Report a Service' });
 
     await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Half typed Service');
-    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+    await pressSend(user, 'Submit Report');
 
     await screen.findByText('Name is already tracked');
     expect(screen.getByRole('textbox', { name: 'Service name' })).toHaveProperty('value', 'Half typed Service');
@@ -83,7 +83,7 @@ it('prefills the next form and Settings with the email from a successful report'
   await openReportService(user, 'https://remember.example/');
   await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Example');
   await user.type(screen.getByRole('textbox', { name: 'Your email' }), 'tester@example.com');
-  await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+  await pressSend(user, 'Submit Report');
   await screen.findByRole('heading', { name: 'Report received' });
   await user.click(screen.getByRole('button', { name: 'Done' }));
   await user.click(await screen.findByRole('button', { name: 'Report a Service' }));
@@ -119,16 +119,16 @@ it('offers to discard an earlier send that could not be confirmed, then sends th
   const name = await screen.findByRole('textbox', { name: 'Service name' });
   await user.clear(name);
   await user.type(name, 'First');
-  await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+  await pressSend(user, 'Submit Report');
   await screen.findByText('Try later');
   expect(screen.queryByRole('button', { name: 'Discard earlier attempt' })).toBeNull();
 
   await user.type(name, ' edited');
-  await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+  await pressSend(user, 'Submit Report');
   await user.click(await screen.findByRole('button', { name: 'Discard earlier attempt' }));
   await screen.findByText('The earlier attempt was discarded. Send again to submit these details.');
 
-  await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+  await pressSend(user, 'Submit Report');
   await screen.findByRole('heading', { name: 'Report received' });
   const [first, second] = api.callsTo('POST', '/submissions');
   expect(second?.json).toMatchObject({ name: 'First edited' });
@@ -167,7 +167,7 @@ describe('what the form sends', () => {
     const api = await openReportService(user, 'https://described.example/');
     await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Described Service');
     await user.type(screen.getByRole('textbox', { name: 'Description' }), '  Blocks Syria at login.  ');
-    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+    await pressSend(user, 'Submit Report');
     await screen.findByRole('heading', { name: 'Report received' });
     expect(api.callsTo('POST', '/submissions').at(0)?.json).toMatchObject({ description: 'Blocks Syria at login.' });
   });
@@ -177,7 +177,7 @@ describe('what the form sends', () => {
     const api = await openReportService(user, 'https://email.example/');
     await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Some Service');
     await user.type(screen.getByRole('textbox', { name: 'Your email' }), 'not-an-email');
-    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+    await pressSend(user, 'Submit Report');
     expect((await screen.findByRole('alert')).textContent).toBe('Enter a valid email address, or leave it blank.');
     expect(api.callsTo('POST', '/submissions')).toHaveLength(0);
   });
@@ -195,10 +195,10 @@ it('says so when the earlier attempt cannot be discarded', async () => {
 
   const name = await screen.findByRole('textbox', { name: 'Service name' });
   await user.type(name, 'First');
-  await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+  await pressSend(user, 'Submit Report');
   await screen.findByText('Try later');
   await user.type(name, ' edited');
-  await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+  await pressSend(user, 'Submit Report');
 
   vi.spyOn(fakeBrowser.storage.session, 'remove').mockRejectedValueOnce(new Error('quota'));
   await user.click(await screen.findByRole('button', { name: 'Discard earlier attempt' }));
@@ -231,7 +231,7 @@ describe('keeping the report a service form across a closed panel', () => {
 
     expect(screen.getByRole('textbox', { name: 'Service name' })).toHaveProperty('value', 'Half typed Service');
 
-    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+    await pressSend(user, 'Submit Report');
     await screen.findByRole('heading', { name: 'Report received' });
     expect(await storedServiceDraft()).toBeUndefined();
   });
@@ -298,5 +298,82 @@ describe('keeping the report a service form across a closed panel', () => {
 
     expect(await screen.findByAltText('Evidence #1')).toBeDefined();
     expect(screen.getByRole('textbox', { name: 'Service name' })).toHaveProperty('value', 'Half typed Service');
+  });
+});
+
+describe('helping the reviewer', () => {
+  it('says when someone already sent the site, and still lets the tester send', async () => {
+    const user = userEvent.setup();
+    const api = fakeApi()
+      .on('POST', '/services/match', { data: matchNone })
+      .on('GET', '/check-duplicate', { json: { hasDuplicate: true, duplicateType: 'pending' } })
+      .on('POST', '/submissions', { status: 201, json: { id: 'receipt' } })
+      .install();
+    await openPanel('https://waiting.example/');
+    await user.click(await screen.findByRole('button', { name: 'Report a Service' }, { timeout: 3000 }));
+
+    expect((await screen.findByRole('status')).textContent).toContain('Someone already sent this site');
+    expect(new URL(api.callsTo('GET', '/check-duplicate').at(-1)!.url).searchParams.get('url')).toBe(
+      'https://waiting.example',
+    );
+    await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Waiting Service');
+    await pressSend(user, 'Submit Report');
+    await screen.findByRole('heading', { name: 'Report received' });
+  });
+
+  it('shows nothing when the duplicate check fails', async () => {
+    const user = userEvent.setup();
+    const api = fakeApi()
+      .on('POST', '/services/match', { data: matchNone })
+      .on('GET', '/check-duplicate', { status: 500, json: { error: 'DOWN' } })
+      .install();
+    await openPanel('https://unchecked.example/');
+    await user.click(await screen.findByRole('button', { name: 'Report a Service' }, { timeout: 3000 }));
+    await waitFor(() => expect(api.callsTo('GET', '/check-duplicate')).toHaveLength(1));
+    expect(screen.queryByText(/Someone already sent this site/)).toBeNull();
+  });
+
+  it('opens the description with what happens from Syria, in the words reviewers read', async () => {
+    const user = userEvent.setup();
+    const api = await openReportService(user, 'https://symptom.example/');
+    await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Region Locked');
+    await user.click(screen.getByRole('button', { name: '"Not available in your region"' }));
+    await user.type(screen.getByRole('textbox', { name: 'Description' }), 'Shown right after sign-up.');
+    await pressSend(user, 'Submit Report');
+    await screen.findByRole('heading', { name: 'Report received' });
+    expect(api.callsTo('POST', '/submissions').at(0)?.json).toMatchObject({
+      description: 'From Syria: It says it is not available in this country or region.\nShown right after sign-up.',
+    });
+  });
+
+  it('asks once before sending without a screenshot, and can take the tester to the field', async () => {
+    const user = userEvent.setup();
+    const api = await openReportService(user, 'https://bare.example/');
+    await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Bare Service');
+    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+
+    const prompt = screen.getByRole('alert');
+    expect(prompt.textContent).toContain('Screenshots are how we verify a new service');
+    expect(api.callsTo('POST', '/submissions')).toHaveLength(0);
+    await user.click(screen.getByRole('button', { name: 'Add a screenshot' }));
+    expect(document.activeElement?.textContent).toBe('Add screenshot');
+
+    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+    await user.click(screen.getByRole('button', { name: 'Send anyway' }));
+    await screen.findByRole('heading', { name: 'Report received' });
+    expect(api.callsTo('POST', '/submissions')).toHaveLength(1);
+  });
+
+  it('records what was sent in this browser', async () => {
+    const user = userEvent.setup();
+    await openReportService(user, 'https://recorded.example/');
+    await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Recorded Service');
+    await pressSend(user, 'Submit Report');
+    await screen.findByRole('heading', { name: 'Report received' });
+    await waitFor(async () =>
+      expect((await fakeBrowser.storage.local.get('sentHistory')).sentHistory).toEqual([
+        { kind: 'service', serviceName: 'Recorded Service', at: expect.any(Number) as number },
+      ]),
+    );
   });
 });
