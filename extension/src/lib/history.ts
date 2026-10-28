@@ -28,7 +28,11 @@ export interface SentEntry {
   testedHost?: string | null;
 }
 
-const KEY = 'sentHistory';
+/**
+ * Each entry has a key of its own, `sent:<time>:<id>`, so two panels sending
+ * at once never overwrite each other's entry, as one shared list could.
+ */
+const PREFIX = 'sent:';
 const LIMIT = 50;
 
 function isEntry(value: unknown): value is SentEntry {
@@ -43,33 +47,47 @@ function isEntry(value: unknown): value is SentEntry {
   );
 }
 
-function readList(stored: unknown): SentEntry[] {
-  return Array.isArray(stored) ? stored.filter(isEntry) : [];
+/** Every stored key and the readable entries, newest first. */
+async function stored(): Promise<{ keys: string[]; entries: [string, SentEntry][] }> {
+  const all: Record<string, unknown> = await chrome.storage.local.get(null).catch(() => ({}));
+  const keys = Object.keys(all).filter((key) => key.startsWith(PREFIX));
+  const entries = keys
+    .map((key): [string, unknown] => [key, all[key]])
+    .filter((pair): pair is [string, SentEntry] => isEntry(pair[1]))
+    .sort((a, b) => b[1].at - a[1].at);
+  return { keys, entries };
 }
 
 export async function sentHistory(): Promise<SentEntry[]> {
-  const stored: Record<string, unknown> = await chrome.storage.local.get(KEY).catch(() => ({}));
-  return readList(stored[KEY]);
+  return (await stored()).entries.slice(0, LIMIT).map(([, entry]) => entry);
 }
 
 /**
- * Adds an entry, dated now unless `at` says otherwise. A failure to save never
- * turns a confirmed send into an error.
+ * Adds an entry, dated now unless `at` says otherwise, and drops the oldest
+ * past `LIMIT`. A failure to save never turns a confirmed send into an error.
  */
 export async function recordSent(entry: Omit<SentEntry, 'at'> & { at?: number }): Promise<void> {
-  const list = await sentHistory();
   const dated: SentEntry = { ...entry, at: entry.at ?? Date.now() };
-  await chrome.storage.local.set({ [KEY]: [dated, ...list].slice(0, LIMIT) }).catch(() => undefined);
+  try {
+    await chrome.storage.local.set({ [`${PREFIX}${dated.at}:${crypto.randomUUID()}`]: dated });
+    const extra = (await stored()).entries.slice(LIMIT).map(([key]) => key);
+    if (extra.length > 0) await chrome.storage.local.remove(extra);
+  } catch {
+    // Only the record of sending is lost, never the send.
+  }
 }
 
 export async function clearSentHistory(): Promise<void> {
-  await chrome.storage.local.remove(KEY).catch(() => undefined);
+  const { keys } = await stored();
+  if (keys.length > 0) await chrome.storage.local.remove(keys).catch(() => undefined);
 }
 
 /** Calls `changed` with the new list whenever any panel records or clears an entry. */
 export function watchSentHistory(changed: (list: SentEntry[]) => void): () => void {
   const listener = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
-    if (area === 'local' && KEY in changes) changed(readList(changes[KEY]?.newValue));
+    if (area === 'local' && Object.keys(changes).some((key) => key.startsWith(PREFIX))) {
+      void sentHistory().then(changed);
+    }
   };
   chrome.storage.onChanged.addListener(listener);
   return () => chrome.storage.onChanged.removeListener(listener);

@@ -6,7 +6,7 @@ import { SITE_BASE } from '../../../lib/config';
 import { rememberFallbackHeading } from '../../../lib/focusFlow';
 import { countryName } from '../../../lib/geo';
 import { recentlyReported, sentHistory, watchSentHistory, type SentEntry } from '../../../lib/history';
-import { activeLanguage, directionOf, i18next, intlLocale, sitePathSegment } from '../../../lib/i18n';
+import { activeLanguage, directionOf, i18next, intlLocale, sitePathSegment, shortDate } from '../../../lib/i18n';
 import { loadFunctionalities } from '../../../lib/reads';
 import { needsRecheck, RETEST_SINCE } from '../../../lib/retest';
 import { isolate, serviceName } from '../../../lib/serviceName';
@@ -40,16 +40,6 @@ import {
 
 function formatCount(count: number): string {
   return count.toLocaleString(intlLocale(activeLanguage()));
-}
-
-/** A date as the site writes it, e.g. "1 Sep 2026", in the active locale. */
-function shortDate(iso: string | null | undefined): string | null {
-  if (iso === null || iso === undefined || !Number.isFinite(Date.parse(iso))) return null;
-  return new Date(iso).toLocaleDateString(intlLocale(activeLanguage()), {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
 }
 
 /** "Checked 1 Sep 2026", in the active locale. */

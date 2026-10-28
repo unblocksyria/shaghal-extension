@@ -78,10 +78,47 @@ describe('verification in a slot', () => {
     const result = turnstileToken('report');
     const { box, send } = framePage();
     send({ status: 'interactive' });
+    // Other keys, such as Tab into the challenge, leave it running.
+    const tab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    box.dispatchEvent(tab);
+    expect(tab.defaultPrevented).toBe(false);
+    expect(box.isConnected).toBe(true);
     const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
     box.dispatchEvent(escape);
     expect(escape.defaultPrevented).toBe(true);
     expect(await result).toEqual({ ok: false, message: 'Verification cancelled.' });
+  });
+
+  it('scrolls a needed click into view, without motion when the tester asks for less', async () => {
+    slot();
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(prefers-reduced-motion: reduce)' }));
+    const scroll = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scroll;
+    const result = turnstileToken('vote');
+    const { send } = framePage();
+    send({ status: 'interactive' });
+    expect(scroll).toHaveBeenCalledWith({ block: 'nearest', behavior: 'auto' });
+    send({ status: 'solved', token: 'still' });
+    await result;
+  });
+
+  it('stops only the challenge in the slot that leaves, not one in another slot', async () => {
+    const kept = slot();
+    const leaving = document.createElement('div');
+    document.body.append(leaving);
+    const unregister = registerTurnstileHost(leaving);
+    const inLeaving = turnstileToken('vote');
+    unregister();
+    unregister();
+    expect(await inLeaving).toEqual({ ok: false, message: 'Verification cancelled.' });
+
+    const inKept = turnstileToken('report');
+    const other = document.createElement('div');
+    document.body.append(other);
+    registerTurnstileHost(other)();
+    expect(kept.querySelector('iframe')).not.toBeNull();
+    framePage().send({ status: 'solved', token: 'kept' });
+    expect(await inKept).toEqual({ ok: true, token: 'kept' });
   });
 
   it('stops the challenge when its slot leaves the page', async () => {

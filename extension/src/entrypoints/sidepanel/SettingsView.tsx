@@ -114,7 +114,7 @@ function AboutSection() {
       .then(() => chrome.commands.getAll())
       .then((commands) => {
         if (cancelled) return;
-        const action = (commands ?? []).find((command) => command.name === '_execute_action');
+        const action = commands.find((command) => command.name === '_execute_action');
         setShortcut(action?.shortcut ? action.shortcut : null);
       })
       .catch(() => {

@@ -109,11 +109,9 @@ interface Challenge {
 function startChallenge(action: TurnstileAction, options: { hold?: boolean } = {}): Challenge {
   const nonce = crypto.randomUUID();
   const host = currentHost();
-  let resolve: (outcome: { ok: true; token: string; at: number } | { ok: false; message: string }) => void = () =>
-    undefined;
-  const result = new Promise<{ ok: true; token: string; at: number } | { ok: false; message: string }>((done) => {
-    resolve = done;
-  });
+  const { promise: result, resolve } = Promise.withResolvers<
+    { ok: true; token: string; at: number } | { ok: false; message: string }
+  >();
 
   const box = document.createElement(host === null ? 'dialog' : 'div');
   const previousFocus = document.activeElement;
@@ -172,8 +170,8 @@ function startChallenge(action: TurnstileAction, options: { hold?: boolean } = {
     host,
     startedAt: Date.now(),
     result,
+    // Called once, by the request that claims the token from `ahead`.
     reveal() {
-      if (!held) return;
       held = false;
       if (interactive) show();
     },
@@ -256,12 +254,14 @@ function startChallenge(action: TurnstileAction, options: { hold?: boolean } = {
     }
   }
 
-  box.addEventListener('keydown', (event) => {
-    if (host !== null && (event as KeyboardEvent).key === 'Escape') {
+  if (host !== null) {
+    // Inline, Escape cancels as it would in the dialog.
+    box.addEventListener('keydown', (event) => {
+      if ((event as KeyboardEvent).key !== 'Escape') return;
       event.preventDefault();
       finish(new Error(i18next.t('turnstile.cancelled')));
-    }
-  });
+    });
+  }
   if (box instanceof HTMLDialogElement) {
     box.oncancel = (event) => {
       event.preventDefault();

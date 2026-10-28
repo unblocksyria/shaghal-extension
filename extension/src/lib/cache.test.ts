@@ -69,6 +69,24 @@ describe('a read cache', () => {
   });
 });
 
+describe('a load overtaken by a delete', () => {
+  it('lets a new request run, and the old one landing late leaves it alone', async () => {
+    const cache = createReadCache<string>({ freshMs: 1000, keepMs: 5000, limit: 5 });
+    const old = deferred<ApiResult<string>>();
+    const first = cache.load('netflix', () => old.promise);
+    cache.delete('netflix');
+    const fresh = deferred<ApiResult<string>>();
+    const second = cache.load('netflix', () => fresh.promise);
+    old.resolve(ok('old'));
+    await first;
+    // The second request is still the one in flight, so a third load shares it.
+    const third = cache.load('netflix', () => Promise.resolve(ok('unexpected')));
+    fresh.resolve(ok('new'));
+    expect(await second).toEqual(ok('new'));
+    expect(await third).toEqual(ok('new'));
+  });
+});
+
 describe('a reopened panel', () => {
   it('starts with the answers the last one kept in session storage', async () => {
     await Promise.resolve(fakeBrowser.reset());
@@ -102,5 +120,31 @@ describe('a reopened panel', () => {
     expect(cache.peek('expired')).toBeUndefined();
     expect(cache.peek('broken')).toBeUndefined();
     expect(cache.peek('kept')).toEqual({ value: 'here', fresh: false });
+  });
+});
+
+describe('restoring kept answers', () => {
+  it('keeps an answer that arrived in memory first, and stops at the limit', async () => {
+    await Promise.resolve(fakeBrowser.reset());
+    vi.stubGlobal('chrome', fakeBrowser);
+    const cache = createReadCache<string>({ storageKey: 'cache.limit', freshMs: 1000, keepMs: 5000, limit: 2 });
+    await fakeBrowser.storage.session.set({
+      'cache.limit': {
+        a: { value: 'stored a', at: Date.now() },
+        b: { value: 'stored b', at: Date.now() },
+        c: { value: 'stored c', at: Date.now() },
+      },
+    });
+    clearReadCaches();
+    cache.put('a', 'newer a');
+    await hydrateReadCaches();
+    expect(cache.peek('a')?.value).toBe('newer a');
+    expect(cache.peek('b')?.value).toBe('stored b');
+    expect(cache.peek('c')).toBeUndefined();
+  });
+
+  it('starts empty without a browser to restore from', async () => {
+    vi.stubGlobal('chrome', undefined);
+    await expect(hydrateReadCaches()).resolves.toBeUndefined();
   });
 });

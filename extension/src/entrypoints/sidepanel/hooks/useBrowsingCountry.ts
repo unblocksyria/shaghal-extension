@@ -3,7 +3,8 @@ import { browsingCountry, knownBrowsingCountry } from '../../../lib/geo';
 
 /**
  * The tester's country. A country checked in the last few minutes shows at
- * once; otherwise it is checked on mount, and again on `recheck`.
+ * once. Syria is trusted for those minutes; any other country is checked
+ * again on mount, since turning a VPN off changes it. `recheck` always asks.
  */
 export function useBrowsingCountry(): { country: string | null; checking: boolean; recheck: () => void } {
   const [country, setCountry] = useState<string | null>(knownBrowsingCountry);
@@ -12,7 +13,8 @@ export function useBrowsingCountry(): { country: string | null; checking: boolea
 
   useEffect(() => {
     let cancelled = false;
-    void browsingCountry({ force: attempt > 0 }).then((code) => {
+    const known = knownBrowsingCountry();
+    void browsingCountry({ force: attempt > 0 || (known !== null && known !== 'SY') }).then((code) => {
       if (cancelled) return;
       setCountry(code);
       setChecking(false);

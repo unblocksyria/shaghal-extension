@@ -32,6 +32,8 @@ type PanelView =
       pageUrl: string | null;
       /** Parts the tester came to report, added to the report from the start. */
       parts?: string[];
+      /** Bumped by "Test another part", so the next report starts as a new form with its own draft. */
+      round?: number;
     }
   | { name: 'report-service'; url: string; pageTitle: string | null };
 
@@ -102,12 +104,13 @@ export function SidePanelApp() {
       case 'report':
         return (
           <ReportForm
-            key={view.service.id}
+            key={`${view.service.id}:${view.round ?? 0}`}
             service={view.service}
             slug={view.slug}
             pageUrl={view.pageUrl}
             parts={view.parts}
             onBack={home}
+            onAgain={() => setView({ ...view, parts: undefined, round: (view.round ?? 0) + 1 })}
           />
         );
       case 'correction':
@@ -117,10 +120,8 @@ export function SidePanelApp() {
             service={view.service}
             slug={view.slug}
             onBack={home}
-            onReport={() => {
-              const service = picked ?? (matchState.status === 'ready' ? matchState.match.service : null);
-              if (service !== null) void open(service, 'report');
-            }}
+            // The service this correction is for, even if the tab has moved on since.
+            onReport={() => setView({ name: 'report', service: view.service, slug: view.slug, pageUrl: view.pageUrl })}
           />
         );
       case 'report-service':

@@ -25,7 +25,21 @@ describe('the VPN warning', () => {
     expect(screen.queryByRole('status')).toBeNull();
   });
 
-  it('reuses a country checked moments ago instead of asking again', async () => {
+  it('reuses Syria checked moments ago instead of asking again', async () => {
+    const api = fakeApi()
+      .on('GET', '/cdn-cgi/trace', { text: trace('SY') })
+      .install();
+    const { unmount } = render(<VpnWarning />);
+    await waitFor(() => expect(api.callsTo('GET', '/cdn-cgi/trace')).toHaveLength(1));
+    unmount();
+
+    render(<VpnWarning />);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(api.callsTo('GET', '/cdn-cgi/trace')).toHaveLength(1);
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('shows another country kept moments ago at once, then checks again, as a VPN may be off now', async () => {
     const api = fakeApi()
       .on('GET', '/cdn-cgi/trace', { text: trace('DE') })
       .install();
@@ -33,10 +47,12 @@ describe('the VPN warning', () => {
     expect((await screen.findByRole('status')).textContent).toContain('Germany');
     unmount();
 
+    api.on('GET', '/cdn-cgi/trace', { text: trace('SY') });
     render(<VpnWarning />);
-    // Shown on the first render, from the check already made.
+    // Shown on the first render, from the check already made, until the new one answers.
     expect(screen.getByRole('status').textContent).toContain('Germany');
-    expect(api.callsTo('GET', '/cdn-cgi/trace')).toHaveLength(1);
+    await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
+    expect(api.callsTo('GET', '/cdn-cgi/trace')).toHaveLength(2);
   });
 
   it('names where the connection comes out, and goes away once a recheck finds Syria', async () => {

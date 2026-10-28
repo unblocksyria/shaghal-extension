@@ -11,6 +11,7 @@ import { CategoryPicker } from './CategoryPicker';
 import { ClipboardCheck } from 'lucide-react';
 import { storedList, storedStrings } from '../../../lib/drafts';
 import { recordSent } from '../../../lib/history';
+import { needsUpload } from '../../../lib/evidence';
 import { useDraft, type RestoredDraft } from '../hooks/useDraft';
 import {
   EmailField,
@@ -254,6 +255,19 @@ export function CorrectionForm(props: {
       restored={draft.restored}
       title={t('correction.title')}
       intro={t('correction.intro', { name: serviceName(props.service) })}
+      footer={
+        <FormFooter
+          label={t('correction.submit')}
+          busyLabel={t('correction.submitting')}
+          busy={busy}
+          verify={screenshots.items.some(needsUpload) ? 'upload' : 'correction'}
+          blocker={blocker}
+          note={t('correction.note')}
+          error={error}
+          onDiscard={onDiscard}
+          onSubmit={() => void submit()}
+        />
+      }
     >
       {props.onReport !== undefined && (
         <p className="us-callout">
@@ -357,18 +371,6 @@ export function CorrectionForm(props: {
           onSendAnyway={() => void submit(true)}
         />
       )}
-
-      <FormFooter
-        label={t('correction.submit')}
-        busyLabel={t('correction.submitting')}
-        busy={busy}
-        verify={screenshots.items.some((item) => item.uploadedUrl === undefined) ? 'upload' : 'correction'}
-        blocker={blocker}
-        note={t('correction.note')}
-        error={error}
-        onDiscard={onDiscard}
-        onSubmit={() => void submit()}
-      />
     </FormShell>
   );
 }

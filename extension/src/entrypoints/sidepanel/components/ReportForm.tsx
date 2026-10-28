@@ -8,10 +8,11 @@ import { submitFunctionalityReport, type ReportItem } from '../../../lib/submit'
 import { recordSent } from '../../../lib/history';
 import { SITE_BASE } from '../../../lib/config';
 import { testedHostOf } from '../../../lib/url';
-import { activeLanguage, i18next, intlLocale, sitePathSegment } from '../../../lib/i18n';
+import { activeLanguage, i18next, sitePathSegment, shortDate } from '../../../lib/i18n';
 import { serviceName } from '../../../lib/serviceName';
 import { Textarea } from '../../../components/ui/Textarea';
 import { storedList, storedRecord, storedStrings } from '../../../lib/drafts';
+import { needsUpload } from '../../../lib/evidence';
 import { useDraft, type RestoredDraft } from '../hooks/useDraft';
 import {
   EmailField,
@@ -94,15 +95,6 @@ interface ReportDraftFields {
   testedHost?: string | null;
 }
 
-function shortDate(iso: string | null | undefined): string | null {
-  if (iso == null || !Number.isFinite(Date.parse(iso))) return null;
-  return new Date(iso).toLocaleDateString(intlLocale(activeLanguage()), {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
-}
-
 /** A one-line testing hint for a catalogue part, from what reviewers correct most often. */
 function hintFor(slug: string): string | null {
   const hints: Record<string, string | undefined> = i18next.t('report.hints', { returnObjects: true });
@@ -162,6 +154,8 @@ export function ReportForm(props: {
   /** Parts to add from the start, such as the one whose "Test this" opened the form. */
   parts?: string[];
   onBack: () => void;
+  /** Starts another report for the same service, as a new form with its own draft. */
+  onAgain: () => void;
 }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
@@ -337,7 +331,8 @@ export function ReportForm(props: {
     }
     const items: ReportItem[] = answered.map((part, index) => {
       const note = (notes[part.key] ?? '').trim();
-      const urls = uploaded.urls[index] ?? [];
+      // One list of addresses per part, in the order the parts were given.
+      const urls = uploaded.urls[index]!;
       return {
         ...(isNamed(part.key) ? { proposedName: nameOf(part).slice(0, NAME_MAX) } : { slug: part.key }),
         level: answers[part.key]!,
@@ -376,18 +371,6 @@ export function ReportForm(props: {
     });
   };
 
-  /** A new, empty report for the same service, from the sent screen. */
-  const again = () => {
-    // Every list, not only the chosen ones: a part unchosen before sending keeps its screenshots otherwise.
-    for (const key of Object.keys(screenshots.entries())) screenshots.list(key).clear();
-    setChosen([]);
-    setAnswers({});
-    setNotes({});
-    setNames({});
-    setError(null);
-    setSent(null);
-  };
-
   if (sent !== null) {
     // Another part is worth testing when one the record lacks or shows failing is left.
     const untried = ownParts.filter(
@@ -399,7 +382,7 @@ export function ReportForm(props: {
         message={t('report.sentMessage')}
         actionLabel={t('common.backTo', { name: serviceName(props.service) })}
         onAction={props.onBack}
-        secondary={untried.length > 0 ? { label: t('report.testAnother'), onAction: again } : undefined}
+        secondary={untried.length > 0 ? { label: t('report.testAnother'), onAction: props.onAgain } : undefined}
       >
         <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 4, justifyItems: 'center' }}>
           {sent.parts.map((part) => (
@@ -446,6 +429,19 @@ export function ReportForm(props: {
       restored={draft.restored}
       title={t('report.title')}
       intro={t('report.intro', { name: serviceName(props.service) })}
+      footer={
+        <FormFooter
+          label={t('report.send')}
+          busyLabel={t('report.sending')}
+          busy={busy}
+          verify={answered.some((part) => screenshots.list(part.key).items.some(needsUpload)) ? 'upload' : 'report'}
+          blocker={blocker}
+          note={t('report.note')}
+          error={error}
+          onDiscard={onDiscard}
+          onSubmit={() => void submit()}
+        />
+      }
     >
       <VpnWarning />
 
@@ -634,22 +630,6 @@ export function ReportForm(props: {
           {t('report.testedOn')} <bdi dir="ltr">{testedHost}</bdi>
         </p>
       )}
-
-      <FormFooter
-        label={t('report.send')}
-        busyLabel={t('report.sending')}
-        busy={busy}
-        verify={
-          answered.some((part) => screenshots.list(part.key).items.some((item) => item.uploadedUrl === undefined))
-            ? 'upload'
-            : 'report'
-        }
-        blocker={blocker}
-        note={t('report.note')}
-        error={error}
-        onDiscard={onDiscard}
-        onSubmit={() => void submit()}
-      />
     </FormShell>
   );
 }

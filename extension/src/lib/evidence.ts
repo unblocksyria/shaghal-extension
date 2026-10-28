@@ -139,13 +139,20 @@ export function withEdits(item: PendingEvidence, edited: { blob: Blob; edits: Im
   };
 }
 
+/**
+ * Whether sending would upload this screenshot (and so need a verification).
+ * Upload claims expire after an hour, so one is reused only with 5+ minutes
+ * left to verify and submit.
+ */
+export function needsUpload(item: PendingEvidence): boolean {
+  return item.uploadedUrl === undefined || item.uploadedAt === undefined || Date.now() - item.uploadedAt >= 55 * 60_000;
+}
+
 export async function uploadPendingEvidence(
   item: PendingEvidence,
   reportType: 'submission' | 'correction' | 'functionality_report',
 ): Promise<ApiResult<PendingEvidence>> {
-  // Upload claims expire after an hour. Reuse one only with 5+ minutes left to verify and submit.
-  if (item.uploadedUrl !== undefined && item.uploadedAt !== undefined && Date.now() - item.uploadedAt < 55 * 60_000)
-    return { ok: true, data: item };
+  if (!needsUpload(item)) return { ok: true, data: item };
   if (item.blob.size === 0 || item.blob.size > MAX_EVIDENCE_BYTES)
     return {
       ok: false,

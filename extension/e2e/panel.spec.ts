@@ -199,6 +199,41 @@ test('an interactive verification shows under the vote button, and Escape cancel
   expect(api.calls.some((call) => call.path.endsWith('/vote'))).toBe(false);
 });
 
+test('a verification needed while a report sends shows under Send and can be cancelled', async ({
+  page,
+  panel,
+  context,
+  api,
+}) => {
+  await context.route('https://verify.unblocksyria.com/extension/turnstile**', (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: `<!doctype html><title>Verification</title><button>Challenge</button><script>
+      const params = new URLSearchParams(location.search);
+      parent.postMessage({type:'unblocksyria-turnstile', nonce:params.get('nonce'), action:params.get('action'), status:'interactive'}, '*');
+    </script>`,
+    }),
+  );
+  await browseToTestPage(page, panel);
+  await panel.getByRole('button', { name: 'Report what works' }).click();
+  await panel.getByRole('button', { name: 'Core use', pressed: false }).click();
+  await panel.getByRole('radiogroup', { name: 'Core use' }).getByRole('radio', { name: 'Works now' }).click();
+  await panel.getByPlaceholder('What happened?').fill('Worked from Syria without a VPN.');
+  await panel.getByRole('button', { name: 'Send report' }).click();
+
+  // The form is busy and its fields are locked, but the challenge sits outside them.
+  const challenge = panel.getByRole('group', { name: 'Confirm you are human' });
+  await expect(challenge).toBeVisible();
+  const cancel = challenge.getByRole('button', { name: 'Cancel', exact: true });
+  await expect(cancel).toBeEnabled();
+  await expect(cancel).toBeFocused();
+  await cancel.click();
+  await expect(challenge).toHaveCount(0);
+  await expect(panel.getByRole('alert')).toContainText('Verification cancelled.');
+  await expect(panel.getByPlaceholder('What happened?')).toHaveValue('Worked from Syria without a VPN.');
+  expect(api.calls.some((call) => call.path === '/functionality-reports')).toBe(false);
+});
+
 test('keeps a report intact after a shared-network 429 and lets the user retry', async ({
   context,
   page,

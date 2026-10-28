@@ -1,7 +1,8 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it, vi } from 'vitest';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
+import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { closeEditorWindows } from '../../../testing/editorWindows';
 import { API_BASE } from '../../../lib/config';
 import { fakeApi, type FakeApi } from '../../../testing/fakeApi';
@@ -355,4 +356,19 @@ describe('what a correction needs', () => {
     await user.click(screen.getByRole('button', { name: 'Report what works' }));
     await screen.findByRole('heading', { name: 'Report what works' });
   });
+});
+
+it('opens the report for the service being corrected, even after the tab moved on', async () => {
+  const user = userEvent.setup();
+  const api = await openCorrection(user, 'https://corrected.example/');
+  api.on('GET', '/functionalities', { data: [] });
+  api.on('POST', '/services/match', { data: { service: null, matchType: null, alternatives: [] } });
+  const [tab] = await fakeBrowser.tabs.query({ active: true });
+  await act(async () => {
+    await fakeBrowser.tabs.update(tab!.id, { url: 'https://elsewhere.example/' });
+  });
+
+  await user.click(screen.getByRole('button', { name: 'Report what works' }));
+  expect(await screen.findByRole('heading', { name: 'Report what works' })).toBeDefined();
+  expect(screen.getByText(/^Netflix: say what you tried/)).toBeDefined();
 });

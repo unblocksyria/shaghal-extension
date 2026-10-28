@@ -6,6 +6,7 @@ import { recordSent } from '../../../lib/history';
 import { normalizeServiceUrl } from '../../../lib/url';
 import { Input } from '../../../components/ui/Input';
 import { Textarea } from '../../../components/ui/Textarea';
+import { needsUpload } from '../../../lib/evidence';
 import { useDraft, type RestoredDraft } from '../hooks/useDraft';
 import {
   EmailField,
@@ -151,6 +152,19 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
       restored={draft.restored}
       title={t('reportService.title')}
       intro={t('reportService.intro')}
+      footer={
+        <FormFooter
+          label={t('reportService.submit')}
+          busyLabel={t('reportService.submitting')}
+          busy={busy}
+          verify={screenshots.items.some(needsUpload) ? 'upload' : 'submission'}
+          blocker={name.trim().length === 0 ? t('reportService.blocker') : null}
+          note={t('reportService.note')}
+          error={error}
+          onDiscard={onDiscard}
+          onSubmit={() => void submit()}
+        />
+      }
     >
       <VpnWarning />
       {pending && (
@@ -209,17 +223,6 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
           onSendAnyway={() => void submit(true)}
         />
       )}
-      <FormFooter
-        label={t('reportService.submit')}
-        busyLabel={t('reportService.submitting')}
-        busy={busy}
-        verify={screenshots.items.some((item) => item.uploadedUrl === undefined) ? 'upload' : 'submission'}
-        blocker={name.trim().length === 0 ? t('reportService.blocker') : null}
-        note={t('reportService.note')}
-        error={error}
-        onDiscard={onDiscard}
-        onSubmit={() => void submit()}
-      />
     </FormShell>
   );
 }

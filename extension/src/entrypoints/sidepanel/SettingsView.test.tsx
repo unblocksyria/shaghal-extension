@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
+import { recordSent, sentHistory } from '../../lib/history';
 import { getSavedEmail, saveEmail, saveLanguage } from '../../lib/settings';
 import { readThemePreference } from '../../lib/theme';
 import { SettingsView } from './SettingsView';
@@ -130,28 +131,27 @@ describe('what you sent', () => {
   it('lists what this browser sent, newest first, and forgets it on request', async () => {
     await openSettings();
     const user = userEvent.setup();
-    await act(() =>
-      fakeBrowser.storage.local.set({
-        sentHistory: [
-          {
-            kind: 'report',
-            serviceSlug: 'netflix',
-            serviceName: 'Netflix',
-            at: Date.parse('2026-10-20T10:00:00.000Z'),
-            parts: [{ slug: 'core_use', name: 'Core use', level: 'failing' }],
-          },
-          { kind: 'service', serviceName: 'Wego', at: Date.parse('2026-10-02T10:00:00.000Z') },
+    await act(async () => {
+      await recordSent({ kind: 'service', serviceName: 'Wego', at: Date.parse('2026-10-02T10:00:00.000Z') });
+      await recordSent({
+        kind: 'report',
+        serviceSlug: 'netflix',
+        serviceName: 'Netflix',
+        at: Date.parse('2026-10-20T10:00:00.000Z'),
+        parts: [
+          { slug: 'core_use', name: 'Core use', level: 'failing' },
+          { slug: 'landing_page', name: 'Landing page', level: 'working' },
         ],
-      }),
-    );
+      });
+    });
     const report = await screen.findByRole('link', { name: 'Netflix' });
     expect(report.getAttribute('href')).toMatch(/\/en\/services\/netflix$/);
-    expect(screen.getByText('20 Oct 2026 · Core use: Fails')).toBeDefined();
+    expect(screen.getByText('20 Oct 2026 · Core use: Fails · Landing page: Works')).toBeDefined();
     expect(screen.getByText('2 Oct 2026 · New service')).toBeDefined();
 
     await user.click(screen.getByRole('button', { name: 'Clear this list' }));
     expect(await screen.findByText(/Reports and corrections you send from this browser appear here/)).toBeDefined();
-    expect(await fakeBrowser.storage.local.get('sentHistory')).toEqual({});
+    expect(await sentHistory()).toEqual([]);
   });
 });
 

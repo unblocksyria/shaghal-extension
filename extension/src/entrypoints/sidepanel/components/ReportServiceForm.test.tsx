@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
+import { sentHistory } from '../../../lib/history';
 import { ReportServiceForm } from './ReportServiceForm';
 import { SidePanelApp } from '../SidePanelApp';
 import { API_BASE } from '../../../lib/config';
@@ -236,6 +237,23 @@ describe('keeping the report a service form across a closed panel', () => {
     expect(await storedServiceDraft()).toBeUndefined();
   });
 
+  it('keeps what happens from Syria across a closed panel, and a second press unchooses it', async () => {
+    const user = userEvent.setup();
+    await openReportService(user, 'https://symptom-draft.example/');
+    await user.click(screen.getByRole('button', { name: "It doesn't load" }));
+    await vi.waitFor(async () => {
+      expect(await storedServiceDraft()).toBeDefined();
+    });
+
+    cleanup();
+    render(<SidePanelApp />);
+    await user.click(await screen.findByRole('button', { name: 'Report a Service' }));
+    const chip = await screen.findByRole('button', { name: "It doesn't load" });
+    expect(chip.getAttribute('aria-pressed')).toBe('true');
+    await user.click(chip);
+    expect(chip.getAttribute('aria-pressed')).toBe('false');
+  });
+
   it('starts from whatever the record held, even when it holds no name, description or email', async () => {
     const user = userEvent.setup();
     await openReportService(user, 'https://partial.example/download');
@@ -371,7 +389,7 @@ describe('helping the reviewer', () => {
     await pressSend(user, 'Submit Report');
     await screen.findByRole('heading', { name: 'Report received' });
     await waitFor(async () =>
-      expect((await fakeBrowser.storage.local.get('sentHistory')).sentHistory).toEqual([
+      expect(await sentHistory()).toEqual([
         { kind: 'service', serviceName: 'Recorded Service', at: expect.any(Number) as number },
       ]),
     );

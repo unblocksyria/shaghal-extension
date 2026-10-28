@@ -114,8 +114,10 @@ export function createReadCache<T>(options: {
       const inFlight = pending.get(key);
       if (inFlight !== undefined) return inFlight;
       const request = fetcher().then((result) => {
-        if (pending.get(key) === request) pending.delete(key);
-        if (result.ok) store(key, result.data);
+        // A request overtaken by a delete, such as a reload, answers its caller but keeps nothing.
+        const current = pending.get(key) === request;
+        if (current) pending.delete(key);
+        if (current && result.ok) store(key, result.data);
         return result;
       });
       pending.set(key, request);

@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it, vi } from 'vitest';
+import { sentHistory } from '../../../lib/history';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
 import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { closeEditorWindows } from '../../../testing/editorWindows';
@@ -444,8 +445,7 @@ describe('sending a report', () => {
     expect(screen.getByRole('button', { name: 'Back to Netflix' })).toBeDefined();
 
     await vi.waitFor(async () => {
-      const { sentHistory } = await chrome.storage.local.get('sentHistory');
-      expect(sentHistory).toEqual([
+      expect(await sentHistory()).toEqual([
         {
           kind: 'report',
           serviceSlug: 'netflix',
@@ -485,6 +485,26 @@ describe('sending a report', () => {
   });
 });
 
+describe('pasting a screenshot', () => {
+  it('adds an image pasted while typing a note to that part, and refuses one while the editor is open', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    await openReport(user, 'https://paste-note.example/');
+    await choose(user, 'Core use');
+    await answer(user, 'Core use', 'Still fails');
+
+    const image = () => new File(['png-bytes'], 'pasted.png', { type: 'image/png' });
+    fireEvent.paste(noteFor('Core use'), { clipboardData: { files: [image()] } });
+    expect(await screen.findByAltText('Evidence #1')).toBeDefined();
+
+    // The first image is open in the editor, so a second paste waits.
+    fireEvent.paste(noteFor('Core use'), { clipboardData: { files: [image()] } });
+    expect(await screen.findByText('Finish the screenshot open in the editor first.')).toBeDefined();
+    expect(screen.queryByAltText('Evidence #2')).toBeNull();
+    await closeEditorWindows();
+  });
+});
+
 describe('a part the tester names', () => {
   it('asks for its name first, and sends it by that name, never as a slug', async () => {
     const user = userEvent.setup();
@@ -517,8 +537,7 @@ describe('a part the tester names', () => {
     ).toEqual(['Group calls: Fails']);
     // The card marks parts by slug, so a named part is remembered without one.
     await vi.waitFor(async () => {
-      const { sentHistory } = await chrome.storage.local.get('sentHistory');
-      expect((sentHistory as { parts: unknown[] }[]).at(0)?.parts).toEqual([{ name: 'Group calls', level: 'failing' }]);
+      expect((await sentHistory()).at(0)?.parts).toEqual([{ name: 'Group calls', level: 'failing' }]);
     });
   });
 
@@ -699,6 +718,25 @@ const checked = (part: string, label: string) =>
     .getAttribute('aria-checked');
 
 describe('keeping the report across a closed panel', () => {
+  it('keeps a second report, started with "Test another part", across a closed panel', async () => {
+    const user = userEvent.setup();
+    await openReport(user, 'https://second.example/');
+    await choose(user, 'Landing page');
+    await answer(user, 'Landing page', 'Still works');
+    await user.type(noteFor('Landing page'), 'Loads.');
+    await user.click(sendButton());
+    await screen.findByRole('heading', { name: 'Report sent' });
+    await user.click(screen.getByRole('button', { name: 'Test another part' }));
+
+    await choose(user, 'Core use');
+    await answer(user, 'Core use', 'Still fails');
+    await user.type(noteFor('Core use'), 'The second report.');
+    // The first send cleared its draft; the second report keeps its own.
+    await waitForDraft();
+    await reopenPanel(user, 'https://second.example/');
+    expect(noteFor('Core use')).toHaveProperty('value', 'The second report.');
+  });
+
   it('brings the choice, the answer, the note and the connection back, and lets the draft go once sent', async () => {
     const user = userEvent.setup();
     const api = await openReport(user, 'https://draft.example/');

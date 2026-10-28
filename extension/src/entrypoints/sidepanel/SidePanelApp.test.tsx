@@ -47,8 +47,8 @@ describe('opening a form', () => {
 
   it('says it is opening while the record is in flight, sharing the card’s request', async () => {
     const user = userEvent.setup();
-    const api = fakeApi().on('POST', '/services/match', { data: match });
-    api.hold('GET', '/services/netflix');
+    const api = fakeApi().on('POST', '/services/match', { data: match }).on('GET', '/functionalities', { data: [] });
+    const release = api.hold('GET', '/services/netflix', { data: serviceDetails });
     api.install();
 
     await openPanel('https://opening.example/');
@@ -57,6 +57,10 @@ describe('opening a form', () => {
     expect(screen.getByText('Opening…').closest('[aria-live]')).not.toBeNull();
     expect(screen.queryByRole('heading', { name: 'Report what works' })).toBeNull();
     // The form waits on the request the card already made, rather than a second one.
+    expect(api.callsTo('GET', '/services/netflix')).toHaveLength(1);
+
+    release();
+    expect(await screen.findByRole('heading', { name: 'Report what works' })).toBeDefined();
     expect(api.callsTo('GET', '/services/netflix')).toHaveLength(1);
   });
 

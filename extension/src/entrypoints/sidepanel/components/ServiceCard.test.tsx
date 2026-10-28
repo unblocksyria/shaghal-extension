@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { screen, waitFor, within } from '@testing-library/react';
-import { fakeBrowser } from 'wxt/testing/fake-browser';
+import { recordSent } from '../../../lib/history';
 import { fakeApi } from '../../../testing/fakeApi';
 import { openPanel } from '../../../testing/panel';
 import match from '../../../testing/fixtures/match.json';
@@ -115,16 +115,12 @@ describe('pointing the tester at the gaps', () => {
       .install();
 
     await openPanel('https://reported.example/');
-    await fakeBrowser.storage.local.set({
-      sentHistory: [
-        {
-          kind: 'report',
-          serviceSlug: 'netflix',
-          serviceName: 'Netflix',
-          at: Date.parse('2026-10-20T10:00:00.000Z'),
-          parts: [{ slug: 'payment', name: 'Payment', level: 'failing' }],
-        },
-      ],
+    await recordSent({
+      kind: 'report',
+      serviceSlug: 'netflix',
+      serviceName: 'Netflix',
+      at: Date.parse('2026-10-20T10:00:00.000Z'),
+      parts: [{ slug: 'payment', name: 'Payment', level: 'failing' }],
     });
 
     expect(await screen.findByText('You reported this on 20 Oct 2026', {}, { timeout: 3000 })).toBeDefined();
@@ -238,6 +234,17 @@ describe('what the record adds to a blocked card', () => {
     );
   });
 
+  it('explains a known progress in a line when there is no summary yet', async () => {
+    fakeApi()
+      .on('POST', '/services/match', { data: matched({ availability: 'blocked' }) })
+      .on('GET', '/services/netflix', { data: record([], { progressStatus: 'no_response', timelineSummary: '  ' }) })
+      .install();
+
+    await openPanel('https://no-summary.example/');
+    expect(await screen.findByText('No response', {}, { timeout: 3000 })).toBeDefined();
+    expect(screen.getByText("We contacted this company but haven't heard back.")).toBeDefined();
+  });
+
   it('leaves out a progress it does not know, and a support page that is not a web address', async () => {
     fakeApi()
       .on('POST', '/services/match', { data: matched({ availability: 'blocked' }) })
@@ -291,6 +298,23 @@ describe('a vote', () => {
     const back = screen.getByRole('button', { name: /I need this/ });
     expect(back.textContent).toContain('12');
     expect(back.getAttribute('aria-pressed')).toBe('false');
+  });
+});
+
+describe('a vote pressed twice', () => {
+  it('goes out once while the first is still on its way', async () => {
+    const user = userEvent.setup();
+    const api = fakeApi().on('POST', '/services/match', { data: match });
+    const release = api.hold('POST', '/services/netflix/vote', { json: { voteCount: 13 } });
+    api.install();
+
+    await openPanel('https://double.example/');
+    await user.click(await screen.findByRole('button', { name: /I need this/ }, { timeout: 3000 }));
+    await user.click(screen.getByRole('button', { name: /Voted/ }));
+    release();
+    await waitFor(() => expect(screen.getByRole('button', { name: /Voted/ }).getAttribute('aria-busy')).toBe('false'));
+    expect(api.callsTo('POST', '/services/netflix/vote')).toHaveLength(1);
+    expect(api.callsTo('DELETE', '/services/netflix/vote')).toHaveLength(0);
   });
 });
 

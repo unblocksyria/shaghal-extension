@@ -5,6 +5,7 @@ import {
   EVIDENCE_ACCEPT,
   captureScreenshot,
   fromFile,
+  needsUpload,
   uploadPendingEvidence,
   withEdits,
   type PendingEvidence,
@@ -63,6 +64,11 @@ export function FormShell(props: {
   title: string;
   intro: string;
   children: React.ReactNode;
+  /**
+   * The send button and what goes with it, outside the fieldset that is
+   * disabled while sending, so a verification shown there can be cancelled.
+   */
+  footer?: React.ReactNode;
   busy?: boolean;
   trackDraft?: boolean;
   /** A restored draft counts as unsaved work, so Back and unload still ask before it goes. */
@@ -142,13 +148,14 @@ export function FormShell(props: {
           if (Array.from(event.dataTransfer?.types ?? []).includes('Files')) touch();
         }}
         onPasteCapture={(event) => {
-          if ((event.clipboardData?.files.length ?? 0) > 0) touch();
+          if (event.clipboardData.files.length > 0) touch();
         }}
         disabled={props.busy}
         style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: 'grid', gap: 18 }}
       >
         {props.children}
       </fieldset>
+      {props.footer}
       {trackDraft && <p style={hintStyle}>{t('form.stayOpen')}</p>}
       {confirming && (
         <dialog
@@ -375,7 +382,7 @@ export function useScreenshots(pageUrl?: string | null): ScreenshotList & {
 export async function uploadScreenshots(
   lists: ScreenshotList[],
   type: 'submission' | 'correction' | 'functionality_report',
-  then?: TurnstileAction,
+  then: TurnstileAction,
 ): Promise<{ ok: true; urls: string[][] } | { ok: false; message: string }> {
   if (pendingCaptures > 0 || inlineEditors.size > 0) {
     return { ok: false, message: i18next.t('form.finishCapturing') };
@@ -389,9 +396,9 @@ export async function uploadScreenshots(
   for (const [position, { list, index, item }] of queue.entries()) {
     // Starting the upload claims any token fetched ahead for it before the next one is asked for.
     const upload = uploadPendingEvidence(item, type);
-    const following = queue.slice(position + 1).find((next) => next.item.uploadedUrl === undefined);
+    const following = queue.slice(position + 1).find((next) => needsUpload(next.item));
     if (following !== undefined) prefetchTurnstileToken('upload');
-    else if (then !== undefined) prefetchTurnstileToken(then);
+    else prefetchTurnstileToken(then);
     const result = await upload;
     if (!result.ok)
       return { ok: false, message: i18next.t('form.uploadFailed', { message: formErrorMessage(result.error) }) };

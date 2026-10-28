@@ -108,3 +108,13 @@ declare module 'i18next' {
     returnNull: false;
   }
 }
+
+/** A date as the site writes it, e.g. "1 Sep 2026", in the active locale. Null for no date or a bad one. */
+export function shortDate(iso: string | null | undefined): string | null {
+  if (iso == null || !Number.isFinite(Date.parse(iso))) return null;
+  return new Date(iso).toLocaleDateString(intlLocale(activeLanguage()), {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}

@@ -25,9 +25,23 @@ describe('what this browser sent', () => {
     expect(await sentHistory()).toEqual([]);
   });
 
-  it('skips stored entries it cannot read', async () => {
-    await fakeBrowser.storage.local.set({ sentHistory: [{ kind: 'gossip' }, report(1, ['core_use']), 'text'] });
-    expect(await sentHistory()).toEqual([report(1, ['core_use'])]);
+  it('skips stored entries it cannot read, and clears them too', async () => {
+    await fakeBrowser.storage.local.set({ 'sent:1:a': { kind: 'gossip' }, 'sent:2:b': 'text', language: 'ar' });
+    await recordSent(report(3, ['core_use']));
+    expect(await sentHistory()).toEqual([report(3, ['core_use'])]);
+    await clearSentHistory();
+    expect(await fakeBrowser.storage.local.get(null)).toEqual({ language: 'ar' });
+  });
+
+  it('clears an empty list without touching anything else', async () => {
+    await fakeBrowser.storage.local.set({ language: 'en' });
+    await clearSentHistory();
+    expect(await fakeBrowser.storage.local.get(null)).toEqual({ language: 'en' });
+  });
+
+  it('keeps both entries when two panels send at the same moment', async () => {
+    await Promise.all([recordSent(report(5, ['payment'])), recordSent(report(5, ['sign_in'], 'github'))]);
+    expect((await sentHistory()).map((entry) => entry.serviceSlug).sort()).toEqual(['github', 'netflix']);
   });
 });
 
@@ -48,6 +62,8 @@ describe('parts reported recently', () => {
           at: now,
           parts: [{ name: 'Group calls', level: 'failing' }],
         },
+        // A report stored without parts marks nothing.
+        { kind: 'report', serviceSlug: 'netflix', serviceName: 'Netflix', at: now },
       ],
       'netflix',
       now,

@@ -813,6 +813,7 @@ describe('guards against presses and drops that add nothing', () => {
     const input = document.querySelector<HTMLInputElement>('input[type="file"]');
     if (input === null) throw new Error('The form has no file picker');
     fireEvent.change(input, { target: { files: [file] } });
+    fireEvent.paste(field, { clipboardData: { files: [file] } });
     fireEvent.click(screen.getByRole('button', { name: 'Add screenshot' }));
     expect(screen.queryByAltText(/Evidence #/)).toBeNull();
     expect(screen.queryByText('Finish capturing or editing your screenshot first.')).toBeNull();

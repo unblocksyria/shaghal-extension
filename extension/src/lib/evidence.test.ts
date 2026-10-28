@@ -204,6 +204,20 @@ describe('sizing a capture for a slow upload', () => {
     expect(bitmap.close).toHaveBeenCalledOnce();
   });
 
+  it('keeps the capture as it is when the browser cannot draw it smaller', async () => {
+    vi.stubGlobal(
+      'OffscreenCanvas',
+      class {
+        getContext() {
+          return null;
+        }
+      },
+    );
+    const original = bytes(900);
+    expect(await fitScreenshot(original)).toBe(original);
+    expect(bitmap.close).toHaveBeenCalledOnce();
+  });
+
   it('keeps the original when redrawing would not make it smaller', async () => {
     const original = bytes(700);
     converted = bytes(900);

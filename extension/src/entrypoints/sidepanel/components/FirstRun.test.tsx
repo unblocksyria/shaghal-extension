@@ -23,6 +23,18 @@ describe('the first run', () => {
     );
   });
 
+  it('stays away when storage cannot be read, rather than greeting a returning tester again', async () => {
+    fakeApi().on('POST', '/services/match', { data: match }).install();
+    await openPanel('https://unreadable.example/');
+    cleanup();
+    const read = fakeBrowser.storage.local.get.bind(fakeBrowser.storage.local);
+    fakeBrowser.storage.local.get = (keys?: unknown) =>
+      keys === 'firstRunSeen' ? Promise.reject(new Error('storage is gone')) : read(keys as never);
+    render(<SidePanelApp />);
+    await screen.findByRole('button', { name: /I need this/ }, { timeout: 3000 });
+    expect(screen.queryByRole('heading', { name: 'How a test counts' })).toBeNull();
+  });
+
   it('stays away once seen', async () => {
     fakeApi().on('POST', '/services/match', { data: match }).install();
     await openPanel('https://again.example/');
