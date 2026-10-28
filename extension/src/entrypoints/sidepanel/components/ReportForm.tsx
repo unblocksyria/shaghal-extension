@@ -258,7 +258,8 @@ export function ReportForm(props: {
 
   const hasDetail = (key: string) => (notes[key] ?? '').trim().length > 0 || screenshots.list(key).items.length > 0;
   const nameOf = (part: Part) => (isNamed(part.key) ? (names[part.key] ?? '').trim() : part.name);
-  const signInFails = answers.sign_in === 'failing';
+  // Only while sign-in itself goes out failing: an unchosen part keeps its answer but isn't sent.
+  const signInFails = chosen.includes('sign_in') && answers.sign_in === 'failing';
   // Parts reviewers count as failing once sign-in fails need no answer of their own.
   const implied = (part: Part) => signInFails && NEEDS_SIGN_IN.includes(part.key) && answers[part.key] === undefined;
   const unanswered = chosenParts.find((part) => answers[part.key] === undefined && !implied(part));

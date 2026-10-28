@@ -629,6 +629,20 @@ describe('when sign-in fails', () => {
       { slug: 'sign_in', level: 'failing', description: 'The code never arrives.' },
     ]);
   });
+
+  it('asks for the parts behind sign-in again once sign-in is unchosen, so nothing goes out empty', async () => {
+    const user = userEvent.setup();
+    await openReport(user, 'https://sign-in-dropped.example/', { record: signInRecord });
+    await choose(user, 'Sign in');
+    await choose(user, 'Payment');
+    await answer(user, 'Sign in', 'Fails');
+    expect(screen.queryByRole('radiogroup', { name: 'Payment' })).toBeNull();
+
+    await choose(user, 'Sign in');
+    expect(screen.getByRole('radiogroup', { name: 'Payment' })).toBeDefined();
+    expect(screen.getByText('Say whether Payment works.')).toBeDefined();
+    expect(sendButton().disabled).toBe(true);
+  });
 });
 
 /** The report form for a service that records no parts yet. */
