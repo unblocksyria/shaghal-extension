@@ -881,7 +881,8 @@ export function SentState(props: {
           </Button>
         </div>
       </section>
-      <TestQueue />
+      {/* Opening a listed service leaves this screen too, so the panel shows the new tab's card. */}
+      <TestQueue onOpen={props.onAction} />
     </>
   );
 }

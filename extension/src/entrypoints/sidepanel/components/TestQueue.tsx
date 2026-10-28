@@ -39,7 +39,13 @@ function rowsOf(retest: CatalogService[] | undefined, untested: CatalogService[]
  * Nothing shows until there is something to list, and a failure only says so
  * in a line, since the list is a suggestion.
  */
-export function TestQueue() {
+export function TestQueue(props: {
+  /**
+   * Runs when the tester opens a service from the list, so a view that would
+   * stay put, such as a sent screen, goes back to the card for the new tab.
+   */
+  onOpen?: () => void;
+}) {
   const { t } = useTranslation();
   const [rows, setRows] = useState<Row[]>(() => rowsOf(peekQueue('retest'), peekQueue('untested')));
   const [failed, setFailed] = useState(false);
@@ -74,6 +80,7 @@ export function TestQueue() {
               key={row.service.slug}
               service={row.service}
               href={row.url}
+              onOpen={props.onOpen}
               detail={row.reason === 'retest' ? t('queue.retest', { date }) : t('queue.untested')}
             />
           ))}

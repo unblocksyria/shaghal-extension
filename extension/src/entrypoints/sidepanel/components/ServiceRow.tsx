@@ -101,6 +101,8 @@ export function ServiceRow(props: {
   service: CatalogService;
   onPick?: () => void;
   href?: string;
+  /** Runs as a link row opens its site in a new tab. */
+  onOpen?: () => void;
   /** A short line under the name, such as why the service needs a check. */
   detail?: string;
 }) {
@@ -131,7 +133,7 @@ export function ServiceRow(props: {
   );
   if (props.href !== undefined) {
     return (
-      <a href={props.href} target="_blank" rel="noreferrer" style={style} {...hover}>
+      <a href={props.href} target="_blank" rel="noreferrer" onClick={props.onOpen} style={style} {...hover}>
         {body}
       </a>
     );

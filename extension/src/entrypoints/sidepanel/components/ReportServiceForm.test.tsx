@@ -395,3 +395,36 @@ describe('helping the reviewer', () => {
     );
   });
 });
+
+it('goes back to the card when a service from the list after sending is opened', async () => {
+  const user = userEvent.setup();
+  const wiseRow = {
+    id: 'svc-wise',
+    name: 'Wise',
+    slug: 'wise',
+    url: 'https://wise.com',
+    logoUrl: null,
+    availability: 'blocked',
+    voteCount: 705,
+    statusCheckedAt: null,
+    company: null,
+  };
+  fakeApi()
+    .on('POST', '/services/match', { data: matchNone })
+    .on('POST', '/submissions', { status: 201, json: { id: 'receipt' } })
+    .on('GET', '/services', (call) => ({
+      data: new URL(call.url).searchParams.get('needs_retesting') === 'true' ? [wiseRow] : [],
+    }))
+    .install();
+  await openPanel('https://after-send.example/');
+  await user.click(await screen.findByRole('button', { name: 'Report a Service' }, { timeout: 3000 }));
+  await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Sent Service');
+  await pressSend(user, 'Submit Report');
+  await screen.findByRole('heading', { name: 'Report received' });
+
+  const wise = await screen.findByRole('link', { name: /Wise/ });
+  expect(wise.getAttribute('href')).toBe('https://wise.com/');
+  await user.click(wise);
+  expect(screen.queryByRole('heading', { name: 'Report received' })).toBeNull();
+  expect(await screen.findByRole('heading', { name: "after-send.example isn't tracked yet" })).toBeDefined();
+});
