@@ -358,10 +358,20 @@ textarea.us-field {
   background-color: var(--us-faint-tint);
 }
 
-.us-chip[aria-checked='true'] {
+.us-chip[aria-checked='true'],
+.us-chip[aria-pressed='true'] {
   border-color: var(--us-gold);
-  background-color: var(--us-faint-tint-strong);
+  background-color: var(--us-gold-subtle);
   font-weight: 500;
+}
+
+/* An action among the chips, such as "More parts", rather than a choice. */
+.us-chip-quiet {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-style: dashed;
+  color: var(--us-text-muted);
 }
 
 /* A small muted pill beside a name, such as "Not recorded yet". */
@@ -414,6 +424,27 @@ textarea.us-field {
 .us-callout-warning > svg {
   color: var(--us-danger);
 }
+/* A request for help, such as a recheck, rather than a problem. */
+.us-callout-gold {
+  border-color: var(--us-border-hover);
+  background-color: var(--us-gold-subtle);
+}
+.us-callout-gold > svg {
+  color: var(--us-accent-text);
+}
+.us-callout > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* A summary cut to four lines; the full story is a link away. */
+.us-clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+}
 
 .us-text-link {
   color: var(--us-accent-text);
@@ -458,6 +489,33 @@ textarea.us-field {
 
 .us-editor::backdrop {
   background-color: #0b0b0d;
+}
+
+/*
+  The editor is dark whatever the theme. Its tokens are declared again here,
+  where the colour scheme is dark: declared on :root alone, a light page would
+  hand the editor its light values, such as dark text on the black backdrop.
+*/
+.us-editor,
+.us-editor-page {
+  --us-bg: light-dark(#f3f3f3, #0e0e10);
+  --us-card: light-dark(#ffffff, #18181b);
+  --us-card-nested: light-dark(#f9f8f5, #232326);
+  --us-input-bg: light-dark(#ffffff, #0e0e10);
+  --us-border: light-dark(#e3e1dd, #2c2c30);
+  --us-muted: light-dark(#f6f5f3, #232326);
+  --us-faint-tint: light-dark(rgba(9, 39, 36, 0.03), rgba(245, 243, 239, 0.03));
+  --us-faint-tint-strong: light-dark(rgba(9, 39, 36, 0.05), rgba(245, 243, 239, 0.05));
+  --us-text-primary: light-dark(#092724, #f5f3ef);
+  --us-text-muted: light-dark(#6a6457, #b3aa98);
+  --us-text-dim: light-dark(#7a7466, #8f8878);
+  --us-accent-text: light-dark(#6d6340, #b9a87b);
+  --us-link: light-dark(#092724, #b9a87b);
+  --us-danger: light-dark(#6b1f2a, #e2667a);
+  --us-primary-border: light-dark(#092724, #1a4a45);
+  --us-level-working: light-dark(#1a4a45, #7ebdb7);
+  --us-level-failing: light-dark(#6b1f2a, #e8a0a8);
+  --us-shadow-color: light-dark(rgba(9, 39, 36, 0.07), rgba(0, 0, 0, 0.3));
 }
 
 /* The editor window's page, before the screenshot arrives. */
@@ -1106,4 +1164,67 @@ textarea.us-field {
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* Human verification next to the button that asked for it (lib/turnstile.ts).
+   While Turnstile decides, the frame lies invisible over the slot, still on
+   screen so the challenge runs at full speed. It joins the layout only when
+   a click is needed. */
+.us-verify-slot {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.us-verify {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 12px 10px;
+  border: 1px solid var(--us-border);
+  border-radius: var(--us-radius-control);
+  background-color: var(--us-card-nested);
+}
+
+.us-verify[data-state='waiting'] {
+  position: absolute;
+  inset: 0 0 auto 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.us-verify[data-state='shown'] {
+  animation: usFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.us-verify-label {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--us-text-primary);
+  text-align: center;
+}
+
+/* Turnstile's flexible widget is at least 300 px wide and 65 px tall. */
+.us-verify-frame {
+  width: 100%;
+  min-width: 300px;
+  height: 72px;
+  border: 0;
+  background: transparent;
+}
+
+.us-verify-cancel {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--us-link);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
 }

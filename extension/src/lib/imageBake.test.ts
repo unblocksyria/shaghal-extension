@@ -119,16 +119,16 @@ describe('baking the edits', () => {
     expect(canvas?.convert).toEqual({ type: 'image/jpeg', quality: 0.9 });
   });
 
-  it('shrinks the result when the rendered file is over the upload limit', async () => {
+  it('redraws a heavy result as a lighter JPEG before it is kept', async () => {
     const small = new Blob(['small']);
     outputs.push(new Blob([new Uint8Array(5 * 1024 * 1024 + 1)]), small);
 
     const result = await bakeEdits(image, { crop, boxes: [] });
     expect(await result.text()).toBe('small');
-    // A second canvas, three quarters the size of the rendered image.
+    // A second canvas redraws the rendered image, already within 2048 pixels, at its own size.
     expect(drawn.map((canvas) => canvas.size)).toEqual([
       [400, 300],
-      [750, 450],
+      [1000, 600],
     ]);
   });
 

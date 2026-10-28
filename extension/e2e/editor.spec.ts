@@ -9,7 +9,8 @@ async function captureIntoEditor(context: BrowserContext, page: Page, panel: Pag
   await page.goto(`${TEST_PAGE_ORIGIN}/`);
   await page.bringToFront();
   await panel.getByRole('button', { name: 'Report what works' }).click({ timeout: 15_000 });
-  await panel.getByRole('radiogroup', { name: 'Core use' }).getByRole('radio', { name: 'Fails' }).click();
+  await panel.getByRole('button', { name: 'Core use', pressed: false }).click();
+  await panel.getByRole('radiogroup', { name: 'Core use' }).getByRole('radio', { name: 'Still fails' }).click();
   const [editor] = await Promise.all([
     context.waitForEvent('page'),
     panel.getByRole('button', { name: 'Add screenshot' }).click(),

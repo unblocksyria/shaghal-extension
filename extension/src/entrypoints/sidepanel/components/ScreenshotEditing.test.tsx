@@ -4,7 +4,7 @@ import userEvent, { type UserEvent } from '@testing-library/user-event';
 import { act, renderHook, screen } from '@testing-library/react';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { fakeApi, type FakeApi } from '../../../testing/fakeApi';
-import { openPanel, stubScreenshot } from '../../../testing/panel';
+import { openPanel, stubScreenshot, pressSend } from '../../../testing/panel';
 import { useScreenshotLists } from './FormParts';
 import type { EditOutcome, EditRequest } from '../../../lib/editorWindow';
 import type { ImageEdits } from '../../../lib/imageEdits';
@@ -113,7 +113,7 @@ async function withScreenshot(user: UserEvent): Promise<FakeApi> {
 
 /** Submits the form and returns the uploaded screenshot's contents. */
 async function sentScreenshot(user: UserEvent, api: FakeApi): Promise<string> {
-  await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+  await pressSend(user, 'Submit Report');
   await screen.findByRole('heading', { name: 'Report received' });
   const form = api.callsTo('POST', '/uploads/evidence')[0]?.body as FormData;
   return (form.get('file') as Blob).text();
@@ -140,7 +140,7 @@ describe('editing a screenshot from a form', () => {
     windows.answers[1]?.(undefined);
     await screen.findByText(IDLE_HINT);
 
-    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+    await pressSend(user, 'Submit Report');
     await screen.findByRole('heading', { name: 'Report received' });
     const files = await Promise.all(
       api.callsTo('POST', '/uploads/evidence').map((call) => ((call.body as FormData).get('file') as Blob).text()),
@@ -241,7 +241,7 @@ describe('editing a screenshot from a form', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
     await screen.findByText('Editing evidence #1 in its own window.');
-    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+    await pressSend(user, 'Submit Report');
     expect((await screen.findByRole('alert')).textContent).toBe(
       'Save or cancel the screenshot open in the editor first.',
     );
@@ -273,7 +273,7 @@ describe('editing a screenshot from a form', () => {
     // The upload never answers, so the form stays mid-send.
     api.hold('POST', '/uploads/evidence');
 
-    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+    await pressSend(user, 'Submit Report');
     await screen.findByRole('button', { name: 'Submitting…' });
     expect(screen.queryByRole('button', { name: 'Edit evidence #1' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Remove evidence #1' })).toBeNull();
@@ -340,7 +340,7 @@ describe('capture and submission races', () => {
         release = resolve;
       });
     await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
-    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+    await pressSend(user, 'Submit Report');
     expect((await screen.findByRole('alert')).textContent).toContain('Finish capturing');
     expect(api.callsTo('POST', '/submissions')).toHaveLength(0);
     const [tab] = await fakeBrowser.tabs.query({ active: true, currentWindow: true });
@@ -358,7 +358,7 @@ describe('capture and submission races', () => {
     await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
     await screen.findByRole('dialog', { name: 'Edit evidence #1' });
     // jsdom does not enforce showModal's inert background. This exercises the guard itself.
-    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+    await pressSend(user, 'Submit Report');
     expect((await screen.findByRole('alert')).textContent).toContain('Finish capturing or editing');
     expect(api.callsTo('POST', '/uploads/evidence')).toHaveLength(0);
     expect(api.callsTo('POST', '/submissions')).toHaveLength(0);

@@ -2,14 +2,15 @@ import i18next from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { ar } from '../locales/ar';
 import { en, type Catalog } from '../locales/en';
-import { getSavedLanguage, saveLanguage, type LanguagePreference } from './settings';
+import { ku } from '../locales/ku';
+import { getSavedLanguage, LANGUAGES, saveLanguage, type LanguagePreference } from './settings';
 
 /** The languages the panel can render in. */
-export type Language = 'en' | 'ar';
+export type Language = Exclude<LanguagePreference, 'system'>;
 
 export type Direction = 'ltr' | 'rtl';
 
-/** Arabic when the browser UI language is Arabic, English otherwise. */
+/** Arabic or Kurdish when the browser UI language is one of them, English otherwise. */
 function systemLanguage(): Language {
   let tag: string | undefined;
   try {
@@ -19,25 +20,45 @@ function systemLanguage(): Language {
     tag = undefined;
   }
   const fallback = typeof navigator !== 'undefined' ? navigator.language : 'en';
-  return (tag ?? fallback ?? 'en').toLowerCase().startsWith('ar') ? 'ar' : 'en';
+  const browser = (tag ?? fallback ?? 'en').toLowerCase();
+  if (browser.startsWith('ar')) return 'ar';
+  return browser.startsWith('ku') ? 'ku' : 'en';
 }
 
+/** Only Arabic runs right to left. Kurdish here is Kurmanji, in Latin script. */
 export function directionOf(language: Language): Direction {
   return language === 'ar' ? 'rtl' : 'ltr';
 }
 
-/** The `Intl` locale for dates, counts and country names. English uses en-GB formatting. */
+/** The `Intl` services the panel formats with. Kurdish formatting needs Kurdish data in each. */
+const INTL_SERVICES: { supportedLocalesOf(locales: string): string[] }[] = [
+  Intl.DateTimeFormat,
+  Intl.NumberFormat,
+  Intl.ListFormat,
+  Intl.DisplayNames,
+];
+
+/**
+ * The `Intl` locale for dates, counts, lists and country names. English uses en-GB
+ * formatting, and so does Kurdish in a browser without Kurdish locale data.
+ */
 export function intlLocale(language: Language): string {
-  return language === 'ar' ? 'ar' : 'en-GB';
+  if (language === 'ar') return 'ar';
+  if (language === 'ku' && INTL_SERVICES.every((service) => service.supportedLocalesOf('ku').length > 0)) return 'ku';
+  return 'en-GB';
 }
 
-/** The `/ar` or `/en` segment of a site link. */
+/** The `/en`, `/ar` or `/ku` segment of a site link. */
 export function sitePathSegment(language: Language): string {
   return `/${language}`;
 }
 
 void i18next.use(initReactI18next).init({
-  resources: { en: { translation: en }, ar: { translation: ar } },
+  resources: {
+    en: { translation: en },
+    ar: { translation: ar },
+    ku: { translation: ku },
+  } satisfies Record<Language, unknown>,
   lng: systemLanguage(),
   fallbackLng: 'en',
   returnNull: false,
@@ -48,7 +69,7 @@ export { i18next };
 
 /** The language the panel is rendering in. */
 export function activeLanguage(): Language {
-  return i18next.language === 'ar' ? 'ar' : 'en';
+  return LANGUAGES.find((language) => language === i18next.language) ?? 'en';
 }
 
 /** Switches i18next and sets `dir` and `lang` on <html> so every element inherits them. */
@@ -86,4 +107,14 @@ declare module 'i18next' {
     resources: { translation: Catalog };
     returnNull: false;
   }
+}
+
+/** A date as the site writes it, e.g. "1 Sep 2026", in the active locale. Null for no date or a bad one. */
+export function shortDate(iso: string | null | undefined): string | null {
+  if (iso == null || !Number.isFinite(Date.parse(iso))) return null;
+  return new Date(iso).toLocaleDateString(intlLocale(activeLanguage()), {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
 }

@@ -55,6 +55,8 @@ describe('the saved language', () => {
     expect(await getSavedLanguage()).toBe('system');
     await saveLanguage('ar');
     expect(await getSavedLanguage()).toBe('ar');
+    await saveLanguage('ku');
+    expect(await getSavedLanguage()).toBe('ku');
   });
 
   it('reports a picked language to watchers, and anything else as System', async () => {
@@ -62,13 +64,14 @@ describe('the saved language', () => {
     const stop = watchSavedLanguage((language) => seen.push(language));
 
     await saveLanguage('ar');
+    await saveLanguage('ku');
     await fakeBrowser.storage.local.set({ language: 'klingon' });
     await fakeBrowser.storage.local.remove('language');
     await fakeBrowser.storage.session.set({ language: 'en' });
-    expect(seen).toEqual(['ar', 'system', 'system']);
+    expect(seen).toEqual(['ar', 'ku', 'system', 'system']);
 
     stop();
     await saveLanguage('en');
-    expect(seen).toEqual(['ar', 'system', 'system']);
+    expect(seen).toEqual(['ar', 'ku', 'system', 'system']);
   });
 });

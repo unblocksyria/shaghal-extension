@@ -50,8 +50,10 @@ function json(payload: unknown): StubAnswer {
 const answers = new Map<string, StubAnswer>([
   ['POST /services/match', json({ data: fixture<ServiceMatch>('match') })],
   ['GET /services/netflix', json({ data: fixture<ServiceRecord>('service-details') })],
-  // The untracked card's search by name. One row, so the pick lands on Netflix.
+  // The untracked card's search by name, and the "help check these" queues. One
+  // row, so a pick lands on Netflix.
   ['GET /services', json({ data: [fixture<CatalogService>('search')] })],
+  ['GET /check-duplicate', json({ hasDuplicate: false, duplicateType: 'none' })],
   ['GET /categories', json({ data: fixture<CategoryItem[]>('categories') })],
   ['GET /functionalities', json({ data: fixture<FunctionalityItem[]>('functionalities') })],
   ['POST /services/netflix/vote', json(fixture<{ voteCount: number }>('vote'))],

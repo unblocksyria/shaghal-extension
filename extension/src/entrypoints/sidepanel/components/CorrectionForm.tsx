@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiErrorMessage } from '../../../lib/api';
-import { getCategories, type CategoryItem, type ServiceRecord } from '../../../lib/endpoints';
+import type { CategoryItem, ServiceRecord } from '../../../lib/endpoints';
+import { loadCategories } from '../../../lib/reads';
 import { submitCorrection, type CorrectionType } from '../../../lib/submit';
 import { serviceName } from '../../../lib/serviceName';
 import { Input } from '../../../components/ui/Input';
 import { Textarea } from '../../../components/ui/Textarea';
 import { CategoryPicker } from './CategoryPicker';
+import { ClipboardCheck } from 'lucide-react';
 import { storedList, storedStrings } from '../../../lib/drafts';
+import { recordSent } from '../../../lib/history';
+import { needsUpload } from '../../../lib/evidence';
 import { useDraft, type RestoredDraft } from '../hooks/useDraft';
 import {
   EmailField,
@@ -17,6 +21,7 @@ import {
   ScreenshotField,
   SentState,
   SINGLE_LIST_KEY,
+  NoEvidencePrompt,
   uploadScreenshots,
   useSavedEmail,
   useScreenshots,
@@ -70,7 +75,14 @@ function sameSet(a: Set<string>, b: Set<string>): boolean {
 }
 
 /** Sends every ticked field in one submission. The review queue splits it into one item per field. */
-export function CorrectionForm(props: { service: ServiceRecord; onBack: () => void }) {
+export function CorrectionForm(props: {
+  service: ServiceRecord;
+  /** The service's slug, for the local record of what was sent. */
+  slug: string;
+  onBack: () => void;
+  /** Opens "Report what works" for the same service, for a test result sent here by mistake. */
+  onReport?: () => void;
+}) {
   const { t, i18n } = useTranslation();
   const labels: Record<CorrectionType, string> = {
     url: t('correction.fieldUrl'),
@@ -127,7 +139,7 @@ export function CorrectionForm(props: { service: ServiceRecord; onBack: () => vo
   useEffect(() => {
     wantedLanguage.current = language;
     if (categoryOptions.length === 0 || optionsLanguage.current === language) return;
-    void getCategories().then((result) => {
+    void loadCategories().then((result) => {
       // Drop the response if the language changed again meanwhile.
       if (!result.ok || wantedLanguage.current !== language) return;
       setCategoryOptions(result.data);
@@ -148,7 +160,7 @@ export function CorrectionForm(props: { service: ServiceRecord; onBack: () => vo
       setCategories(recordedCategoryIds(props.service));
       if (categoryOptions.length === 0) {
         const wanted = i18n.language;
-        void getCategories().then((result) => {
+        void loadCategories().then((result) => {
           if (result.ok) {
             setCategoryOptions(result.data);
             optionsLanguage.current = wanted;
@@ -181,7 +193,10 @@ export function CorrectionForm(props: { service: ServiceRecord; onBack: () => vo
               ? t('correction.unchanged')
               : null;
 
-  const submit = async () => {
+  // Reviewers turn down a correction they can't check, so a send without a screenshot asks once.
+  const [askedEvidence, setAskedEvidence] = useState(false);
+
+  const submit = async (withoutEvidence = false) => {
     if (busy) return;
     const invalidEmail = emailError(email);
     if (invalidEmail !== null) {
@@ -189,9 +204,14 @@ export function CorrectionForm(props: { service: ServiceRecord; onBack: () => vo
       return;
     }
     if (blocker !== null) return;
+    if (screenshots.items.length === 0 && !withoutEvidence) {
+      setAskedEvidence(true);
+      return;
+    }
+    setAskedEvidence(false);
     setBusy(true);
     setError(null);
-    const uploaded = await uploadScreenshots(screenshots, 'correction');
+    const uploaded = await uploadScreenshots([screenshots], 'correction', 'correction');
     if (!uploaded.ok) {
       setBusy(false);
       setError(uploaded.message);
@@ -201,7 +221,7 @@ export function CorrectionForm(props: { service: ServiceRecord; onBack: () => vo
       serviceId: props.service.id,
       changes: chosen.map((type) => ({ correctionType: type, proposedValue: proposedOf(type) })),
       submitterEmail: email.trim().length > 0 ? email.trim() : undefined,
-      evidenceUrls: uploaded.urls,
+      evidenceUrls: uploaded.urls[0] ?? [],
     });
     setBusy(false);
     if (!result.ok) {
@@ -210,6 +230,7 @@ export function CorrectionForm(props: { service: ServiceRecord; onBack: () => vo
     }
     // Only a confirmed send lets the draft go, so a refusal keeps it for a retry.
     draft.clear();
+    void recordSent({ kind: 'correction', serviceSlug: props.slug, serviceName: serviceName(props.service) });
     setSent(true);
   };
 
@@ -234,7 +255,36 @@ export function CorrectionForm(props: { service: ServiceRecord; onBack: () => vo
       restored={draft.restored}
       title={t('correction.title')}
       intro={t('correction.intro', { name: serviceName(props.service) })}
+      footer={
+        <FormFooter
+          label={t('correction.submit')}
+          busyLabel={t('correction.submitting')}
+          busy={busy}
+          verify={screenshots.items.some(needsUpload) ? 'upload' : 'correction'}
+          blocker={blocker}
+          note={t('correction.note')}
+          error={error}
+          onDiscard={onDiscard}
+          onSubmit={() => void submit()}
+        />
+      }
     >
+      {props.onReport !== undefined && (
+        <p className="us-callout">
+          <ClipboardCheck size={16} aria-hidden="true" />
+          <span>
+            <span style={{ color: 'var(--us-text-muted)' }}>{t('correction.testInstead')} </span>
+            <button
+              type="button"
+              className="us-text-link"
+              onClick={props.onReport}
+              style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}
+            >
+              {t('card.reportWhatWorks')}
+            </button>
+          </span>
+        </p>
+      )}
       <div style={{ display: 'grid', gap: 8 }}>
         <span className="us-label">
           {t('correction.whatToCorrect')} <span aria-hidden="true">*</span>
@@ -303,25 +353,24 @@ export function CorrectionForm(props: { service: ServiceRecord; onBack: () => vo
         );
       })}
 
-      <ScreenshotField
-        screenshots={screenshots}
-        locked={busy}
-        label={t('correction.evidenceLabel')}
-        hint={t('correction.evidenceHint')}
-      />
+      <div id="correction-evidence">
+        <ScreenshotField
+          screenshots={screenshots}
+          locked={busy}
+          label={t('correction.evidenceLabel')}
+          hint={t('correction.evidenceHint')}
+        />
+      </div>
 
       <EmailField value={email} onChange={setEmail} />
 
-      <FormFooter
-        label={t('correction.submit')}
-        busyLabel={t('correction.submitting')}
-        busy={busy}
-        blocker={blocker}
-        note={t('correction.note')}
-        error={error}
-        onDiscard={onDiscard}
-        onSubmit={() => void submit()}
-      />
+      {askedEvidence && screenshots.items.length === 0 && (
+        <NoEvidencePrompt
+          message={t('correction.noEvidence')}
+          fieldId="correction-evidence"
+          onSendAnyway={() => void submit(true)}
+        />
+      )}
     </FormShell>
   );
 }

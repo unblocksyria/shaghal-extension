@@ -1,11 +1,12 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it, vi } from 'vitest';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
+import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { closeEditorWindows } from '../../../testing/editorWindows';
 import { API_BASE } from '../../../lib/config';
 import { fakeApi, type FakeApi } from '../../../testing/fakeApi';
-import { openPanel, stubScreenshot } from '../../../testing/panel';
+import { openPanel, stubScreenshot, pressSend } from '../../../testing/panel';
 import { SidePanelApp } from '../SidePanelApp';
 import categories from '../../../testing/fixtures/categories.json';
 import match from '../../../testing/fixtures/match.json';
@@ -32,7 +33,7 @@ describe('the correction form', () => {
 
     await user.click(screen.getByRole('checkbox', { name: 'Website URL' }));
     await user.type(screen.getByRole('textbox', { name: 'Website URL' }), 'https://stream.example');
-    await user.click(screen.getByRole('button', { name: 'Submit Correction' }));
+    await pressSend(user, 'Submit Correction');
 
     await screen.findByRole('heading', { name: 'Correction Submitted' });
     const sent = api.callsTo('POST', '/corrections');
@@ -56,7 +57,7 @@ describe('the correction form', () => {
     await user.click(screen.getByRole('button', { name: /Select correct categories|\d+ selected/ }));
     await user.click(screen.getByRole('checkbox', { name: 'Social' }));
 
-    await user.click(screen.getByRole('button', { name: 'Submit Correction' }));
+    await pressSend(user, 'Submit Correction');
     await screen.findByRole('heading', { name: 'Correction Submitted' });
 
     const sent = api.callsTo('POST', '/corrections');
@@ -142,7 +143,7 @@ describe('what each field shows', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Description' }));
     expect(screen.queryByRole('textbox', { name: 'Description' })).toBeNull();
 
-    await user.click(screen.getByRole('button', { name: 'Submit Correction' }));
+    await pressSend(user, 'Submit Correction');
     await screen.findByRole('heading', { name: 'Correction Submitted' });
     expect(api.callsTo('POST', '/corrections').at(0)?.json).toMatchObject({
       changes: [{ correctionType: 'url', proposedValue: 'https://stream.example' }],
@@ -212,7 +213,7 @@ describe('what stops a correction', () => {
     await user.type(screen.getByRole('textbox', { name: 'Website URL' }), 'https://stream.example');
     await user.type(screen.getByRole('textbox', { name: 'Your email' }), 'not-an-email');
 
-    await user.click(screen.getByRole('button', { name: 'Submit Correction' }));
+    await pressSend(user, 'Submit Correction');
     expect((await screen.findByRole('alert')).textContent).toBe('Enter a valid email address, or leave it blank.');
     expect(api.callsTo('POST', '/corrections')).toHaveLength(0);
   });
@@ -228,7 +229,7 @@ describe('what stops a correction', () => {
     await screen.findByAltText('Evidence #1');
     await closeEditorWindows();
 
-    await user.click(screen.getByRole('button', { name: 'Submit Correction' }));
+    await pressSend(user, 'Submit Correction');
     expect((await screen.findByRole('alert')).textContent).toBe('A screenshot could not be uploaded: Upload refused');
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Submit Correction' }).disabled).toBe(false);
     expect(api.callsTo('POST', '/corrections')).toHaveLength(0);
@@ -241,7 +242,7 @@ describe('what stops a correction', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Website URL' }));
     await user.type(screen.getByRole('textbox', { name: 'Website URL' }), 'https://stream.example');
 
-    await user.click(screen.getByRole('button', { name: 'Submit Correction' }));
+    await pressSend(user, 'Submit Correction');
     expect((await screen.findByRole('alert')).textContent).toBe(
       'This shared network is busy. Try again in 1 minute. Keep this panel open to preserve your draft.',
     );
@@ -274,7 +275,7 @@ describe('keeping the correction across a closed panel', () => {
     expect(screen.getByRole('checkbox', { name: 'Website URL' }).getAttribute('aria-checked')).toBe('true');
     expect(screen.getByRole('textbox', { name: 'Website URL' })).toHaveProperty('value', 'https://stream.example');
 
-    await user.click(screen.getByRole('button', { name: 'Submit Correction' }));
+    await pressSend(user, 'Submit Correction');
     await screen.findByRole('heading', { name: 'Correction Submitted' });
     expect(api.callsTo('POST', '/corrections')).toHaveLength(1);
     expect(await storedCorrection()).toBeUndefined();
@@ -332,4 +333,42 @@ describe('keeping the correction across a closed panel', () => {
     expect(screen.queryByRole('checkbox', { name: 'Postal code' })).toBeNull();
     expect(screen.getByRole('textbox', { name: 'Your email' })).toHaveProperty('value', '');
   });
+});
+
+describe('what a correction needs', () => {
+  it('asks for a screenshot before sending without one', async () => {
+    const user = userEvent.setup();
+    const api = await openCorrection(user, 'https://unproven.example/');
+    await user.click(screen.getByRole('checkbox', { name: 'Website URL' }));
+    await user.type(screen.getByRole('textbox', { name: 'Website URL' }), 'https://netflix.example');
+    await user.click(screen.getByRole('button', { name: 'Submit Correction' }));
+
+    expect(screen.getByRole('alert').textContent).toContain('Corrections without a screenshot are usually turned down');
+    expect(api.callsTo('POST', '/corrections')).toHaveLength(0);
+    await user.click(screen.getByRole('button', { name: 'Send anyway' }));
+    await screen.findByRole('heading', { name: 'Correction Submitted' });
+  });
+
+  it('sends a test result to the report instead', async () => {
+    const user = userEvent.setup();
+    const api = await openCorrection(user, 'https://misfiled.example/');
+    api.on('GET', '/functionalities', { data: [] });
+    await user.click(screen.getByRole('button', { name: 'Report what works' }));
+    await screen.findByRole('heading', { name: 'Report what works' });
+  });
+});
+
+it('opens the report for the service being corrected, even after the tab moved on', async () => {
+  const user = userEvent.setup();
+  const api = await openCorrection(user, 'https://corrected.example/');
+  api.on('GET', '/functionalities', { data: [] });
+  api.on('POST', '/services/match', { data: { service: null, matchType: null, alternatives: [] } });
+  const [tab] = await fakeBrowser.tabs.query({ active: true });
+  await act(async () => {
+    await fakeBrowser.tabs.update(tab!.id, { url: 'https://elsewhere.example/' });
+  });
+
+  await user.click(screen.getByRole('button', { name: 'Report what works' }));
+  expect(await screen.findByRole('heading', { name: 'Report what works' })).toBeDefined();
+  expect(screen.getByText(/^Netflix: say what you tried/)).toBeDefined();
 });

@@ -37,6 +37,47 @@ describe('lookup lifecycle', () => {
     expect(signal?.aborted).toBe(true);
   });
 
+  it('asks at once on a loaded page, and waits out redirects while the tab loads', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const api = fakeApi().on('POST', '/services/match', { data: matchNone }).install();
+    const { rerender } = renderHook(({ url, loading }) => useServiceMatch(url, { loading }), {
+      initialProps: { url: 'https://loaded.example/', loading: false },
+    });
+    expect(api.callsTo('POST', '/services/match')).toHaveLength(1);
+
+    rerender({ url: 'https://hop-1.example/', loading: true });
+    rerender({ url: 'https://hop-2.example/', loading: true });
+    await act(() => vi.advanceTimersByTimeAsync(349));
+    expect(api.callsTo('POST', '/services/match')).toHaveLength(1);
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(api.callsTo('POST', '/services/match').map((call) => (call.json as { url: string }).url)).toEqual([
+      'https://loaded.example/',
+      'https://hop-2.example/',
+    ]);
+    vi.useRealTimers();
+  });
+
+  it('shows a stale answer at once while it asks again, and keeps it if that fails', async () => {
+    const now = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now);
+    const api = fakeApi().on('POST', '/services/match', { data: match }).install();
+    const { result, rerender } = renderHook(({ url }) => useServiceMatch(url), {
+      initialProps: { url: 'https://stale.example/' },
+    });
+    await waitFor(() => expect(result.current.state.status).toBe('ready'));
+
+    rerender({ url: 'chrome://settings/' });
+    clock.mockReturnValue(now + 10 * 60_000);
+    api.on('POST', '/services/match', { status: 503, json: { error: 'DOWN' } });
+    rerender({ url: 'https://stale.example/' });
+    expect(result.current.state).toEqual({ status: 'ready', match });
+    await waitFor(() => expect(api.callsTo('POST', '/services/match')).toHaveLength(2));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    // Still the stale answer, and the failure is not retried in a loop.
+    expect(result.current.state).toEqual({ status: 'ready', match });
+    expect(api.callsTo('POST', '/services/match')).toHaveLength(2);
+  });
+
   it('refreshes an expired answer when revisited', async () => {
     const now = Date.now();
     const clock = vi.spyOn(Date, 'now').mockReturnValue(now);
@@ -46,8 +87,9 @@ describe('lookup lifecycle', () => {
     });
     await waitFor(() => expect(result.current.state.status).toBe('ready'));
     rerender({ url: 'chrome://settings/' });
-    clock.mockReturnValue(now + 6 * 60_000);
+    clock.mockReturnValue(now + 31 * 60_000);
     rerender({ url: 'https://expired.example/' });
+    expect(result.current.state.status).toBe('loading');
     await waitFor(() => expect(api.callsTo('POST', '/services/match')).toHaveLength(2));
   });
 });
@@ -84,7 +126,8 @@ describe('asking again', () => {
             releaseSlow = resolve;
           }),
       )
-      .mockResolvedValueOnce(Response.json({ data: matchNone }));
+      .mockResolvedValueOnce(Response.json({ data: matchNone }))
+      .mockImplementation(() => Promise.resolve(Response.json({ data: match })));
     vi.stubGlobal('fetch', fetcher);
     const { result, rerender } = renderHook(({ url }) => useServiceMatch(url), {
       initialProps: { url: 'https://slow.example/' },
@@ -97,25 +140,27 @@ describe('asking again', () => {
     releaseSlow(Response.json({ data: match }));
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(result.current.state).toEqual({ status: 'ready', match: matchNone });
-    // The late answer was not cached either.
+    // The late answer was not cached either, so the page is asked again.
     rerender({ url: 'https://slow.example/' });
     expect(result.current.state.status).toBe('loading');
+    await waitFor(() => expect(result.current.state).toEqual({ status: 'ready', match }));
+    expect(fetcher).toHaveBeenCalledTimes(3);
   });
 
-  it('remembers at most 100 pages, forgetting the oldest first', async () => {
+  it('remembers at most 50 pages, forgetting the oldest first', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const api = fakeApi().on('POST', '/services/match', { data: matchNone }).install();
     const { result, rerender } = renderHook(({ url }) => useServiceMatch(url), {
       initialProps: { url: 'https://page-0.example/' },
     });
-    // Lets the debounce fire and the answer land.
+    // Lets the answer land.
     const settle = () =>
       act(async () => {
-        await vi.advanceTimersByTimeAsync(350);
+        await vi.advanceTimersByTimeAsync(0);
         await new Promise((resolve) => setImmediate(resolve));
       });
 
-    for (let page = 0; page <= 100; page += 1) {
+    for (let page = 0; page <= 50; page += 1) {
       rerender({ url: `https://page-${page}.example/` });
       await settle();
       expect(result.current.state.status).toBe('ready');

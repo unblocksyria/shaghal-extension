@@ -20,18 +20,40 @@ const expectation = (check: (value: unknown) => boolean) => ({
   message: i18next.t('api.incompleteData'),
 });
 
+const LEVELS = ['working', 'failing', 'unknown'];
+const optionalBoolean = (value: unknown) => value === undefined || typeof value === 'boolean';
+
+// History and screenshots are extras: a malformed entry is dropped by partChecks, never fatal.
 const isFunctionality = (value: unknown) =>
   record(value) &&
   part(value) &&
-  ['working', 'failing', 'unknown'].includes(String(value.level)) &&
-  ['description', 'changedAt', 'lastObservedAt'].every((key) => optionalText(value[key]));
+  LEVELS.includes(String(value.level)) &&
+  ['description', 'changedAt', 'lastObservedAt'].every((key) => optionalText(value[key])) &&
+  optionalBoolean(value.isCore) &&
+  (value.history === undefined || Array.isArray(value.history));
+
+const isPartCheck = (value: unknown): value is PartCheck =>
+  record(value) &&
+  LEVELS.includes(String(value.level)) &&
+  text(value.observedAt) &&
+  Number.isFinite(Date.parse(value.observedAt)) &&
+  optionalText(value.description) &&
+  (value.evidenceUrls === undefined || value.evidenceUrls === null || listOf(text)(value.evidenceUrls));
+
+/** A part's past checks, newest first, without any the API sent malformed. */
+export function partChecks(part: ServiceFunctionality): PartCheck[] {
+  return (part.history ?? []).filter(isPartCheck);
+}
 
 function isServiceRecord(value: unknown): boolean {
   return (
     record(value) &&
     named(value) &&
     nullableText(value.url) &&
-    ['description', 'supportEmail', 'supportUrl'].every((key) => optionalText(value[key])) &&
+    ['description', 'supportEmail', 'supportUrl', 'progressStatus', 'timelineSummary', 'statusCheckedAt'].every((key) =>
+      optionalText(value[key]),
+    ) &&
+    optionalBoolean(value.needsRetesting) &&
     (value.categories === undefined || listOf(named)(value.categories)) &&
     (value.functionalities === undefined || listOf(isFunctionality)(value.functionalities)) &&
     (value.alternatives === undefined || listOf(isCatalogService)(value.alternatives))
@@ -48,6 +70,8 @@ function isCatalogService(value: unknown): boolean {
     Number.isSafeInteger(value.voteCount) &&
     Number(value.voteCount) >= 0 &&
     nullableText(value.statusCheckedAt) &&
+    optionalBoolean(value.needsRetesting) &&
+    optionalText(value.url) &&
     (value.company === null || (record(value.company) && text(value.company.name)))
   );
 }
@@ -76,7 +100,23 @@ export interface ServiceFunctionality {
   changedAt?: string | null;
   /** When a tester last checked it, which the card shows as "Checked". */
   lastObservedAt?: string | null;
+  /** Whether this is the part that decides the service's status. */
+  isCore?: boolean;
+  /** Past checks, newest first. Read through partChecks. */
+  history?: PartCheck[];
 }
+
+/** One recorded check of a part. */
+export interface PartCheck {
+  level: 'working' | 'failing' | 'unknown';
+  description?: string | null;
+  evidenceUrls?: string[] | null;
+  observedAt: string;
+}
+
+/** How far Unblock Syria's outreach to the company has gone. */
+export type ProgressStatus =
+  'no_outreach' | 'contacted' | 'no_response' | 'in_review' | 'partially_resolved' | 'unblocked' | 'declined';
 
 /** A service's full record, used by the report and correction forms. */
 export interface ServiceRecord {
@@ -92,6 +132,13 @@ export interface ServiceRecord {
   functionalities?: ServiceFunctionality[];
   /** Services that fill in for this one, with their own availability. */
   alternatives?: CatalogService[];
+  /** Outreach progress. A value this build doesn't know is shown as nothing. */
+  progressStatus?: string | null;
+  /** A short, translated summary of the outreach so far. */
+  timelineSummary?: string | null;
+  /** True when a failing part has not been checked since retesting was asked for. */
+  needsRetesting?: boolean;
+  statusCheckedAt?: string | null;
 }
 
 export async function getServiceBySlug(slug: string): Promise<ApiResult<ServiceRecord>> {
@@ -103,6 +150,7 @@ export async function getServiceBySlug(slug: string): Promise<ApiResult<ServiceR
 export interface FunctionalityItem {
   slug: string;
   name: string;
+  isCore?: boolean;
 }
 
 export interface CategoryItem {
@@ -168,6 +216,10 @@ export interface CatalogService {
   /** ISO time of the newest part check, or null when nothing was checked. */
   statusCheckedAt: string | null;
   company: { name: string } | null;
+  /** True when a failing part has not been checked since retesting was asked for. */
+  needsRetesting?: boolean;
+  /** The service's main address. List rows carry it; older answers may not. */
+  url?: string | null;
 }
 
 export interface ServiceMatch {
@@ -203,6 +255,54 @@ export async function searchServices(query: string, signal?: AbortSignal): Promi
   return apiRequest<CatalogService[]>(`/services?${params}`, {
     signal,
     expect: expectation(listOf(isCatalogService)),
+  });
+}
+
+/** What to look for in `servicesToTest`: failing parts due a recheck, or services nobody has tested. */
+export type TestQueue = 'retest' | 'untested';
+
+/** The most-voted services in a queue, for the panel's "help check these" list. */
+export async function servicesToTest(
+  queue: TestQueue,
+  limit: number,
+  signal?: AbortSignal,
+): Promise<ApiResult<CatalogService[]>> {
+  const params = new URLSearchParams({
+    ...(queue === 'retest' ? { needs_retesting: 'true' } : { availability: 'unknown' }),
+    sort: 'vote_count',
+    order: 'desc',
+    limit: String(limit),
+    locale: activeLanguage(),
+  });
+  return apiRequest<CatalogService[]>(`/services?${params}`, {
+    signal,
+    expect: expectation(listOf(isCatalogService)),
+  });
+}
+
+export interface DuplicateCheck {
+  hasDuplicate: boolean;
+  /** `pending` when the site is waiting for review, `published` when it is already tracked. */
+  duplicateType: 'none' | 'pending' | 'published';
+  existingService?: { slug: string; name: string };
+}
+
+function isDuplicateCheck(value: unknown): boolean {
+  return (
+    record(value) &&
+    typeof value.hasDuplicate === 'boolean' &&
+    ['none', 'pending', 'published'].includes(String(value.duplicateType)) &&
+    (value.existingService === undefined ||
+      (record(value.existingService) && text(value.existingService.slug) && text(value.existingService.name)))
+  );
+}
+
+/** Whether a site was already sent or is already tracked. Unwrapped, unlike the other reads. */
+export async function checkDuplicate(url: string, signal?: AbortSignal): Promise<ApiResult<DuplicateCheck>> {
+  return apiRequest<DuplicateCheck>(`/check-duplicate?${new URLSearchParams({ url })}`, {
+    signal,
+    unwrap: 'raw',
+    expect: expectation(isDuplicateCheck),
   });
 }
 

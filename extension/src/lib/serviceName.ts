@@ -1,4 +1,4 @@
-import { activeLanguage } from './i18n';
+import { activeLanguage, directionOf } from './i18n';
 
 /** A record with a service's English name and optional Arabic name. */
 export interface NamedService {
@@ -7,16 +7,19 @@ export interface NamedService {
 }
 
 /**
- * The name wrapped in Unicode isolates (U+2068, U+2069) when the panel is in Arabic, so a
- * right-to-left paragraph can't move its punctuation, such as the plus in "Disney+".
- * In English the name is returned as it is.
+ * The name wrapped in Unicode isolates (U+2068, U+2069) when the panel runs right to
+ * left, so a right-to-left paragraph can't move its punctuation, such as the plus in
+ * "Disney+". In English and Kurdish the name is returned as it is.
  */
 export function isolate(name: string): string {
-  if (activeLanguage() !== 'ar') return name;
+  if (directionOf(activeLanguage()) === 'ltr') return name;
   return `\u2068${name}\u2069`;
 }
 
-/** The English name, plus the Arabic name in brackets when the panel is in Arabic and one exists. */
+/**
+ * The English name, plus the Arabic name in brackets when the panel is in Arabic and
+ * one exists. English and Kurdish show the English name alone.
+ */
 export function serviceName(service: NamedService): string {
   if (activeLanguage() !== 'ar') return service.name;
   const english = isolate(service.name);

@@ -24,11 +24,11 @@ export const EVIDENCE_ACCEPT = 'image/jpeg,image/png,image/gif,image/webp';
 
 const EVIDENCE_TYPES = EVIDENCE_ACCEPT.split(',');
 
-/** A JPEG of the visible tab, downscaled if over the upload limit. */
+/** A JPEG of the visible tab, sized for upload (see fitScreenshot). */
 async function captureVisibleScreenshot(windowId: number): Promise<Blob> {
   const dataUrl = await chrome.tabs.captureVisibleTab(windowId, { format: 'jpeg', quality: 90 });
   const blob = dataUrlToBlob(dataUrl);
-  return shrinkToFit(blob);
+  return fitScreenshot(blob);
 }
 
 function dataUrlToBlob(dataUrl: string): Blob {
@@ -36,6 +36,39 @@ function dataUrlToBlob(dataUrl: string): Blob {
   const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
   const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
   return new Blob([bytes], { type });
+}
+
+/** A capture over this many bytes is redrawn smaller. Below it, an upload is already quick. */
+const REDRAW_OVER_BYTES = 600 * 1024;
+/** The longest side of a redrawn capture, in pixels. Text in it stays legible. */
+const MAX_EDGE_PX = 2048;
+
+/**
+ * A capture or edited screenshot, sized for a slow upload. The tab is captured
+ * at the screen's pixel density, so a high-density capture can run past 1 MB,
+ * which takes many seconds to send from Syria. One over 600 KB is redrawn as a
+ * JPEG at most 2048 pixels on its longest side, usually a third of the bytes,
+ * and the smaller of the two is kept. Files picked from disk never come here.
+ */
+export async function fitScreenshot(blob: Blob): Promise<Blob> {
+  if (blob.size <= REDRAW_OVER_BYTES) return blob;
+  const bitmap = await createImageBitmap(blob);
+  let redrawn: Blob | null = null;
+  try {
+    const scale = Math.min(1, MAX_EDGE_PX / Math.max(bitmap.width, bitmap.height));
+    const canvas = new OffscreenCanvas(
+      Math.max(1, Math.round(bitmap.width * scale)),
+      Math.max(1, Math.round(bitmap.height * scale)),
+    );
+    const context = canvas.getContext('2d');
+    if (context !== null) {
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      redrawn = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.85 });
+    }
+  } finally {
+    bitmap.close();
+  }
+  return shrinkToFit(redrawn !== null && redrawn.size < blob.size ? redrawn : blob);
 }
 
 export async function shrinkToFit(blob: Blob): Promise<Blob> {
@@ -106,13 +139,20 @@ export function withEdits(item: PendingEvidence, edited: { blob: Blob; edits: Im
   };
 }
 
+/**
+ * Whether sending would upload this screenshot (and so need a verification).
+ * Upload claims expire after an hour, so one is reused only with 5+ minutes
+ * left to verify and submit.
+ */
+export function needsUpload(item: PendingEvidence): boolean {
+  return item.uploadedUrl === undefined || item.uploadedAt === undefined || Date.now() - item.uploadedAt >= 55 * 60_000;
+}
+
 export async function uploadPendingEvidence(
   item: PendingEvidence,
   reportType: 'submission' | 'correction' | 'functionality_report',
 ): Promise<ApiResult<PendingEvidence>> {
-  // Upload claims expire after an hour. Reuse one only with 5+ minutes left to verify and submit.
-  if (item.uploadedUrl !== undefined && item.uploadedAt !== undefined && Date.now() - item.uploadedAt < 55 * 60_000)
-    return { ok: true, data: item };
+  if (!needsUpload(item)) return { ok: true, data: item };
   if (item.blob.size === 0 || item.blob.size > MAX_EVIDENCE_BYTES)
     return {
       ok: false,

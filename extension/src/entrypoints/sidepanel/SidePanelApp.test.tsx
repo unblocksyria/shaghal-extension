@@ -10,6 +10,8 @@ import match from '../../testing/fixtures/match.json';
 import matchMany from '../../testing/fixtures/match-many.json';
 import matchNone from '../../testing/fixtures/match-none.json';
 import serviceRecord from '../../testing/fixtures/service-record.json';
+import serviceDetails from '../../testing/fixtures/service-details.json';
+import functionalities from '../../testing/fixtures/functionalities.json';
 
 // Each test mounts the full panel, so view changes and requests are real.
 describe('the panel home', () => {
@@ -43,19 +45,42 @@ describe('opening a form', () => {
     expect(screen.queryByRole('radiogroup', { name: 'Core use' })).toBeNull();
   });
 
-  it('says it is opening while the record is in flight', async () => {
+  it('says it is opening while the record is in flight, sharing the card’s request', async () => {
     const user = userEvent.setup();
-    const api = fakeApi().on('POST', '/services/match', { data: match });
-    api.hold('GET', '/services/netflix');
+    const api = fakeApi().on('POST', '/services/match', { data: match }).on('GET', '/functionalities', { data: [] });
+    const release = api.hold('GET', '/services/netflix', { data: serviceDetails });
     api.install();
 
     await openPanel('https://opening.example/');
     await user.click(await screen.findByRole('button', { name: 'Report what works' }, { timeout: 3000 }));
 
-    // Once for the card's parts, once for the form that is opening.
-    await waitFor(() => expect(api.callsTo('GET', '/services/netflix')).toHaveLength(2), { timeout: 3000 });
     expect(screen.getByText('Opening…').closest('[aria-live]')).not.toBeNull();
-    expect(screen.queryByRole('radiogroup', { name: 'Core use' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Report what works' })).toBeNull();
+    // The form waits on the request the card already made, rather than a second one.
+    expect(api.callsTo('GET', '/services/netflix')).toHaveLength(1);
+
+    release();
+    expect(await screen.findByRole('heading', { name: 'Report what works' })).toBeDefined();
+    expect(api.callsTo('GET', '/services/netflix')).toHaveLength(1);
+  });
+
+  it('opens a form at once with the record the card already loaded', async () => {
+    const user = userEvent.setup();
+    const api = fakeApi()
+      .on('POST', '/services/match', { data: match })
+      .on('GET', '/services/netflix', { data: serviceDetails })
+      .on('GET', '/functionalities', { data: functionalities })
+      .install();
+
+    await openPanel('https://instant.example/');
+    await screen.findByRole('heading', { name: 'What works' }, { timeout: 3000 });
+    await user.click(screen.getByRole('button', { name: 'Report what works' }));
+
+    expect(screen.getByRole('heading', { name: 'Report what works' })).toBeDefined();
+    expect(screen.queryByText('Opening…')).toBeNull();
+    await user.click(screen.getByRole('button', { name: /Back to Netflix/ }));
+    await screen.findByRole('heading', { name: 'What works' });
+    expect(api.callsTo('GET', '/services/netflix')).toHaveLength(1);
   });
 });
 

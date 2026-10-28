@@ -30,7 +30,8 @@ function fakeTabs() {
     },
     windows: { onFocusChanged: event(focus) },
   });
-  const tab = (url: string, title: string, active = true) => ({ id: 1, url, title, active }) as chrome.tabs.Tab;
+  const tab = (url: string, title: string, active = true, status = 'complete') =>
+    ({ id: 1, url, title, active, status }) as chrome.tabs.Tab;
   return {
     queries,
     tab,
@@ -87,6 +88,16 @@ describe('following the active tab', () => {
     tabs.answer(1, [tabs.tab('https://new.example/', 'New')]);
     tabs.answer(0, [tabs.tab('https://old.example/', 'Old')]);
     expect(result.current).toEqual({ url: 'https://new.example/', title: 'New' });
+  });
+
+  it('says when the tab is still loading, so a lookup can wait for redirects', () => {
+    const tabs = fakeTabs();
+    const { result } = renderHook(() => useActiveTab());
+    tabs.answer(0, [tabs.tab('https://start.example/', 'Start', true, 'loading')]);
+    expect(result.current).toEqual({ url: 'https://start.example/', title: 'Start', loading: true });
+    tabs.update({ title: 'Landed' }, tabs.tab('https://landed.example/', 'Landed'));
+    tabs.answer(1, [tabs.tab('https://landed.example/', 'Landed')]);
+    expect(result.current).toEqual({ url: 'https://landed.example/', title: 'Landed' });
   });
 
   it('shows no page when the tabs API reports an error, or no tab', () => {

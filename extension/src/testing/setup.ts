@@ -2,8 +2,14 @@ import { afterEach, beforeEach, vi } from 'vitest';
 // Initializes i18next for `useTranslation`, as each entrypoint does.
 import '../lib/i18n';
 import { clearRefusedRequests, refuseRequest, refusedRequests } from './fakeApi';
+import { clearReadCaches } from '../lib/cache';
 import { closeEditorWindow } from '../lib/editorWindow';
 import { closeEditorWindows } from './editorWindows';
+
+// Each test starts with no kept answers, as a freshly installed panel would.
+beforeEach(() => {
+  clearReadCaches();
+});
 
 // The default fetch refuses everything. A test installs fakeApi to answer requests.
 beforeEach(() => {

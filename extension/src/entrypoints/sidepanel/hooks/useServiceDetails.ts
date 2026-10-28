@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getServiceBySlug, type ServiceRecord } from '../../../lib/endpoints';
+import type { ServiceRecord } from '../../../lib/endpoints';
 import { activeLanguage, type Language } from '../../../lib/i18n';
+import { loadRecord, peekRecord } from '../../../lib/reads';
 
 export type DetailsState =
   { status: 'idle' } | { status: 'loading' } | { status: 'ready'; record: ServiceRecord } | { status: 'error' };
@@ -13,8 +14,10 @@ type Answer = { slug: string; language: Language; record?: ServiceRecord };
  * matches it, so the card can show which parts work and what to use instead.
  * `slug` null means no service is matched, so nothing is asked.
  *
- * The record is asked for in the panel's language, and a language switch asks
- * again, so the names on the card match the text around them.
+ * A record the panel already holds (lib/reads.ts) shows at once; a stale one
+ * shows while a fresh one loads. The record is asked for in the panel's
+ * language, and a language switch asks again, so the names on the card match
+ * the text around them.
  *
  * The card never waits on this: the status badge comes from the match route,
  * and a refusal leaves the card exactly as it was.
@@ -26,8 +29,9 @@ export function useServiceDetails(slug: string | null): DetailsState {
 
   useEffect(() => {
     if (slug === null) return;
+    if (peekRecord(slug)?.fresh === true) return;
     let cancelled = false;
-    void getServiceBySlug(slug).then((result) => {
+    void loadRecord(slug).then((result) => {
       if (cancelled) return;
       setAnswer({ slug, language, ...(result.ok ? { record: result.data } : {}) });
     });
@@ -37,6 +41,10 @@ export function useServiceDetails(slug: string | null): DetailsState {
   }, [slug, language]);
 
   if (slug === null) return { status: 'idle' };
-  if (answer === null || answer.slug !== slug || answer.language !== language) return { status: 'loading' };
-  return answer.record !== undefined ? { status: 'ready', record: answer.record } : { status: 'error' };
+  const kept = peekRecord(slug);
+  if (answer !== null && answer.slug === slug && answer.language === language) {
+    if (answer.record !== undefined) return { status: 'ready', record: kept?.value ?? answer.record };
+    return kept !== undefined ? { status: 'ready', record: kept.value } : { status: 'error' };
+  }
+  return kept !== undefined ? { status: 'ready', record: kept.value } : { status: 'loading' };
 }

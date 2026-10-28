@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SITE_BASE } from './config';
-import { hostOf, isOwnSite, matchUrl, normalizeServiceUrl, siteOf, testedHostOf } from './url';
+import { hostOf, isOwnSite, matchUrl, normalizeServiceUrl, siteOf, testedHostOf, webUrl } from './url';
 
 describe('siteOf', () => {
   it('lowercases and drops www. and the port', () => {
@@ -123,5 +123,17 @@ describe('testedHostOf', () => {
     ]) {
       expect(testedHostOf(url)).toBeNull();
     }
+  });
+});
+
+describe('webUrl', () => {
+  it('lets through web addresses only, so an API value cannot become a script link', () => {
+    expect(webUrl(' https://help.example.com/en ')).toBe('https://help.example.com/en');
+    expect(webUrl('http://example.com')).toBe('http://example.com/');
+    expect(webUrl('javascript:alert(1)')).toBeNull();
+    expect(webUrl('ftp://files.example.com')).toBeNull();
+    expect(webUrl('not a url')).toBeNull();
+    expect(webUrl(null)).toBeNull();
+    expect(webUrl(undefined)).toBeNull();
   });
 });

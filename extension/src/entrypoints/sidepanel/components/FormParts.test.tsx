@@ -20,7 +20,7 @@ import { fakeBrowser } from 'wxt/testing/fake-browser';
 // does not restore it, so keep the original to put back before each test.
 const windowsCreate = fakeBrowser.windows.create;
 import { fakeApi, type FakeApi } from '../../../testing/fakeApi';
-import { openPanel, stubScreenshot } from '../../../testing/panel';
+import { openPanel, stubScreenshot, pressSend } from '../../../testing/panel';
 import { closeEditorWindows } from '../../../testing/editorWindows';
 import matchNone from '../../../testing/fixtures/match-none.json';
 import upload from '../../../testing/fixtures/upload.json';
@@ -99,7 +99,7 @@ describe('the screenshot list', () => {
     await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
     await screen.findByAltText('Evidence #1');
     await closeEditorWindows();
-    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+    await pressSend(user, 'Submit Report');
     await screen.findByText(/The server answered with an error \(502\).*Reference: upload-123/);
     expect(api.callsTo('POST', '/uploads/evidence')).toHaveLength(1);
     expect(api.callsTo('POST', '/submissions')).toHaveLength(0);
@@ -164,12 +164,12 @@ describe('the screenshot list', () => {
     // Capturing opens the editor. Close it without changes.
     await closeEditorWindows();
 
-    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+    await pressSend(user, 'Submit Report');
     await screen.findByText('Needs a description');
     expect(api.callsTo('POST', '/uploads/evidence')).toHaveLength(1);
     expect(api.callsTo('POST', '/submissions')).toHaveLength(1);
 
-    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+    await pressSend(user, 'Submit Report');
     await screen.findByRole('heading', { name: 'Report received' });
     expect(api.callsTo('POST', '/uploads/evidence')).toHaveLength(1);
     expect(api.callsTo('POST', '/submissions').at(1)?.json).toMatchObject({
@@ -197,7 +197,7 @@ describe('the screenshot list', () => {
     await screen.findByAltText('Evidence #1');
     await closeEditorWindows();
 
-    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+    await pressSend(user, 'Submit Report');
     expect((await screen.findByRole('alert')).textContent).toBe(
       'A screenshot could not be uploaded: The upload answered without a file address.',
     );
@@ -369,7 +369,7 @@ describe('picking files instead of capturing', () => {
     await openReportService(user, 'https://upload.example/download');
 
     expect(screen.getByRole('button', { name: 'Upload images' })).toBeDefined();
-    expect(screen.getByText('Or drop an image here.')).toBeDefined();
+    expect(screen.getByText('Or drop or paste an image here.')).toBeDefined();
     const input = document.querySelector<HTMLInputElement>('input[type="file"]');
     if (input === null) throw new Error('The form has no file picker');
     expect(input.getAttribute('accept')).toBe('image/jpeg,image/png,image/gif,image/webp');
@@ -381,7 +381,7 @@ describe('picking files instead of capturing', () => {
     stubScreenshot();
     await openReportService(user, 'https://drop.example/download');
 
-    const field = screen.getByText('Or drop an image here.').closest('div');
+    const field = screen.getByText('Or drop or paste an image here.').closest('div');
     if (field === null) throw new Error('The screenshot field is not there');
     const file = new File(['png-bytes'], 'dropped.png', { type: 'image/png' });
     fireEvent.drop(field, { dataTransfer: { types: ['Files'], files: [file] } });
@@ -389,6 +389,37 @@ describe('picking files instead of capturing', () => {
     await screen.findByAltText('Evidence #1');
     await closeEditorWindows();
     expect(screen.getByRole('button', { name: 'Add another screenshot' })).toBeDefined();
+  });
+
+  it('takes a pasted image like a dropped one, and leaves a text paste alone', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    await openReportService(user, 'https://paste.example/download');
+
+    const description = screen.getByRole('textbox', { name: 'Description' });
+    const text = fireEvent.paste(description, { clipboardData: { files: [], getData: () => 'typed text' } });
+    // Not cancelled, so the browser pastes the text as usual.
+    expect(text).toBe(true);
+    expect(screen.queryByAltText('Evidence #1')).toBeNull();
+
+    const field = screen.getByText('Or drop or paste an image here.').closest('div');
+    if (field === null) throw new Error('The screenshot field is not there');
+    const file = new File(['png-bytes'], 'pasted.png', { type: 'image/png' });
+    const image = fireEvent.paste(field, { clipboardData: { files: [file] } });
+    expect(image).toBe(false);
+    await screen.findByAltText('Evidence #1');
+    await closeEditorWindows();
+  });
+
+  it('refuses a pasted image of a type the API does not take', async () => {
+    const user = userEvent.setup();
+    stubScreenshot();
+    await openReportService(user, 'https://paste-bmp.example/download');
+    const field = screen.getByText('Or drop or paste an image here.').closest('div');
+    if (field === null) throw new Error('The screenshot field is not there');
+    fireEvent.paste(field, { clipboardData: { files: [new File(['bmp'], 'pasted.bmp', { type: 'image/bmp' })] } });
+    expect(await screen.findByText('That file is not a JPEG, PNG, GIF or WebP image.')).toBeDefined();
+    expect(screen.queryByAltText('Evidence #1')).toBeNull();
   });
 
   it('refuses a drop while a capture is in flight, saying why', async () => {
@@ -402,7 +433,7 @@ describe('picking files instead of capturing', () => {
       });
 
     await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
-    const field = screen.getByText('Or drop an image here.').closest('div');
+    const field = screen.getByText('Or drop or paste an image here.').closest('div');
     if (field === null) throw new Error('The screenshot field is not there');
     const file = new File(['png-bytes'], 'dropped.png', { type: 'image/png' });
     fireEvent.drop(field, { dataTransfer: { types: ['Files'], files: [file] } });
@@ -422,7 +453,7 @@ describe('picking files instead of capturing', () => {
     stubScreenshot();
     await openReportService(user, 'https://hover.example/download');
 
-    const field = screen.getByText('Or drop an image here.').closest('div');
+    const field = screen.getByText('Or drop or paste an image here.').closest('div');
     if (field === null) throw new Error('The screenshot field is not there');
     expect(field.style.borderColor).toBe('transparent');
 
@@ -433,8 +464,8 @@ describe('picking files instead of capturing', () => {
     fireEvent.dragEnter(field, { dataTransfer: { types: ['Files'] } });
     expect(field.style.borderColor).toBe('var(--us-border-hover)');
     // Crossing a child on the way down keeps the field lit, and the drag may end on the field.
-    fireEvent.dragEnter(screen.getByText('Or drop an image here.'), { dataTransfer: { types: ['Files'] } });
-    fireEvent.dragLeave(screen.getByText('Or drop an image here.'));
+    fireEvent.dragEnter(screen.getByText('Or drop or paste an image here.'), { dataTransfer: { types: ['Files'] } });
+    fireEvent.dragLeave(screen.getByText('Or drop or paste an image here.'));
     expect(field.style.borderColor).toBe('var(--us-border-hover)');
 
     const over = createEvent.dragOver(field, { dataTransfer: { types: ['Files'] } });
@@ -643,7 +674,7 @@ describe('guards against presses and drops that add nothing', () => {
     stubScreenshot();
     await openReportService(user, 'https://empty-drag.example/download');
 
-    const field = screen.getByText('Or drop an image here.').closest('div');
+    const field = screen.getByText('Or drop or paste an image here.').closest('div');
     if (field === null) throw new Error('The screenshot field is not there');
     fireEvent.drop(field, { dataTransfer: { types: ['Files'] } });
 
@@ -705,7 +736,7 @@ describe('guards against presses and drops that add nothing', () => {
     await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
     await screen.findByAltText('Evidence #1');
 
-    const field = screen.getByText('Or drop an image here.').closest('div');
+    const field = screen.getByText('Or drop or paste an image here.').closest('div');
     if (field === null) throw new Error('The screenshot field is not there');
     fireEvent.drop(field, {
       dataTransfer: { types: ['Files'], files: [new File(['x'], 'late.png', { type: 'image/png' })] },
@@ -721,7 +752,7 @@ describe('guards against presses and drops that add nothing', () => {
     vi.stubGlobal('chrome', fakeBrowser);
     render(<FieldAtLimit />);
 
-    const field = screen.getByText('Or drop an image here.').closest('div');
+    const field = screen.getByText('Or drop or paste an image here.').closest('div');
     if (field === null) throw new Error('The screenshot field is not there');
     fireEvent.drop(field, {
       dataTransfer: { types: ['Files'], files: [new File(['x'], 'one.png', { type: 'image/png' })] },
@@ -744,7 +775,7 @@ describe('guards against presses and drops that add nothing', () => {
     stubScreenshot();
     await openReportService(user, 'https://plain-drag.example/download');
 
-    const field = screen.getByText('Or drop an image here.').closest('div');
+    const field = screen.getByText('Or drop or paste an image here.').closest('div');
     if (field === null) throw new Error('The screenshot field is not there');
     const over = createEvent.dragOver(field, { dataTransfer: { types: ['text/plain'] } });
     fireEvent(field, over);
@@ -771,9 +802,9 @@ describe('guards against presses and drops that add nothing', () => {
     await user.click(await screen.findByRole('button', { name: 'Report a Service' }, { timeout: 3000 }));
     await screen.findByRole('heading', { name: 'Report a Service' });
     await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Blocked Service');
-    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+    await pressSend(user, 'Submit Report');
 
-    const field = screen.getByText('Or drop an image here.').closest('div');
+    const field = screen.getByText('Or drop or paste an image here.').closest('div');
     if (field === null) throw new Error('The screenshot field is not there');
     const file = new File(['png-bytes'], 'locked.png', { type: 'image/png' });
     fireEvent.dragEnter(field, { dataTransfer: { types: ['Files'] } });
@@ -782,6 +813,7 @@ describe('guards against presses and drops that add nothing', () => {
     const input = document.querySelector<HTMLInputElement>('input[type="file"]');
     if (input === null) throw new Error('The form has no file picker');
     fireEvent.change(input, { target: { files: [file] } });
+    fireEvent.paste(field, { clipboardData: { files: [file] } });
     fireEvent.click(screen.getByRole('button', { name: 'Add screenshot' }));
     expect(screen.queryByAltText(/Evidence #/)).toBeNull();
     expect(screen.queryByText('Finish capturing or editing your screenshot first.')).toBeNull();

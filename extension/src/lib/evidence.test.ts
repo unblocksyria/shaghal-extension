@@ -5,6 +5,7 @@ import {
   captureScreenshot,
   EVIDENCE_ACCEPT,
   fromFile,
+  fitScreenshot,
   shrinkToFit,
   uploadPendingEvidence,
   withEdits,
@@ -155,6 +156,72 @@ describe('fitting a capture under the upload limit', () => {
     noContext = true;
     await expect(shrinkToFit(over())).rejects.toThrow('This browser cannot resize the screenshot.');
     expect(bitmap.close).toHaveBeenCalledOnce();
+  });
+});
+
+describe('sizing a capture for a slow upload', () => {
+  const bitmap = { width: 2880, height: 1800, close: vi.fn() };
+  let converted: Blob;
+  let drawnSize: [number, number] | null = null;
+
+  class FakeCanvas {
+    constructor(
+      readonly width: number,
+      readonly height: number,
+    ) {
+      drawnSize = [width, height];
+    }
+    getContext() {
+      return { drawImage: () => undefined };
+    }
+    convertToBlob() {
+      return Promise.resolve(converted);
+    }
+  }
+
+  beforeEach(() => {
+    drawnSize = null;
+    bitmap.close.mockClear();
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn(() => Promise.resolve(bitmap)),
+    );
+    vi.stubGlobal('OffscreenCanvas', FakeCanvas);
+  });
+
+  const bytes = (kib: number) => new Blob([new Uint8Array(kib * 1024)], { type: 'image/jpeg' });
+
+  it('leaves a capture under 600 KB alone, without decoding it', async () => {
+    const small = bytes(500);
+    expect(await fitScreenshot(small)).toBe(small);
+    expect(drawnSize).toBeNull();
+  });
+
+  it('redraws a high-density capture at most 2048 pixels wide, as a smaller JPEG', async () => {
+    converted = bytes(400);
+    expect(await fitScreenshot(bytes(1500))).toBe(converted);
+    expect(drawnSize).toEqual([2048, 1280]);
+    expect(bitmap.close).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the capture as it is when the browser cannot draw it smaller', async () => {
+    vi.stubGlobal(
+      'OffscreenCanvas',
+      class {
+        getContext() {
+          return null;
+        }
+      },
+    );
+    const original = bytes(900);
+    expect(await fitScreenshot(original)).toBe(original);
+    expect(bitmap.close).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the original when redrawing would not make it smaller', async () => {
+    const original = bytes(700);
+    converted = bytes(900);
+    expect(await fitScreenshot(original)).toBe(original);
   });
 });
 

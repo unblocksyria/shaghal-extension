@@ -1,16 +1,192 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RadioGroup } from '../../components/ui/RadioGroup';
-import { setLanguagePreference } from '../../lib/i18n';
+import { activeLanguage, intlLocale, setLanguagePreference, sitePathSegment } from '../../lib/i18n';
 import { getSavedLanguage, saveEmail, type LanguagePreference } from '../../lib/settings';
-import { API_BASE, IS_LOCAL_API } from '../../lib/config';
+import { API_BASE, IS_FIREFOX, IS_LOCAL_API, SITE_BASE } from '../../lib/config';
+import { clearSentHistory, sentHistory, watchSentHistory, type SentEntry } from '../../lib/history';
 import { readThemePreference, saveThemePreference, type ThemePreference } from '../../lib/theme';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { FormShell, hintStyle, useSavedEmail, emailError } from './components/FormParts';
-import { Check, Monitor, Moon, Sun } from 'lucide-react';
+import { ArrowUpRight, Check, Monitor, Moon, Sun } from 'lucide-react';
 
 const THEME_ICONS: Record<ThemePreference, typeof Sun> = { system: Monitor, light: Sun, dark: Moon };
+
+/** Where a bug report starts, with the version filled in. */
+const BUG_REPORT_URL = 'https://github.com/unblocksyria/shaghal-extension/issues/new?template=bug_report.yml';
+
+/** How many sent items Settings lists. The record keeps more. */
+const HISTORY_SHOWN = 10;
+
+const sectionStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: 8,
+  borderTop: '1px solid var(--us-border)',
+  paddingTop: 14,
+};
+
+/** What this browser has sent, newest first, with a way to forget it. */
+function SentList() {
+  const { t } = useTranslation();
+  const [list, setList] = useState<SentEntry[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void sentHistory().then((value) => {
+      if (!cancelled) setList(value);
+    });
+    const stop = watchSentHistory(setList);
+    return () => {
+      cancelled = true;
+      stop();
+    };
+  }, []);
+  const locale = intlLocale(activeLanguage());
+  const siteLanguage = sitePathSegment(activeLanguage());
+  const kind = (entry: SentEntry) =>
+    entry.kind === 'report'
+      ? (entry.parts ?? [])
+          .map(
+            (part) => `${part.name}: ${part.level === 'working' ? t('report.levelWorking') : t('report.levelFailing')}`,
+          )
+          .join(' · ')
+      : entry.kind === 'correction'
+        ? t('settings.sentCorrection')
+        : t('settings.sentService');
+  return (
+    <div style={sectionStyle}>
+      <span className="us-label">{t('settings.sentTitle')}</span>
+      {list === null ? null : list.length === 0 ? (
+        <p style={hintStyle}>{t('settings.sentEmpty')}</p>
+      ) : (
+        <>
+          <p style={hintStyle}>{t('settings.sentHint')}</p>
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 8 }}>
+            {list.slice(0, HISTORY_SHOWN).map((entry) => (
+              <li key={`${entry.at}-${entry.serviceName}`} style={{ display: 'grid', gap: 1 }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>
+                  {entry.serviceSlug !== undefined ? (
+                    <a
+                      className="us-text-link"
+                      href={`${SITE_BASE}${siteLanguage}/services/${encodeURIComponent(entry.serviceSlug)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {entry.serviceName}
+                    </a>
+                  ) : (
+                    entry.serviceName
+                  )}
+                </span>
+                <span style={{ ...hintStyle, fontSize: 11.5 }}>
+                  {new Date(entry.at).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })}
+                  {' · '}
+                  {kind(entry)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <Button variant="surface" size="sm" onClick={() => void clearSentHistory()} style={{ justifySelf: 'start' }}>
+            {t('settings.sentClear')}
+          </Button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function manifestVersion(): string | undefined {
+  try {
+    return chrome.runtime.getManifest().version;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The version, the shortcut and where to report a bug (issue 40). */
+function AboutSection() {
+  const { t } = useTranslation();
+  const version = manifestVersion();
+  const [shortcut, setShortcut] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.resolve()
+      .then(() => chrome.commands.getAll())
+      .then((commands) => {
+        if (cancelled) return;
+        const action = commands.find((command) => command.name === '_execute_action');
+        setShortcut(action?.shortcut ? action.shortcut : null);
+      })
+      .catch(() => {
+        if (!cancelled) setShortcut(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  // Firefox can open its shortcut settings only from release 137; older ones get the add-ons page hint instead.
+  const firefoxCommands = chrome.commands as typeof chrome.commands & { openShortcutSettings?: () => Promise<void> };
+  const canChange = !IS_FIREFOX || typeof firefoxCommands?.openShortcutSettings === 'function';
+  const changeShortcut = () => {
+    if (IS_FIREFOX) void firefoxCommands.openShortcutSettings?.();
+    else void chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+  };
+  const bugUrl = version === undefined ? BUG_REPORT_URL : `${BUG_REPORT_URL}&version=${encodeURIComponent(version)}`;
+  return (
+    <div style={sectionStyle}>
+      <span className="us-label">{t('settings.about')}</span>
+      <dl
+        style={{
+          margin: 0,
+          display: 'grid',
+          gridTemplateColumns: 'max-content minmax(0, 1fr)',
+          gap: '6px 12px',
+          fontSize: 13,
+        }}
+      >
+        <dt style={{ color: 'var(--us-text-muted)' }}>{t('settings.version')}</dt>
+        <dd style={{ margin: 0 }}>
+          <bdi dir="ltr">{version ?? '—'}</bdi>
+        </dd>
+        <dt style={{ color: 'var(--us-text-muted)' }}>{t('settings.shortcut')}</dt>
+        <dd style={{ margin: 0, display: 'flex', flexWrap: 'wrap', gap: '4px 10px', alignItems: 'baseline' }}>
+          {shortcut === undefined ? null : shortcut === null ? (
+            t('settings.shortcutNone')
+          ) : (
+            <kbd dir="ltr" style={{ fontFamily: 'inherit', fontWeight: 600 }}>
+              {shortcut}
+            </kbd>
+          )}
+          {canChange ? (
+            <button
+              type="button"
+              className="us-text-link"
+              onClick={changeShortcut}
+              style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}
+            >
+              {t('settings.shortcutChange')}
+            </button>
+          ) : (
+            <span style={hintStyle}>{t('settings.shortcutFirefoxHint')}</span>
+          )}
+        </dd>
+      </dl>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px', fontSize: 13 }}>
+        <a
+          className="us-text-link"
+          href={`${SITE_BASE}${sitePathSegment(activeLanguage())}/privacy`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {t('settings.privacy')} <ArrowUpRight size={12} aria-hidden="true" />
+        </a>
+        <a className="us-text-link" href={bugUrl} target="_blank" rel="noreferrer">
+          {t('settings.reportBug')} <ArrowUpRight size={12} aria-hidden="true" />
+        </a>
+      </div>
+    </div>
+  );
+}
 
 export function SettingsView(props: { onBack: () => void }) {
   const { t } = useTranslation();
@@ -68,6 +244,7 @@ export function SettingsView(props: { onBack: () => void }) {
     { value: 'system', label: t('settings.languageSystem') },
     { value: 'en', label: t('settings.languageEnglish') },
     { value: 'ar', label: t('settings.languageArabic') },
+    { value: 'ku', label: t('settings.languageKurdish') },
   ];
 
   return (
@@ -145,6 +322,8 @@ export function SettingsView(props: { onBack: () => void }) {
           {error}
         </p>
       )}
+      <SentList />
+      <AboutSection />
       {import.meta.env.DEV && (
         <div style={{ display: 'grid', gap: 4, borderTop: '1px solid var(--us-border)', paddingTop: 14 }}>
           <span className="us-label">{t('settings.connectedTo')}</span>

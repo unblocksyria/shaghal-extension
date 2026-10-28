@@ -56,6 +56,22 @@ describe('lookup dispatch by page host (AC-3)', () => {
   });
 });
 
+describe("the panel's other reads", () => {
+  it('answers the recheck queue, the untested queue and a name search apart', () => {
+    const queue = JSON.parse(dispatch('GET', '/services', '', {}, '?needs_retesting=true&sort=vote_count').body).data;
+    expect(queue.map((row) => row.slug)).toEqual(['wise', 'coursera']);
+    expect(JSON.parse(dispatch('GET', '/services', '', {}, '?availability=unknown').body).data).toEqual([]);
+    expect(JSON.parse(dispatch('GET', '/services', '', {}, '?search=net').body).data[0].slug).toBe('netflix');
+  });
+
+  it('answers the duplicate check with nothing sent before', () => {
+    expect(JSON.parse(dispatch('GET', '/check-duplicate', '').body)).toEqual({
+      hasDuplicate: false,
+      duplicateType: 'none',
+    });
+  });
+});
+
 describe('writes (AC-4)', () => {
   it('answers a vote with a count that moves, then down on unvote', () => {
     const up = dispatch('POST', '/services/svc-netflix/vote', '');

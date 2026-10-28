@@ -107,3 +107,14 @@ export function testedHostOf(rawUrl: string | null): string | null {
   // with a letter. Browsers give international names in this punycode form.
   return /^(?:[a-z0-9-]+\.)+[a-z][a-z0-9-]*$/.test(host) ? host : null;
 }
+
+/** An address the panel may link to or open: http or https only, else null. */
+export function webUrl(value: string | null | undefined): string | null {
+  if (value == null) return null;
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
