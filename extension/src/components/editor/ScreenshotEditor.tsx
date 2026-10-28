@@ -224,8 +224,9 @@ function Workspace(props: {
   const stageSize = useStageSize(stage);
 
   // Keep focus on the stage, initially and after the discard prompt, so Enter
-  // saves instead of activating whichever button had focus.
-  useEffect(() => {
+  // saves instead of activating whichever button had focus. A layout effect, so
+  // focus lands in the same commit that draws the stage, before any keypress.
+  useLayoutEffect(() => {
     if (!confirming) stage.current?.focus({ preventScroll: true });
   }, [confirming]);
   useEffect(() => () => clearTimeout(glideTimer.current), []);
