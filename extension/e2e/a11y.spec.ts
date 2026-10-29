@@ -5,8 +5,8 @@ import { TEST_PAGE_ORIGIN } from './stubs';
 
 /**
  * Accessibility checks of the panel's main states, in English and in the
- * right-to-left Arabic layout (issue 54). Serious and critical violations
- * fail the test. A rule that needs a real fix can be listed in KNOWN with the
+ * right-to-left Arabic layout (issue 54), against WCAG 2.2 AA and axe's best
+ * practices. Serious and critical violations fail the test. A rule that needs a real fix can be listed in KNOWN with the
  * issue that tracks it, so the check can land before the fix.
  */
 const KNOWN: { rule: string; issue: string }[] = [];
@@ -21,7 +21,7 @@ async function expectAccessible(panel: Page, state: string): Promise<void> {
     // The default mode finishes in a new tab, which the panel would follow
     // away from the page under test.
     .setLegacyMode(true)
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'])
     // The verification frame is Cloudflare's, so it is not ours to fix.
     .exclude('iframe')
     .analyze();

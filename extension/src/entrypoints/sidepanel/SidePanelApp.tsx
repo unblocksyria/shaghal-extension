@@ -19,7 +19,7 @@ import { HowItWorks } from './components/HowItWorks';
 import { TestQueue } from './components/TestQueue';
 import { FirstRun } from './components/FirstRun';
 import { HostAccessNotice } from './components/HostAccessNotice';
-import { hintStyle } from './components/FormParts';
+import { detailStyle } from './components/FormParts';
 import { BrandHeader } from '../../components/ui/BrandHeader';
 import '../../styles/theme.css';
 
@@ -172,22 +172,22 @@ export function SidePanelApp() {
     <div className="us-app-container">
       <div className="us-app-content">
         <BrandHeader onOpenSettings={openSettings} />
-        <main style={{ padding: '0 16px 24px 16px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 14 }}>
+        <main style={{ padding: '0 16px 24px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 12 }}>
           <HostAccessNotice />
           {settingsOpen && <SettingsView onBack={closeSettings} />}
           <div
             style={{
               display: settingsOpen ? 'none' : 'grid',
               gridTemplateColumns: 'minmax(0, 1fr)',
-              gap: 14,
+              gap: 12,
             }}
           >
             {/* The two lines a reader is told about change without a click of their own. */}
             <div aria-live="polite" style={{ display: 'contents' }}>
-              {openError !== null && <p style={{ ...hintStyle, color: 'var(--us-danger)' }}>{openError}</p>}
+              {openError !== null && <p style={{ ...detailStyle, color: 'var(--us-danger)' }}>{openError}</p>}
             </div>
             <div aria-live="polite" style={{ display: 'contents' }}>
-              {opening && <p style={hintStyle}>{t('app.opening')}</p>}
+              {opening && <p style={detailStyle}>{t('app.opening')}</p>}
             </div>
             {!opening && view.name === 'home' && <FirstRun />}
             {!opening && page()}

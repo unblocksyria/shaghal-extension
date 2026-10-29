@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { SITE_BASE } from '../../../lib/config';
 import { fakeApi, type FakeApi } from '../../../testing/fakeApi';
@@ -68,8 +68,12 @@ describe('the page card', () => {
     fakeApi().on('POST', '/services/match', { data: matchMany }).install();
 
     await openPanel('https://many.example/');
-    await screen.findByRole('heading', { name: 'Which service is this?' }, { timeout: 3000 });
-    expect(screen.getByRole('button', { name: /Google/ })).toBeDefined();
+    const heading = await screen.findByRole('heading', { name: 'Which service is this?' }, { timeout: 3000 });
+    // A list a screen reader can count, each row named by service and status, without the logo's initial.
+    const card = heading.closest('section');
+    if (card === null) throw new Error('The pick list has no card');
+    expect(within(within(card).getByRole('list')).getAllByRole('listitem')).toHaveLength(2);
+    expect(screen.getByRole('button', { name: 'Google Available' })).toBeDefined();
     expect(screen.getByRole('button', { name: /YouTube/ })).toBeDefined();
 
     await user.click(screen.getByRole('button', { name: /Google/ }));
@@ -165,7 +169,10 @@ describe('what the card says about the service', () => {
     fakeApi().on('POST', '/services/match', { data: match }).install();
     await openPanel('https://company.example/');
     await screen.findByRole('heading', { name: 'Netflix' }, { timeout: 3000 });
-    expect(screen.getByText(/^Netflix, Inc\. · Checked 1 Sep/)).toBeDefined();
+    // The company sits in its own isolate, so Arabic can't move its full stop.
+    const line = screen.getByText('Netflix, Inc.').parentElement;
+    expect(screen.getByText('Netflix, Inc.').tagName).toBe('BDI');
+    expect(line?.textContent).toBe('Netflix, Inc. · Checked 1 Sep, 2026');
   });
 
   it('shows only the check when the company is the service itself', async () => {
@@ -429,9 +436,8 @@ describe('the parts of a matched service', () => {
     expect(screen.getByText('Core use')).toBeDefined();
     expect(screen.getByText('Fails')).toBeDefined();
     expect(screen.getByText('Opening the app and playing a video.')).toBeDefined();
-    expect(screen.getByText(/Since 16 Feb 2026/)).toBeDefined();
-    // September can come out as "Sep" or "Sept" depending on the ICU build.
-    expect(screen.getByText(/Checked 29 Sep/)).toBeDefined();
+    // As the website writes dates, whatever the browser's own date data.
+    expect(screen.getByText('Since 16 Feb, 2026 · Checked 29 Sep, 2026')).toBeDefined();
 
     expect(screen.getByText('Landing page')).toBeDefined();
     expect(screen.getByText('Works')).toBeDefined();

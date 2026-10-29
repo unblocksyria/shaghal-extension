@@ -48,7 +48,7 @@ verification page alone (see [Human verification](#human-verification)).
 | [settings.ts](extension/src/lib/settings.ts), [votes.ts](extension/src/lib/votes.ts), [theme.ts](extension/src/lib/theme.ts), [i18n.ts](extension/src/lib/i18n.ts)                                   | Saved email and language, vote hints, the theme, and the active language and direction.                                                                                          |
 | [drafts.ts](extension/src/lib/drafts.ts), [useDraft.ts](extension/src/entrypoints/sidepanel/hooks/useDraft.ts)                                                                                       | Saving a half finished form, screenshots included, to session storage and putting it back when the panel reopens.                                                                |
 | [locales](extension/src/locales)                                                                                                                                                                     | English, Arabic and Kurdish panel text. The store name and description are in [public/\_locales](extension/public/_locales).                                                     |
-| [theme.css](extension/src/styles/theme.css)                                                                                                                                                          | Shared styles and light/dark tokens.                                                                                                                                             |
+| [theme.css](extension/src/styles/theme.css)                                                                                                                                                          | Shared styles, light/dark tokens, the type scale and the bundled fonts.                                                                                                          |
 | [testing](extension/src/testing)                                                                                                                                                                     | Unit test helpers: a fake API that refuses real hosts, JSON fixtures, and `openPanel`, which mounts the panel on a fake tab.                                                     |
 | [e2e](extension/e2e)                                                                                                                                                                                 | Browser tests of the production bundle, with external requests stubbed.                                                                                                          |
 
@@ -397,12 +397,43 @@ plural forms, `ku.ts` is Kurdish (Kurmanji, in Latin script), and any key a cata
 leaves out falls back to English. The `system` choice follows the browser's
 language. The active language sets `lang` and `dir` on the page (only Arabic runs
 right to left), the `/en`, `/ar` or `/ku` path of site links, and the `locale` sent
-to the API. Dates, counts and country names use its `Intl` formats; Kurdish uses
-en-GB ones in a browser without Kurdish locale data.
+to the API. Dates are written as the website writes them, with its month names:
+"1 Sep, 2026", the Levantine "1 أيلول، 2026" in Arabic, and the site's Kurdish
+abbreviations. Counts and country names use the language's `Intl` formats; Kurdish
+uses en-GB ones in a browser without Kurdish locale data.
 
 [theme.ts](extension/src/lib/theme.ts) stores the System, Light or Dark choice and
 sets `data-theme` on the page; [theme.css](extension/src/styles/theme.css) resolves
 its colors with `light-dark()`. The editor window is always dark.
+
+The panel uses the website's typefaces, shipped in
+[public/fonts](extension/public/fonts): Basis Grotesque Pro for Latin text and ITF
+Qomra Arabic for Arabic, where it also sets Latin names and figures, as the site
+does. Every size comes from the type scale in theme.css, every weight is regular
+or medium, and spacing follows a 4px grid.
+
+## Accessibility
+
+The panel is checked against WCAG 2.2 AA in English and in right-to-left Arabic,
+by axe in [a11y.spec.ts](extension/e2e/a11y.spec.ts) and by these conventions:
+
+- **Focus.** Each view's heading takes focus as it opens, and a closed view hands
+  focus back to what opened it. Every control shows the gold focus ring, which
+  clears 3:1, and a field keeps an outline that forced colours can draw.
+- **State without colour.** A chosen chip leads with a check, an active switch has
+  an edge, and field borders reach 3:1. Under forced colours, such as Windows High
+  Contrast, chosen controls take the system's selection colours.
+- **Blocked sends.** A Send button that can't send yet stays in the tab order with
+  `aria-disabled`, and the line under it, which says why, describes it.
+- **Errors.** An invalid email is shown under its field, which it marks invalid and
+  describes, and the tester is taken back to it.
+- **Structure.** The header is a landmark, rows of services are lists, links that
+  open a tab say so to screen readers, and decorative logos and icons are hidden
+  from them.
+- **Language.** Notes take the direction of what is typed, addresses read left to
+  right, and the language setting offers each language under its own name.
+- **Motion and zoom.** With reduced motion nothing fades, slides or spins, and the
+  panel reflows without sideways scrolling at 200% zoom.
 
 ## Permissions and storage
 

@@ -94,7 +94,7 @@ describe('choosing what was tried', () => {
     expect(pressed('Core use')).toBe('false');
     expect(pressed('Landing page')).toBe('false');
     expect(screen.queryByRole('radiogroup')).toBeNull();
-    expect(sendButton().disabled).toBe(true);
+    expect(sendButton().getAttribute('aria-disabled')).toBe('true');
     expect(screen.getByText('Choose at least one part you tried.')).toBeDefined();
 
     await choose(user, 'Landing page');
@@ -169,8 +169,7 @@ describe('choosing what was tried', () => {
         .getAllByRole('radio')
         .map((radio) => radio.textContent);
 
-    // September can come out as "Sep" or "Sept" depending on the ICU build.
-    expect(partGroup('Core use').getByText(/^On record: Fails, checked 14 Sept? 2026$/)).toBeDefined();
+    expect(partGroup('Core use').getByText('On record: Fails, checked 14 Sep, 2026')).toBeDefined();
     expect(labels('Core use')).toEqual(['Still fails', 'Works now']);
     expect(partGroup('Landing page').getByText('On record: Works')).toBeDefined();
     expect(labels('Landing page')).toEqual(['Still works', 'Fails now']);
@@ -187,17 +186,17 @@ describe('what stops a report', () => {
     const user = userEvent.setup();
     const api = await openReport(user, 'https://blockers.example/');
 
-    expect(sendButton().disabled).toBe(true);
+    expect(sendButton().getAttribute('aria-disabled')).toBe('true');
     expect(screen.getByText('Choose at least one part you tried.')).toBeDefined();
 
     await choose(user, 'Core use');
-    expect(sendButton().disabled).toBe(true);
+    expect(sendButton().getAttribute('aria-disabled')).toBe('true');
     expect(screen.getByText('Say whether Core use works.')).toBeDefined();
     // The note and screenshots wait for an answer.
     expect(screen.queryByRole('textbox', { name: 'Notes for Core use' })).toBeNull();
 
     await answer(user, 'Core use', 'Still fails');
-    expect(sendButton().disabled).toBe(true);
+    expect(sendButton().getAttribute('aria-disabled')).toBe('true');
     expect(screen.getByText('Add a note or a screenshot for Core use.')).toBeDefined();
     const coreUse = partGroup('Core use');
     expect(coreUse.getByRole('textbox', { name: 'Notes for Core use' })).toBeDefined();
@@ -207,15 +206,15 @@ describe('what stops a report', () => {
 
     // Spaces are not a note.
     await user.type(noteFor('Core use'), '   ');
-    expect(sendButton().disabled).toBe(true);
+    expect(sendButton().getAttribute('aria-disabled')).toBe('true');
     await user.type(noteFor('Core use'), 'Spins forever.');
     expect(coreUse.queryByText('Add a note or a screenshot showing this.')).toBeNull();
-    expect(sendButton().disabled).toBe(false);
+    expect(sendButton().getAttribute('aria-disabled')).toBe('false');
     expect(screen.getByText('Anything you mark is reviewed before it changes the record.')).toBeDefined();
 
     // A second part blocks again until it is answered too.
     await choose(user, 'Landing page');
-    expect(sendButton().disabled).toBe(true);
+    expect(sendButton().getAttribute('aria-disabled')).toBe('true');
     expect(screen.getByText('Say whether Landing page works.')).toBeDefined();
     expect(api.callsTo('POST', '/functionality-reports')).toHaveLength(0);
   });
@@ -243,7 +242,7 @@ describe('what stops a report', () => {
 
     await user.click(sendButton());
     expect((await screen.findByRole('alert')).textContent).toBe('A screenshot could not be uploaded: Upload refused');
-    expect(sendButton().disabled).toBe(false);
+    expect(sendButton().getAttribute('aria-disabled')).toBe('false');
     expect(api.callsTo('POST', '/functionality-reports')).toHaveLength(0);
   });
 
@@ -309,7 +308,7 @@ describe('what stops a report', () => {
     });
     expect(add.disabled).toBe(true);
     expect(coreUse.queryByText('Add a note or a screenshot showing this.')).toBeNull();
-    expect(sendButton().disabled).toBe(false);
+    expect(sendButton().getAttribute('aria-disabled')).toBe('false');
   });
 
   it('warns when the connection comes out of another country', async () => {
@@ -512,7 +511,7 @@ describe('a part the tester names', () => {
     await user.click(screen.getByRole('button', { name: 'Something else' }));
 
     const name = screen.getByRole<HTMLInputElement>('textbox', { name: 'What did you try?' });
-    expect(sendButton().disabled).toBe(true);
+    expect(sendButton().getAttribute('aria-disabled')).toBe('true');
     expect(screen.getByText('Name the part you tried.')).toBeDefined();
     // Answered before it has a name, it still needs one.
     await answer(user, 'Something else', 'Fails');
@@ -622,7 +621,7 @@ describe('when sign-in fails', () => {
 
     await answer(user, 'Sign in', 'Fails');
     await user.type(noteFor('Sign in'), 'The code never arrives.');
-    expect(sendButton().disabled).toBe(false);
+    expect(sendButton().getAttribute('aria-disabled')).toBe('false');
     await user.click(sendButton());
     await screen.findByRole('heading', { name: 'Report sent' });
     expect(reportBody(api).items).toEqual([
@@ -641,7 +640,7 @@ describe('when sign-in fails', () => {
     await choose(user, 'Sign in');
     expect(screen.getByRole('radiogroup', { name: 'Payment' })).toBeDefined();
     expect(screen.getByText('Say whether Payment works.')).toBeDefined();
-    expect(sendButton().disabled).toBe(true);
+    expect(sendButton().getAttribute('aria-disabled')).toBe('true');
   });
 });
 

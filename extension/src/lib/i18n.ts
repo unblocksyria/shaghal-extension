@@ -32,15 +32,15 @@ export function directionOf(language: Language): Direction {
 
 /** The `Intl` services the panel formats with. Kurdish formatting needs Kurdish data in each. */
 const INTL_SERVICES: { supportedLocalesOf(locales: string): string[] }[] = [
-  Intl.DateTimeFormat,
   Intl.NumberFormat,
   Intl.ListFormat,
   Intl.DisplayNames,
 ];
 
 /**
- * The `Intl` locale for dates, counts, lists and country names. English uses en-GB
+ * The `Intl` locale for counts, lists and country names. English uses en-GB
  * formatting, and so does Kurdish in a browser without Kurdish locale data.
+ * Dates follow the website's own month names instead; see shortDate.
  */
 export function intlLocale(language: Language): string {
   if (language === 'ar') return 'ar';
@@ -109,12 +109,51 @@ declare module 'i18next' {
   }
 }
 
-/** A date as the site writes it, e.g. "1 Sep 2026", in the active locale. Null for no date or a bad one. */
-export function shortDate(iso: string | null | undefined): string | null {
+/**
+ * Short month names as the website writes them. Arabic uses the Levantine
+ * names Syrians use (أيلول, not سبتمبر), and Kurdish the site's own
+ * abbreviations, which no browser's date data gives.
+ */
+const SHORT_MONTHS: Record<Language, readonly string[]> = {
+  en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+  ar: [
+    'كانون الثاني',
+    'شباط',
+    'آذار',
+    'نيسان',
+    'أيار',
+    'حزيران',
+    'تموز',
+    'آب',
+    'أيلول',
+    'تشرين الأول',
+    'تشرين الثاني',
+    'كانون الأول',
+  ],
+  ku: ['Rbn', 'Sbt', 'Adr', 'Nsn', 'Gln', 'Hzr', 'Trm', 'Tbx', 'Îln', 'Cot', 'Mjd', 'Brf'],
+};
+
+/** The calendar day of a valid ISO date, in UTC like the website, or null. */
+function dayOf(iso: string | null | undefined): { day: number; month: string; year: number } | null {
   if (iso == null || !Number.isFinite(Date.parse(iso))) return null;
-  return new Date(iso).toLocaleDateString(intlLocale(activeLanguage()), {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
+  const date = new Date(iso);
+  return {
+    day: date.getUTCDate(),
+    month: SHORT_MONTHS[activeLanguage()][date.getUTCMonth()]!,
+    year: date.getUTCFullYear(),
+  };
+}
+
+/** A date as the site writes it, e.g. "1 Sep, 2026" or "1 أيلول، 2026". Null for no date or a bad one. */
+export function shortDate(iso: string | null | undefined): string | null {
+  const date = dayOf(iso);
+  if (date === null) return null;
+  const comma = activeLanguage() === 'ar' ? '،' : ',';
+  return `${date.day} ${date.month}${comma} ${date.year}`;
+}
+
+/** A day of this year, e.g. "24 Aug" or "24 آب". Null for no date or a bad one. */
+export function dayAndMonth(iso: string | null | undefined): string | null {
+  const date = dayOf(iso);
+  return date === null ? null : `${date.day} ${date.month}`;
 }

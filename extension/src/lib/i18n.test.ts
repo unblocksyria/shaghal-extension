@@ -7,10 +7,12 @@ import {
   activeLanguage,
   applyLanguage,
   applyStoredLanguage,
+  dayAndMonth,
   directionOf,
   i18next,
   intlLocale,
   setLanguagePreference,
+  shortDate,
   sitePathSegment,
 } from './i18n';
 
@@ -96,17 +98,50 @@ describe('language facts', () => {
     expect(sitePathSegment('ku')).toBe('/ku');
   });
 
-  it('format Kurdish in English where the browser lacks Kurdish data for any of dates, counts, lists or country names', () => {
-    for (const service of [Intl.DateTimeFormat, Intl.NumberFormat, Intl.ListFormat, Intl.DisplayNames]) {
+  it('format Kurdish in English where the browser lacks Kurdish data for any of counts, lists or country names', () => {
+    for (const service of [Intl.NumberFormat, Intl.ListFormat, Intl.DisplayNames]) {
       const spy = vi.spyOn(service, 'supportedLocalesOf').mockReturnValue([]);
       expect(intlLocale('ku')).toBe('en-GB');
       spy.mockRestore();
     }
     expect(intlLocale('ku')).toBe('ku');
     // Arabic and English never depend on it.
-    vi.spyOn(Intl.DateTimeFormat, 'supportedLocalesOf').mockReturnValue([]);
+    vi.spyOn(Intl.NumberFormat, 'supportedLocalesOf').mockReturnValue([]);
     expect(intlLocale('ar')).toBe('ar');
     expect(intlLocale('en')).toBe('en-GB');
+  });
+});
+
+describe('dates', () => {
+  it('read as the website writes them, whatever the browser locale', () => {
+    applyLanguage('en');
+    expect(shortDate('2026-09-01T10:00:00.000Z')).toBe('1 Sep, 2026');
+    expect(dayAndMonth('2026-08-24T00:00:00.000Z')).toBe('24 Aug');
+  });
+
+  it('use the Levantine month names and the Arabic comma in Arabic', () => {
+    applyLanguage('ar');
+    expect(shortDate('2026-09-01T10:00:00.000Z')).toBe('1 أيلول، 2026');
+    expect(shortDate('2026-01-15T10:00:00.000Z')).toBe('15 كانون الثاني، 2026');
+    expect(dayAndMonth('2026-08-24T00:00:00.000Z')).toBe('24 آب');
+  });
+
+  it("use the site's Kurdish month names in Kurdish, even without Kurdish date data", () => {
+    applyLanguage('ku');
+    vi.spyOn(Intl.DateTimeFormat, 'supportedLocalesOf').mockReturnValue([]);
+    expect(shortDate('2026-09-01T10:00:00.000Z')).toBe('1 Îln, 2026');
+  });
+
+  it('take the calendar day in UTC, as the site does', () => {
+    applyLanguage('en');
+    expect(shortDate('2026-09-01T23:30:00.000Z')).toBe('1 Sep, 2026');
+  });
+
+  it('give nothing for a missing or broken date', () => {
+    expect(shortDate(null)).toBeNull();
+    expect(shortDate(undefined)).toBeNull();
+    expect(shortDate('not a date')).toBeNull();
+    expect(dayAndMonth('')).toBeNull();
   });
 });
 

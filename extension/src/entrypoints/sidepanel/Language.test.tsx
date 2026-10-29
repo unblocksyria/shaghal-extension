@@ -20,21 +20,24 @@ const LANGUAGE_LABELS = {
     title: 'Settings',
     back: 'Back',
     language: 'Language',
-    pick: { en: 'English', ar: 'Arabic', ku: 'Kurdish' },
+    // Each language is offered under its own name, whatever the panel's language.
+    pick: { en: 'English', ar: 'العربية', ku: 'Kurdî' },
   },
   ar: {
     settings: 'الإعدادات',
     title: 'الإعدادات',
     back: 'رجوع',
     language: 'اللغة',
-    pick: { en: 'الإنجليزية', ar: 'العربية', ku: 'الكردية' },
+    // Each language is offered under its own name, whatever the panel's language.
+    pick: { en: 'English', ar: 'العربية', ku: 'Kurdî' },
   },
   ku: {
     settings: 'Mîheng',
     title: 'Mîheng',
     back: 'Vegere',
     language: 'Ziman',
-    pick: { en: 'Îngilîzî', ar: 'Erebî', ku: 'Kurdî' },
+    // Each language is offered under its own name, whatever the panel's language.
+    pick: { en: 'English', ar: 'العربية', ku: 'Kurdî' },
   },
 } as const satisfies Record<Language, unknown>;
 
@@ -118,10 +121,10 @@ describe('language', () => {
     const languages = screen.getByRole('radiogroup', { name: 'Language' });
     expect(within(languages).getByRole('radio', { name: 'System' })).toBeDefined();
     expect(within(languages).getByRole('radio', { name: 'English' })).toBeDefined();
-    expect(within(languages).getByRole('radio', { name: 'Arabic' })).toBeDefined();
-    expect(within(languages).getByRole('radio', { name: 'Kurdish' })).toBeDefined();
+    expect(within(languages).getByRole('radio', { name: 'العربية' })).toBeDefined();
+    expect(within(languages).getByRole('radio', { name: 'Kurdî' })).toBeDefined();
 
-    await user.click(within(languages).getByRole('radio', { name: 'Arabic' }));
+    await user.click(within(languages).getByRole('radio', { name: 'العربية' }));
 
     // Applied immediately, without closing Settings.
     await screen.findByRole('heading', { name: 'الإعدادات' });
@@ -153,7 +156,7 @@ describe('language', () => {
     await screen.findByRole('button', { name: 'Report what works' }, { timeout: 3000 });
     await user.click(screen.getByRole('button', { name: 'Settings' }));
     const languages = await screen.findByRole('radiogroup', { name: 'Language' });
-    await user.click(within(languages).getByRole('radio', { name: 'Kurdish' }));
+    await user.click(within(languages).getByRole('radio', { name: 'Kurdî' }));
 
     await screen.findByRole('heading', { name: 'Mîheng' });
     expect(document.documentElement.lang).toBe('ku');
@@ -188,23 +191,22 @@ describe('language', () => {
     expect(api.calls.find((call) => call.path === '/functionalities')?.url).toContain('locale=ku');
   });
 
-  it('formats dates with Kurdish month names in Kurdish', async () => {
+  it("formats dates with the website's Kurdish month names in Kurdish", async () => {
     fakeApi().on('POST', '/services/match', { data: match }).install();
 
     await openPanel('https://kurdish-dates.example/', { language: 'ku' });
     const checked = await screen.findByText(/de hat kontrolkirin/, {}, { timeout: 3000 });
-    // The fixture date is 1 September 2026. The Kurdish month name is not "Sep".
-    expect(checked.textContent).toContain('2026');
-    expect(checked.textContent).not.toContain('Sep');
+    // The fixture date is 1 September 2026.
+    expect(checked.textContent).toMatch(/Di 1 Îln, 2026 de hat kontrolkirin$/);
   });
 
-  it('writes dates in English inside the Kurdish text where the browser has no Kurdish dates', async () => {
+  it('keeps the Kurdish month names where the browser has no Kurdish dates', async () => {
     vi.spyOn(Intl.DateTimeFormat, 'supportedLocalesOf').mockReturnValue([]);
     fakeApi().on('POST', '/services/match', { data: match }).install();
 
     await openPanel('https://kurdish-fallback.example/', { language: 'ku' });
     const checked = await screen.findByText(/de hat kontrolkirin/, {}, { timeout: 3000 });
-    expect(checked.textContent).toMatch(/Di 1 Sept? 2026 de hat kontrolkirin$/);
+    expect(checked.textContent).toMatch(/Di 1 Îln, 2026 de hat kontrolkirin$/);
   });
 
   it('steps the arrow keys in the direction they point when the panel runs right to left', async () => {
@@ -301,9 +303,8 @@ describe('language', () => {
 
     await openPanel('https://dates.example/', { language: 'ar' });
     const checked = await screen.findByText(/فُحص في/, {}, { timeout: 3000 });
-    // The fixture date is 1 September 2026. The Arabic month name is not "Sep".
-    expect(checked.textContent).toContain('2026');
-    expect(checked.textContent).not.toContain('Sep');
+    // The fixture date is 1 September 2026, in the Levantine month name the website uses.
+    expect(checked.textContent).toContain('1 أيلول، 2026');
   });
 
   it('points the service link and the guide link at the Arabic path', async () => {
@@ -323,6 +324,25 @@ describe('language', () => {
     expect(guide.getAttribute('href')).toContain('/ar/articles/how-to-test-a-service-from-syria');
   });
 
+  it('keeps what a tester types in English left to right in an Arabic form', async () => {
+    const user = userEvent.setup();
+    fakeApi()
+      .on('POST', '/services/match', { data: match })
+      .on('GET', '/services/netflix', { data: serviceRecord })
+      .on('GET', '/functionalities', { data: functionalities })
+      .install();
+
+    await openPanel('https://typing.example/', { language: 'ar' });
+    await user.click(await screen.findByRole('button', { name: 'أبلغ عمّا يعمل' }, { timeout: 3000 }));
+    await user.click(await screen.findByRole('button', { name: 'Core use', pressed: false }));
+    await user.click(within(screen.getByRole('radiogroup', { name: 'Core use' })).getAllByRole('radio')[0]!);
+
+    // A note takes the direction of its first letter, so "Works now." keeps its full stop at the end.
+    expect(screen.getByPlaceholderText('ماذا حدث؟').getAttribute('dir')).toBe('auto');
+    // An address always reads left to right.
+    expect(screen.getByRole('textbox', { name: 'بريدك الإلكتروني' }).getAttribute('dir')).toBe('ltr');
+  });
+
   it('keeps a half filled form and its screenshots through a switch, on the same view', async () => {
     const user = userEvent.setup();
     fakeApi().on('POST', '/services/match', { data: matchNone }).install();
@@ -337,7 +357,7 @@ describe('language', () => {
     await screen.findByAltText('Evidence #1');
 
     await user.click(screen.getByRole('button', { name: 'Settings' }));
-    await user.click(screen.getByRole('radio', { name: 'Arabic' }));
+    await user.click(screen.getByRole('radio', { name: 'العربية' }));
     await screen.findByRole('heading', { name: 'الإعدادات' });
     await user.click(screen.getByRole('button', { name: 'رجوع' }));
 
@@ -378,7 +398,7 @@ describe('language', () => {
 
     await user.click(screen.getByRole('button', { name: 'Settings' }));
     const languages = screen.getByRole('radiogroup', { name: 'Language' });
-    await user.click(within(languages).getByRole('radio', { name: 'Arabic' }));
+    await user.click(within(languages).getByRole('radio', { name: 'العربية' }));
     await screen.findByRole('heading', { name: 'الإعدادات' });
     await user.click(screen.getByRole('button', { name: 'رجوع' }));
 
@@ -411,7 +431,7 @@ describe('language', () => {
 
     await user.click(screen.getByRole('button', { name: 'Settings' }));
     const languages = screen.getByRole('radiogroup', { name: 'Language' });
-    await user.click(within(languages).getByRole('radio', { name: 'Arabic' }));
+    await user.click(within(languages).getByRole('radio', { name: 'العربية' }));
     await screen.findByRole('heading', { name: 'الإعدادات' });
     await user.click(screen.getByRole('button', { name: 'رجوع' }));
 

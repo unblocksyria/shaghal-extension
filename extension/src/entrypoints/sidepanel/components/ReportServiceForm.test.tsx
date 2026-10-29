@@ -52,8 +52,14 @@ describe('the report a service form', () => {
     const api = await openReportService(user, 'https://another-untracked.example/');
 
     const submit = screen.getByRole<HTMLButtonElement>('button', { name: 'Submit Report' });
-    expect(submit.disabled).toBe(true);
+    expect(submit.getAttribute('aria-disabled')).toBe('true');
     expect(screen.getByText('Enter the service name.')).toBeDefined();
+    // Blocked but still reachable by Tab, and it says why.
+    expect(submit.disabled).toBe(false);
+    expect(document.getElementById(submit.getAttribute('aria-describedby') ?? '')?.textContent).toBe(
+      'Enter the service name.',
+    );
+    expect(screen.getByRole('textbox', { name: 'Service name' }).getAttribute('aria-required')).toBe('true');
 
     await user.click(submit);
     expect(api.callsTo('POST', '/submissions')).toHaveLength(0);
@@ -181,6 +187,16 @@ describe('what the form sends', () => {
     await pressSend(user, 'Submit Report');
     expect((await screen.findByRole('alert')).textContent).toBe('Enter a valid email address, or leave it blank.');
     expect(api.callsTo('POST', '/submissions')).toHaveLength(0);
+
+    // The error belongs to the field: it marks it, describes it and takes the tester back to it.
+    const email = screen.getByRole('textbox', { name: 'Your email' });
+    expect(email.getAttribute('aria-invalid')).toBe('true');
+    expect(email.getAttribute('aria-describedby')).toContain(screen.getByRole('alert').id);
+    expect(document.activeElement).toBe(email);
+
+    await user.type(email, '@example.com');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(email.hasAttribute('aria-invalid')).toBe(false);
   });
 });
 

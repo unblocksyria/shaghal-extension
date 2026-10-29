@@ -80,11 +80,11 @@ describe('the correction form', () => {
     const api = await openCorrection(user, 'https://fourth.example/page');
 
     const submit = screen.getByRole<HTMLButtonElement>('button', { name: 'Submit Correction' });
-    expect(submit.disabled).toBe(true);
+    expect(submit.getAttribute('aria-disabled')).toBe('true');
     expect(screen.getByText('Choose what needs to be corrected.')).toBeDefined();
 
     await user.click(screen.getByRole('checkbox', { name: 'Website URL' }));
-    expect(submit.disabled).toBe(true);
+    expect(submit.getAttribute('aria-disabled')).toBe('true');
     expect(screen.getByText('Enter the correct information for each field you ticked.')).toBeDefined();
 
     // The recorded address is not a correction, so it stays blocked.
@@ -162,7 +162,7 @@ describe('the category limits', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Entertainment' }));
 
     const submit = screen.getByRole<HTMLButtonElement>('button', { name: 'Submit Correction' });
-    expect(submit.disabled).toBe(true);
+    expect(submit.getAttribute('aria-disabled')).toBe('true');
     expect(screen.getByText('Choose at least one category.')).toBeDefined();
     await user.click(submit);
     expect(api.callsTo('POST', '/corrections')).toHaveLength(0);
@@ -186,11 +186,11 @@ describe('the category limits', () => {
 
     const submit = screen.getByRole<HTMLButtonElement>('button', { name: 'Submit Correction' });
     expect(screen.getByText('A service can have at most 10 categories.')).toBeDefined();
-    expect(submit.disabled).toBe(true);
+    expect(submit.getAttribute('aria-disabled')).toBe('true');
 
     await user.click(screen.getByRole('checkbox', { name: 'Category 10' }));
     expect(screen.queryByText('A service can have at most 10 categories.')).toBeNull();
-    expect(submit.disabled).toBe(false);
+    expect(submit.getAttribute('aria-disabled')).toBe('false');
   });
 
   it('loads the category names once, however often Categories is ticked', async () => {
@@ -231,7 +231,9 @@ describe('what stops a correction', () => {
 
     await pressSend(user, 'Submit Correction');
     expect((await screen.findByRole('alert')).textContent).toBe('A screenshot could not be uploaded: Upload refused');
-    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Submit Correction' }).disabled).toBe(false);
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', { name: 'Submit Correction' }).getAttribute('aria-disabled'),
+    ).toBe('false');
     expect(api.callsTo('POST', '/corrections')).toHaveLength(0);
   });
 

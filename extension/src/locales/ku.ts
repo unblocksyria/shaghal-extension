@@ -14,6 +14,7 @@ export const ku: Kurdish<Catalog> = {
     reportAService: 'Xizmetekê rapor bike',
     yourEmail: 'E-nameya te',
     emailPlaceholder: 'your@email.com',
+    newTab: '(di tabeke nû de vedibe)',
   },
 
   app: {
@@ -35,9 +36,6 @@ export const ku: Kurdish<Catalog> = {
     themeDark: 'Tarî',
     language: 'Ziman',
     languageSystem: 'Sîstem',
-    languageEnglish: 'Îngilîzî',
-    languageArabic: 'Erebî',
-    languageKurdish: 'Kurdî',
     emailHelp:
       'Bijartî. Forman ji berê ve tije dike, û heke tu bi me re dilxwazî dikî, dihêle em raporên te li ser navê te tomar bikin. Tu carî nayê weşandin. Ji bo jibîrkirinê, wê paqij bike û tomar bike.',
     saveEmail: 'E-nameyê tomar bike',

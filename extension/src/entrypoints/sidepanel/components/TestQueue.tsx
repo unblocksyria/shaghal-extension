@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { CatalogService } from '../../../lib/endpoints';
-import { activeLanguage, intlLocale } from '../../../lib/i18n';
+import { activeLanguage, dayAndMonth } from '../../../lib/i18n';
 import { webUrl } from '../../../lib/url';
 import { loadQueue, peekQueue } from '../../../lib/reads';
-import { cardStyle, hintStyle, titleStyle } from './FormParts';
+import { cardStyle, hintStyle, listStyle, sectionTitleStyle } from './FormParts';
 import { ServiceRow } from './ServiceRow';
 import { RETEST_SINCE } from '../../../lib/retest';
 
@@ -64,27 +64,28 @@ export function TestQueue(props: {
   }, [language]);
 
   if (rows.length === 0 && !failed) return null;
-  const date = new Date(RETEST_SINCE).toLocaleDateString(intlLocale(language), { day: 'numeric', month: 'short' });
+  const date = dayAndMonth(RETEST_SINCE);
   return (
     <section className="us-animate-fade" style={{ ...cardStyle, gap: 12 }} aria-labelledby="test-queue-title">
-      <div style={{ display: 'grid', gap: 2 }}>
-        <h2 id="test-queue-title" style={{ ...titleStyle, fontSize: 15 }}>
+      <div style={{ display: 'grid', gap: 4 }}>
+        <h2 id="test-queue-title" style={sectionTitleStyle}>
           {t('queue.title')}
         </h2>
         <p style={hintStyle}>{failed ? t('queue.failed') : t('queue.hint')}</p>
       </div>
       {rows.length > 0 && (
-        <div style={{ display: 'grid', gap: 6 }}>
+        <ul style={listStyle}>
           {rows.map((row) => (
-            <ServiceRow
-              key={row.service.slug}
-              service={row.service}
-              href={row.url}
-              onOpen={props.onOpen}
-              detail={row.reason === 'retest' ? t('queue.retest', { date }) : t('queue.untested')}
-            />
+            <li key={row.service.slug}>
+              <ServiceRow
+                service={row.service}
+                href={row.url}
+                onOpen={props.onOpen}
+                detail={row.reason === 'retest' ? t('queue.retest', { date }) : t('queue.untested')}
+              />
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </section>
   );

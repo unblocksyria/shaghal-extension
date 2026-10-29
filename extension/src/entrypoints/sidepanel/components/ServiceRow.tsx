@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { Availability, CatalogService } from '../../../lib/endpoints';
 import { serviceName } from '../../../lib/serviceName';
 import { ArrowUpRight, Ban, CircleCheckBig, CircleHelp, Star } from 'lucide-react';
+import { NewTabNote } from '../../../components/ui/NewTabNote';
 
 /** Badge colour and icon per status. Labels come from the locale catalog. */
 const STATUS: Record<Availability, { fill: string; icon: typeof Ban }> = {
@@ -22,16 +23,19 @@ export function StatusBadge(props: { availability: Availability; small?: boolean
   const status = knownStatus(props.availability);
   const { fill, icon: Icon } = STATUS[status];
   const label = t(`card.status.${status}.label` as const);
+  const small = props.small === true;
   return (
     <span
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 5,
-        fontSize: props.small === true ? 11.5 : 12.5,
+        gap: small ? 4 : 6,
+        flexShrink: 0,
+        fontSize: small ? 'var(--us-text-xs)' : 'var(--us-text-sm)',
+        lineHeight: small ? '16px' : '18px',
         fontWeight: 500,
-        padding: props.small === true ? '2px 8px' : '3px 10px',
-        borderRadius: 'var(--us-radius-badge)',
+        padding: small ? '2px 8px' : '3px 10px',
+        borderRadius: small ? 6 : 'var(--us-radius-badge)',
         color: 'var(--us-on-color)',
         backgroundColor: fill,
         boxShadow: props.availability === 'available' ? 'inset 0 0 0 2px rgba(255, 255, 255, 0.4)' : undefined,
@@ -39,7 +43,7 @@ export function StatusBadge(props: { availability: Availability; small?: boolean
       }}
     >
       <Icon
-        size={props.small === true ? 12 : 13}
+        size={small ? 12 : 14}
         fill={props.availability === 'available' ? 'currentColor' : 'none'}
         aria-hidden="true"
       />
@@ -53,7 +57,8 @@ export function ServiceLogo(props: { service: CatalogService; size: number }) {
   const box: React.CSSProperties = {
     width: props.size,
     height: props.size,
-    borderRadius: 'var(--us-radius-control)',
+    // The corner grows with the logo: 6px on a list row, 8px on the card.
+    borderRadius: Math.max(6, Math.round(props.size / 6)),
     flexShrink: 0,
     backgroundColor: 'var(--us-card-nested)',
     border: '1px solid var(--us-border)',
@@ -65,11 +70,16 @@ export function ServiceLogo(props: { service: CatalogService; size: number }) {
     fontWeight: 500,
     fontSize: props.size * 0.42,
   };
+  // The logo stands beside the name, so screen readers skip it, the stand-in initial included.
   if (props.service.logoUrl === null || failed) {
-    return <div style={box}>{props.service.name.slice(0, 1).toUpperCase()}</div>;
+    return (
+      <div style={box} aria-hidden="true">
+        {props.service.name.slice(0, 1).toUpperCase()}
+      </div>
+    );
   }
   return (
-    <div style={box}>
+    <div style={box} aria-hidden="true">
       <img
         src={props.service.logoUrl}
         alt=""
@@ -84,13 +94,18 @@ export function ServiceLogo(props: { service: CatalogService; size: number }) {
 /** One service in a list: a candidate to pick, or an alternative to open. */
 const rowStyle: React.CSSProperties = {
   display: 'flex',
+  // Under heavy zoom the badge drops below the name rather than squeezing it.
+  flexWrap: 'wrap',
   alignItems: 'center',
-  gap: 10,
+  gap: '4px 12px',
+  width: '100%',
+  minHeight: 48,
   textAlign: 'start',
   backgroundColor: 'var(--us-card)',
   border: '1px solid var(--us-border)',
   borderRadius: 'var(--us-radius-control)',
-  padding: '8px 10px',
+  padding: '8px 12px',
+  transition: 'background-color 0.15s ease, border-color 0.15s ease',
   cursor: 'pointer',
   color: 'inherit',
   fontFamily: 'inherit',
@@ -117,17 +132,29 @@ export function ServiceRow(props: {
   const body = (
     <>
       <ServiceLogo service={props.service} size={28} />
-      <span style={{ flex: 1, minWidth: 0, display: 'grid', gap: 1 }}>
-        <span style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--us-text-primary)' }}>
+      <span style={{ flex: '1 1 96px', minWidth: 0, display: 'grid' }}>
+        <span
+          style={{
+            fontSize: 'var(--us-text-md)',
+            lineHeight: '20px',
+            fontWeight: 500,
+            color: 'var(--us-text-primary)',
+          }}
+        >
           {serviceName(props.service)}
         </span>
         {props.detail !== undefined && (
-          <span style={{ fontSize: 11.5, color: 'var(--us-text-muted)' }}>{props.detail}</span>
+          <span style={{ fontSize: 'var(--us-text-xs)', lineHeight: '16px', color: 'var(--us-text-muted)' }}>
+            {props.detail}
+          </span>
         )}
       </span>
       <StatusBadge availability={props.service.availability} small />
       {props.href !== undefined && (
-        <ArrowUpRight size={14} aria-hidden="true" style={{ flexShrink: 0, color: 'var(--us-text-muted)' }} />
+        <>
+          <ArrowUpRight size={14} aria-hidden="true" style={{ flexShrink: 0, color: 'var(--us-text-muted)' }} />
+          <NewTabNote />
+        </>
       )}
     </>
   );

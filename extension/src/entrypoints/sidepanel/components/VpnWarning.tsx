@@ -18,15 +18,9 @@ export function VpnWarning() {
     <div className="us-callout us-callout-warning" role="status">
       <WifiOff size={16} aria-hidden="true" />
       <span>
-        <strong style={{ fontWeight: 600 }}>{t('vpn.turnOff')} </strong>
+        <strong>{t('vpn.turnOff')} </strong>
         {t('vpn.body', { country: countryName(location.country, locale) })}{' '}
-        <button
-          type="button"
-          className="us-text-link"
-          onClick={location.recheck}
-          disabled={location.checking}
-          style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}
-        >
+        <button type="button" className="us-text-link" onClick={location.recheck} disabled={location.checking}>
           {location.checking ? t('vpn.checking') : t('vpn.checkAgain')}
         </button>
       </span>

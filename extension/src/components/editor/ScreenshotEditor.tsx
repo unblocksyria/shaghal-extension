@@ -601,7 +601,7 @@ function Workspace(props: {
                         : image.height - rect.y;
                 const min = field === 'x' || field === 'y' ? 0 : 1;
                 return (
-                  <label key={field} style={{ display: 'grid', gap: 3, fontSize: 12 }}>
+                  <label key={field} style={{ display: 'grid', gap: 4, fontSize: 'var(--us-text-xs)' }}>
                     {t(`editor.${({ x: 'left', y: 'top', width: 'width', height: 'height' } as const)[field]}`)}
                     <input
                       type="number"

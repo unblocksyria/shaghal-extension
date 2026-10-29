@@ -45,7 +45,7 @@ export function EvidenceThumbs(props: {
                   <span className="us-thumb-editing">{t('evidence.editing')}</span>
                 ) : (
                   <span className="us-thumb-edit-badge">
-                    <SquarePen size={10} /> {t('evidence.edit')}
+                    <SquarePen size={12} aria-hidden="true" /> {t('evidence.edit')}
                   </span>
                 )}
               </button>
@@ -64,10 +64,10 @@ export function EvidenceThumbs(props: {
                 onClick={() => props.onRemove?.(item.id)}
                 style={{
                   position: 'absolute',
-                  top: 3,
-                  insetInlineStart: 3,
-                  width: 18,
-                  height: 18,
+                  top: 4,
+                  insetInlineStart: 4,
+                  width: 22,
+                  height: 22,
                   borderRadius: '50%',
                   border: 'none',
                   cursor: 'pointer',
@@ -79,7 +79,7 @@ export function EvidenceThumbs(props: {
                   padding: 0,
                 }}
               >
-                <X size={11} />
+                <X size={14} aria-hidden="true" />
               </button>
             )}
             <div
@@ -105,8 +105,8 @@ export function EvidenceThumbs(props: {
                     color: 'var(--us-gold)',
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: 3,
-                    fontSize: 10,
+                    gap: 4,
+                    fontSize: 'var(--us-text-2xs)',
                     textDecoration: 'none',
                     backgroundColor: 'rgba(0, 0, 0, 0.55)',
                     borderRadius: 4,
@@ -114,7 +114,7 @@ export function EvidenceThumbs(props: {
                     pointerEvents: 'auto',
                   }}
                 >
-                  <ExternalLink size={10} />
+                  <ExternalLink size={12} aria-hidden="true" />
                 </a>
               )}
             </div>

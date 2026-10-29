@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RadioGroup } from '../../../components/ui/RadioGroup';
 import { Input } from '../../../components/ui/Input';
+import { NewTabNote } from '../../../components/ui/NewTabNote';
 import type { FunctionalityItem, ServiceRecord } from '../../../lib/endpoints';
 import { loadFunctionalities } from '../../../lib/reads';
 import { submitFunctionalityReport, type ReportItem } from '../../../lib/submit';
@@ -176,6 +177,8 @@ export function ReportForm(props: {
   const [email, setEmail] = useSavedEmail();
   const [busy, setBusy] = useState(false);
   const { error, setError, showApiError, onDiscard } = useFormError();
+  // Shown under the email field, which it marks invalid.
+  const [emailProblem, setEmailProblem] = useState<string | null>(null);
   const [sent, setSent] = useState<{
     parts: { key: string; name: string; answer: Answer }[];
     host: string | null;
@@ -307,7 +310,8 @@ export function ReportForm(props: {
     if (busy) return;
     const invalidEmail = emailError(email);
     if (invalidEmail !== null) {
-      setError(invalidEmail);
+      setError(null);
+      setEmailProblem(invalidEmail);
       return;
     }
     if (blocker !== null) return;
@@ -387,8 +391,8 @@ export function ReportForm(props: {
       >
         <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 4, justifyItems: 'center' }}>
           {sent.parts.map((part) => (
-            <li key={part.key} style={{ fontSize: 13 }}>
-              <span style={{ fontWeight: 600 }}>{part.name}</span>
+            <li key={part.key} style={{ fontSize: 'var(--us-text-sm)', lineHeight: '20px' }}>
+              <span style={{ fontWeight: 500 }}>{part.name}</span>
               {': '}
               <span
                 style={{ color: part.answer === 'working' ? 'var(--us-level-working)' : 'var(--us-level-failing)' }}
@@ -458,17 +462,20 @@ export function ReportForm(props: {
             style={{ whiteSpace: 'nowrap' }}
           >
             {t('report.readGuide')}
-            <ArrowUpRight size={13} style={{ verticalAlign: '-2px', marginInlineStart: 2 }} aria-hidden="true" />
+            <ArrowUpRight size={14} style={{ verticalAlign: '-3px', marginInlineStart: 2 }} aria-hidden="true" />
+            <NewTabNote />
           </a>
         </span>
       </p>
 
-      <div role="group" aria-labelledby="report-tried" style={{ display: 'grid', gap: 8 }}>
-        <span id="report-tried" className="us-label">
-          {t('report.whatTried')}
-        </span>
-        <p style={{ ...hintStyle, marginTop: -4 }}>{t('report.whatTriedHint')}</p>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+      <div role="group" aria-labelledby="report-tried" style={{ display: 'grid', gap: 12 }}>
+        <div style={{ display: 'grid', gap: 4 }}>
+          <span id="report-tried" className="us-label">
+            {t('report.whatTried')}
+          </span>
+          <p style={hintStyle}>{t('report.whatTriedHint')}</p>
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {ownParts.map(chip)}
           {(showAllParts ? extraParts : extraParts.filter((part) => chosen.includes(part.key))).map(chip)}
           {extraParts.length > 0 && !showAllParts && (
@@ -477,7 +484,7 @@ export function ReportForm(props: {
             </button>
           )}
           <button type="button" className="us-chip us-chip-quiet" onClick={addNamed}>
-            <Plus size={13} aria-hidden="true" /> {t('report.somethingElse')}
+            <Plus size={14} aria-hidden="true" /> {t('report.somethingElse')}
           </button>
         </div>
         {catalogueFailed && (
@@ -487,7 +494,6 @@ export function ReportForm(props: {
               type="button"
               className="us-text-link"
               onClick={() => setCatalogueAttempt((attempt) => attempt + 1)}
-              style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}
             >
               {t('common.tryAgain')}
             </button>
@@ -523,13 +529,13 @@ export function ReportForm(props: {
                 aria-label={label}
                 style={{
                   display: 'grid',
-                  gap: 10,
-                  padding: '16px 0',
+                  gap: 12,
+                  padding: '20px 0',
                   borderTop: index === 0 ? undefined : '1px solid var(--us-border)',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                  <span style={{ fontSize: 14, fontWeight: 600 }}>{label}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, minHeight: 24 }}>
+                  <span style={{ fontSize: 'var(--us-text-lg)', lineHeight: '22px', fontWeight: 500 }}>{label}</span>
                   {named && (
                     <button
                       type="button"
@@ -539,6 +545,7 @@ export function ReportForm(props: {
                       style={{
                         display: 'inline-flex',
                         marginInlineStart: 'auto',
+                        marginBlock: -4,
                         padding: 4,
                         border: 'none',
                         borderRadius: 6,
@@ -557,19 +564,24 @@ export function ReportForm(props: {
                     maxLength={NAME_MAX}
                     requiredMark
                     placeholder={t('report.namedPlaceholder')}
+                    dir="auto"
                     value={names[part.key] ?? ''}
                     onChange={(event) => setNames((current) => ({ ...current, [part.key]: event.target.value }))}
                   />
                 )}
-                {hint !== null && <p style={hintStyle}>{hint}</p>}
-                {!named && (
-                  <p style={{ ...hintStyle, fontWeight: 500 }}>
-                    {recordedLevel === null
-                      ? t('report.nothingRecorded')
-                      : recordedDate === null
-                        ? t('report.onRecord', { level: recordedLevel })
-                        : t('report.onRecordChecked', { level: recordedLevel, date: recordedDate })}
-                  </p>
+                {(hint !== null || !named) && (
+                  <div style={{ display: 'grid', gap: 4 }}>
+                    {hint !== null && <p style={hintStyle}>{hint}</p>}
+                    {!named && (
+                      <p style={{ ...hintStyle, fontWeight: 500, color: 'var(--us-text-primary)' }}>
+                        {recordedLevel === null
+                          ? t('report.nothingRecorded')
+                          : recordedDate === null
+                            ? t('report.onRecord', { level: recordedLevel })
+                            : t('report.onRecordChecked', { level: recordedLevel, date: recordedDate })}
+                      </p>
+                    )}
+                  </div>
                 )}
                 {implied(part) ? (
                   <p style={hintStyle}>{t('report.impliedBySignIn')}</p>
@@ -585,16 +597,17 @@ export function ReportForm(props: {
                   <p style={hintStyle}>{t('report.signInDependents')}</p>
                 )}
                 {answer !== undefined && (
-                  <div className="us-animate-fade" style={{ display: 'grid', gap: 10 }}>
+                  <div className="us-animate-fade" style={{ display: 'grid', gap: 16 }}>
                     <Textarea
                       aria-label={t('report.notesFor', { name: label })}
                       placeholder={t('report.notePlaceholder')}
+                      dir="auto"
                       value={notes[part.key] ?? ''}
                       maxLength={2000}
                       onChange={(event) => setNotes((current) => ({ ...current, [part.key]: event.target.value }))}
                       rows={2}
+                      helperText={t('report.notePrivacy')}
                     />
-                    <p style={{ ...hintStyle, marginTop: -4 }}>{t('report.notePrivacy')}</p>
                     <ScreenshotField screenshots={screenshots.list(part.key)} max={5} locked={busy} pasteFromParent />
                     {missing && <p style={{ ...hintStyle, fontWeight: 500 }}>{t('report.required')}</p>}
                   </div>
@@ -609,7 +622,7 @@ export function ReportForm(props: {
         <span id="report-connection" className="us-label">
           {t('report.connection')}
         </span>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {(Object.keys(CONNECTIONS) as Connection[]).map((value) => (
             <button
               key={value}
@@ -624,7 +637,7 @@ export function ReportForm(props: {
         </div>
       </div>
 
-      <EmailField value={email} onChange={setEmail} />
+      <EmailField value={email} onChange={setEmail} error={emailProblem} onClearError={() => setEmailProblem(null)} />
 
       {testedHost !== null && (
         <p style={hintStyle}>

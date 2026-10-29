@@ -50,9 +50,9 @@ const VARIANTS: Record<ButtonVariant, { rest: React.CSSProperties; hover: React.
 };
 
 const SIZES: Record<ButtonSize, React.CSSProperties> = {
-  sm: { padding: '0 12px', fontSize: 12.5, minHeight: 36 },
-  md: { padding: '0 16px', fontSize: 14, minHeight: 44 },
-  lg: { padding: '0 20px', fontSize: 15, minHeight: 48 },
+  sm: { padding: '0 12px', fontSize: 'var(--us-text-sm)', minHeight: 36, gap: 6 },
+  md: { padding: '0 16px', fontSize: 'var(--us-text-md)', minHeight: 44, gap: 8 },
+  lg: { padding: '0 20px', fontSize: 'var(--us-text-lg)', minHeight: 48, gap: 8 },
 };
 
 export const Button: React.FC<ButtonProps> = ({
@@ -66,20 +66,24 @@ export const Button: React.FC<ButtonProps> = ({
   ...props
 }) => {
   const { rest, hover } = VARIANTS[variant];
+  // `aria-disabled` looks the same as `disabled` but keeps the button in the
+  // tab order, so a keyboard or screen reader user can still reach it and hear
+  // why it does nothing. The caller ignores its clicks.
+  const inert = disabled === true || props['aria-disabled'] === true || props['aria-disabled'] === 'true';
   const restStyle: React.CSSProperties = {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
     maxWidth: '100%',
     minWidth: 0,
-    cursor: disabled ? 'not-allowed' : 'pointer',
+    cursor: inert ? 'not-allowed' : 'pointer',
     transition: 'background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, filter 0.15s ease',
     width: fullWidth ? '100%' : 'auto',
     fontFamily: 'inherit',
     fontWeight: 500,
+    lineHeight: '20px',
     borderRadius: 'var(--us-radius-control)',
-    opacity: disabled ? 0.5 : 1,
+    opacity: inert ? 0.5 : 1,
     ...rest,
     ...SIZES[size],
     ...style,
@@ -90,10 +94,10 @@ export const Button: React.FC<ButtonProps> = ({
       disabled={disabled}
       style={restStyle}
       onMouseEnter={(e) => {
-        if (!disabled) Object.assign(e.currentTarget.style, hover);
+        if (!inert) Object.assign(e.currentTarget.style, hover);
       }}
       onMouseLeave={(e) => {
-        if (!disabled) Object.assign(e.currentTarget.style, { ...rest, filter: 'none', ...style });
+        Object.assign(e.currentTarget.style, { ...rest, filter: 'none', ...style });
       }}
       {...props}
     >

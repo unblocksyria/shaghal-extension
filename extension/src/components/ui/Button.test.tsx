@@ -29,9 +29,30 @@ describe('the button', () => {
     expect(button.style.opacity).toBe('0.5');
 
     await user.hover(button);
-    expect(button.style.filter).toBe('');
+    expect(button.style.filter).not.toContain('brightness');
     await user.unhover(button);
-    expect(button.style.filter).toBe('');
+    expect(button.style.filter).not.toContain('brightness');
+  });
+
+  it('can look disabled while staying in the tab order, so a reader hears why', async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <Button variant="primary" aria-disabled aria-describedby="why">
+          Send
+        </Button>
+        <p id="why">Name the part you tried.</p>
+      </>,
+    );
+    const button = screen.getByRole('button', { name: 'Send' });
+    expect(button.style.opacity).toBe('0.5');
+    expect(button.style.cursor).toBe('not-allowed');
+    await user.tab();
+    expect(document.activeElement).toBe(button);
+    expect(button.getAttribute('aria-describedby')).toBe('why');
+
+    await user.hover(button);
+    expect(button.style.backgroundColor).toBe('var(--us-primary)');
   });
 
   it('shows its icon before the label, and can take the whole row', () => {

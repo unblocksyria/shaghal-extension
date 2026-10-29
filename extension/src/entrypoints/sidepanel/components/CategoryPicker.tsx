@@ -78,7 +78,7 @@ export function CategoryPicker(props: {
           borderRadius: 'var(--us-radius-control)',
           padding: '0 12px',
           color: 'var(--us-text-primary)',
-          fontSize: 13,
+          fontSize: 'var(--us-text-md)',
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
@@ -105,7 +105,8 @@ export function CategoryPicker(props: {
               })}
         </span>
         <ChevronDown
-          size={14}
+          size={16}
+          aria-hidden="true"
           color="var(--us-text-muted)"
           style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease', flexShrink: 0 }}
         />
@@ -134,10 +135,12 @@ export function CategoryPicker(props: {
           }}
         >
           <div style={{ position: 'relative', padding: 10 }}>
+            {/* Centred on the 38px field: 10px of padding, then (38 - 14) / 2. */}
             <Search
               size={14}
+              aria-hidden="true"
               color="var(--us-text-dim)"
-              style={{ position: 'absolute', insetInlineStart: 20, top: 20 }}
+              style={{ position: 'absolute', insetInlineStart: 20, top: 22 }}
             />
             <input
               autoFocus
@@ -156,14 +159,14 @@ export function CategoryPicker(props: {
                 paddingInlineStart: 32,
                 paddingInlineEnd: 12,
                 color: 'var(--us-text-primary)',
-                fontSize: 13,
+                fontSize: 'var(--us-text-sm)',
                 outline: 'none',
               }}
             />
           </div>
           <div style={{ overflowY: 'auto', padding: '0 6px 6px 6px' }}>
             {filtered.length === 0 && (
-              <div style={{ padding: '10px 8px', fontSize: 12, color: 'var(--us-text-dim)' }}>
+              <div style={{ padding: '8px 10px', fontSize: 'var(--us-text-xs)', color: 'var(--us-text-muted)' }}>
                 {t('categoryPicker.none')}
               </div>
             )}
@@ -176,7 +179,8 @@ export function CategoryPicker(props: {
                   gap: 10,
                   padding: '8px 10px',
                   borderRadius: 6,
-                  fontSize: 13,
+                  fontSize: 'var(--us-text-sm)',
+                  lineHeight: '20px',
                   color: 'var(--us-text-primary)',
                   cursor: 'pointer',
                   backgroundColor: props.selected.has(option.id) ? 'var(--us-gold-subtle)' : 'transparent',
