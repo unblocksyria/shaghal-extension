@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { SITE_BASE } from '../../../lib/config';
 import { fakeApi, type FakeApi } from '../../../testing/fakeApi';
@@ -68,8 +68,12 @@ describe('the page card', () => {
     fakeApi().on('POST', '/services/match', { data: matchMany }).install();
 
     await openPanel('https://many.example/');
-    await screen.findByRole('heading', { name: 'Which service is this?' }, { timeout: 3000 });
-    expect(screen.getByRole('button', { name: /Google/ })).toBeDefined();
+    const heading = await screen.findByRole('heading', { name: 'Which service is this?' }, { timeout: 3000 });
+    // A list a screen reader can count, each row named by service and status, without the logo's initial.
+    const card = heading.closest('section');
+    if (card === null) throw new Error('The pick list has no card');
+    expect(within(within(card).getByRole('list')).getAllByRole('listitem')).toHaveLength(2);
+    expect(screen.getByRole('button', { name: 'Google Available' })).toBeDefined();
     expect(screen.getByRole('button', { name: /YouTube/ })).toBeDefined();
 
     await user.click(screen.getByRole('button', { name: /Google/ }));

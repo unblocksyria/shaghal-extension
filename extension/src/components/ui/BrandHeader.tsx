@@ -7,7 +7,7 @@ import { activeLanguage, sitePathSegment } from '../../lib/i18n';
 export const BrandHeader: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSettings }) => {
   const { t } = useTranslation();
   return (
-    <div
+    <header
       style={{
         // The panel's 16px gutter, so the logo and the button line up with the cards.
         padding: '16px 16px 12px',
@@ -33,6 +33,8 @@ export const BrandHeader: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSe
         onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.85')}
         onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
         title={t('header.home')}
+        // The logo is a picture of words, so the link is named in words.
+        aria-label={`${t('header.home')} ${t('common.newTab')}`}
       >
         <svg
           width="132"
@@ -40,6 +42,8 @@ export const BrandHeader: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSe
           viewBox="0 0 142 46"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
+          aria-hidden="true"
+          focusable="false"
           style={{ display: 'block' }}
         >
           <g fill="currentColor">
@@ -91,7 +95,8 @@ export const BrandHeader: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSe
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            transition: 'all 0.15s ease',
+            // Not `all`: the focus ring would animate in from the wrong place.
+            transition: 'color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease',
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.color = 'var(--us-accent-text)';
@@ -107,6 +112,6 @@ export const BrandHeader: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSe
           <Settings size={16} aria-hidden="true" />
         </button>
       </div>
-    </div>
+    </header>
   );
 };

@@ -15,7 +15,7 @@ it('links home in English in a new tab without a referrer, dims under the pointe
   const onOpenSettings = vi.fn();
   render(<BrandHeader onOpenSettings={onOpenSettings} />);
 
-  const home = screen.getByRole('link', { name: 'Unblock Syria home' });
+  const home = screen.getByRole('link', { name: 'Unblock Syria home (opens in a new tab)' });
   expect(home).toHaveProperty('href', `${SITE_BASE}/en`);
   expect(home.getAttribute('target')).toBe('_blank');
   expect(home.getAttribute('rel')).toBe('noreferrer');

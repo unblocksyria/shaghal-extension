@@ -48,6 +48,10 @@ it('still protects unsent form drafts on Back and unload', async () => {
   await user.click(screen.getByRole('button', { name: 'Back' }));
   expect(onBack).not.toHaveBeenCalled();
   expect(screen.getByRole('dialog', { name: 'Discard this draft?' })).toBeDefined();
+  expect(screen.getByRole('dialog').getAttribute('aria-describedby')).toBe('discard-draft-text');
+  expect(document.getElementById('discard-draft-text')?.textContent).toBe(
+    'Your unsent text and screenshots will be removed from this panel.',
+  );
   await user.click(screen.getByRole('button', { name: 'Discard draft' }));
   expect(onBack).toHaveBeenCalledOnce();
 });
@@ -203,7 +207,7 @@ describe('the screenshot list', () => {
     );
     // The form is not left busy, and nothing was submitted.
     const send = screen.getByRole<HTMLButtonElement>('button', { name: 'Submit Report' });
-    expect(send.disabled).toBe(false);
+    expect(send.getAttribute('aria-disabled')).toBe('false');
     expect(api.callsTo('POST', '/submissions')).toHaveLength(0);
 
     await user.click(send);
@@ -374,6 +378,8 @@ describe('picking files instead of capturing', () => {
     if (input === null) throw new Error('The form has no file picker');
     expect(input.getAttribute('accept')).toBe('image/jpeg,image/png,image/gif,image/webp');
     expect(input.hasAttribute('multiple')).toBe(true);
+    // The button opens it, so the hidden picker is no tab stop of its own.
+    expect(input.tabIndex).toBe(-1);
   });
 
   it('takes an image dropped on the field, and opens it for editing', async () => {

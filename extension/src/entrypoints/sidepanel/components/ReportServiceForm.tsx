@@ -69,6 +69,8 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
   const [email, setEmail] = useSavedEmail();
   const [busy, setBusy] = useState(false);
   const { error, setError, showApiError, onDiscard } = useFormError();
+  // Shown under the email field, which it marks invalid.
+  const [emailProblem, setEmailProblem] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
   const onRestore = ({ fields, shots }: RestoredDraft<ServiceDraftFields>) => {
@@ -92,7 +94,8 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
     if (busy) return;
     const invalidEmail = emailError(email);
     if (invalidEmail !== null) {
-      setError(invalidEmail);
+      setError(null);
+      setEmailProblem(invalidEmail);
       return;
     }
     if (name.trim().length === 0) return;
@@ -217,7 +220,7 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
           hint={t('reportService.evidenceHint')}
         />
       </div>
-      <EmailField value={email} onChange={setEmail} />
+      <EmailField value={email} onChange={setEmail} error={emailProblem} onClearError={() => setEmailProblem(null)} />
       {askedEvidence && screenshots.items.length === 0 && (
         <NoEvidencePrompt
           message={t('reportService.noEvidence')}

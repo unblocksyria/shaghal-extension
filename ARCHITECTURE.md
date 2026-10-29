@@ -412,6 +412,29 @@ Qomra Arabic for Arabic, where it also sets Latin names and figures, as the site
 does. Every size comes from the type scale in theme.css, every weight is regular
 or medium, and spacing follows a 4px grid.
 
+## Accessibility
+
+The panel is checked against WCAG 2.2 AA in English and in right-to-left Arabic,
+by axe in [a11y.spec.ts](extension/e2e/a11y.spec.ts) and by these conventions:
+
+- **Focus.** Each view's heading takes focus as it opens, and a closed view hands
+  focus back to what opened it. Every control shows the gold focus ring, which
+  clears 3:1, and a field keeps an outline that forced colours can draw.
+- **State without colour.** A chosen chip leads with a check, an active switch has
+  an edge, and field borders reach 3:1. Under forced colours, such as Windows High
+  Contrast, chosen controls take the system's selection colours.
+- **Blocked sends.** A Send button that can't send yet stays in the tab order with
+  `aria-disabled`, and the line under it, which says why, describes it.
+- **Errors.** An invalid email is shown under its field, which it marks invalid and
+  describes, and the tester is taken back to it.
+- **Structure.** The header is a landmark, rows of services are lists, links that
+  open a tab say so to screen readers, and decorative logos and icons are hidden
+  from them.
+- **Language.** Notes take the direction of what is typed, addresses read left to
+  right, and the language setting offers each language under its own name.
+- **Motion and zoom.** With reduced motion nothing fades, slides or spins, and the
+  panel reflows without sideways scrolling at 200% zoom.
+
 ## Permissions and storage
 
 | Permission   | Why                                                                                                                                       |

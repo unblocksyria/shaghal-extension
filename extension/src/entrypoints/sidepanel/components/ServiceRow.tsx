@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { Availability, CatalogService } from '../../../lib/endpoints';
 import { serviceName } from '../../../lib/serviceName';
 import { ArrowUpRight, Ban, CircleCheckBig, CircleHelp, Star } from 'lucide-react';
+import { NewTabNote } from '../../../components/ui/NewTabNote';
 
 /** Badge colour and icon per status. Labels come from the locale catalog. */
 const STATUS: Record<Availability, { fill: string; icon: typeof Ban }> = {
@@ -69,11 +70,16 @@ export function ServiceLogo(props: { service: CatalogService; size: number }) {
     fontWeight: 500,
     fontSize: props.size * 0.42,
   };
+  // The logo stands beside the name, so screen readers skip it, the stand-in initial included.
   if (props.service.logoUrl === null || failed) {
-    return <div style={box}>{props.service.name.slice(0, 1).toUpperCase()}</div>;
+    return (
+      <div style={box} aria-hidden="true">
+        {props.service.name.slice(0, 1).toUpperCase()}
+      </div>
+    );
   }
   return (
-    <div style={box}>
+    <div style={box} aria-hidden="true">
       <img
         src={props.service.logoUrl}
         alt=""
@@ -88,8 +94,11 @@ export function ServiceLogo(props: { service: CatalogService; size: number }) {
 /** One service in a list: a candidate to pick, or an alternative to open. */
 const rowStyle: React.CSSProperties = {
   display: 'flex',
+  // Under heavy zoom the badge drops below the name rather than squeezing it.
+  flexWrap: 'wrap',
   alignItems: 'center',
-  gap: 12,
+  gap: '4px 12px',
+  width: '100%',
   minHeight: 48,
   textAlign: 'start',
   backgroundColor: 'var(--us-card)',
@@ -123,7 +132,7 @@ export function ServiceRow(props: {
   const body = (
     <>
       <ServiceLogo service={props.service} size={28} />
-      <span style={{ flex: 1, minWidth: 0, display: 'grid' }}>
+      <span style={{ flex: '1 1 96px', minWidth: 0, display: 'grid' }}>
         <span
           style={{
             fontSize: 'var(--us-text-md)',
@@ -142,7 +151,10 @@ export function ServiceRow(props: {
       </span>
       <StatusBadge availability={props.service.availability} small />
       {props.href !== undefined && (
-        <ArrowUpRight size={14} aria-hidden="true" style={{ flexShrink: 0, color: 'var(--us-text-muted)' }} />
+        <>
+          <ArrowUpRight size={14} aria-hidden="true" style={{ flexShrink: 0, color: 'var(--us-text-muted)' }} />
+          <NewTabNote />
+        </>
       )}
     </>
   );

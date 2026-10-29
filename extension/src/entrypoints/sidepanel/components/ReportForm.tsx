@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RadioGroup } from '../../../components/ui/RadioGroup';
 import { Input } from '../../../components/ui/Input';
+import { NewTabNote } from '../../../components/ui/NewTabNote';
 import type { FunctionalityItem, ServiceRecord } from '../../../lib/endpoints';
 import { loadFunctionalities } from '../../../lib/reads';
 import { submitFunctionalityReport, type ReportItem } from '../../../lib/submit';
@@ -176,6 +177,8 @@ export function ReportForm(props: {
   const [email, setEmail] = useSavedEmail();
   const [busy, setBusy] = useState(false);
   const { error, setError, showApiError, onDiscard } = useFormError();
+  // Shown under the email field, which it marks invalid.
+  const [emailProblem, setEmailProblem] = useState<string | null>(null);
   const [sent, setSent] = useState<{
     parts: { key: string; name: string; answer: Answer }[];
     host: string | null;
@@ -307,7 +310,8 @@ export function ReportForm(props: {
     if (busy) return;
     const invalidEmail = emailError(email);
     if (invalidEmail !== null) {
-      setError(invalidEmail);
+      setError(null);
+      setEmailProblem(invalidEmail);
       return;
     }
     if (blocker !== null) return;
@@ -459,6 +463,7 @@ export function ReportForm(props: {
           >
             {t('report.readGuide')}
             <ArrowUpRight size={14} style={{ verticalAlign: '-3px', marginInlineStart: 2 }} aria-hidden="true" />
+            <NewTabNote />
           </a>
         </span>
       </p>
@@ -632,7 +637,7 @@ export function ReportForm(props: {
         </div>
       </div>
 
-      <EmailField value={email} onChange={setEmail} />
+      <EmailField value={email} onChange={setEmail} error={emailProblem} onClearError={() => setEmailProblem(null)} />
 
       {testedHost !== null && (
         <p style={hintStyle}>

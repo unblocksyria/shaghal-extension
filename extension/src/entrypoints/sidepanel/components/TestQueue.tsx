@@ -4,7 +4,7 @@ import type { CatalogService } from '../../../lib/endpoints';
 import { activeLanguage, dayAndMonth } from '../../../lib/i18n';
 import { webUrl } from '../../../lib/url';
 import { loadQueue, peekQueue } from '../../../lib/reads';
-import { cardStyle, hintStyle, sectionTitleStyle } from './FormParts';
+import { cardStyle, hintStyle, listStyle, sectionTitleStyle } from './FormParts';
 import { ServiceRow } from './ServiceRow';
 import { RETEST_SINCE } from '../../../lib/retest';
 
@@ -74,17 +74,18 @@ export function TestQueue(props: {
         <p style={hintStyle}>{failed ? t('queue.failed') : t('queue.hint')}</p>
       </div>
       {rows.length > 0 && (
-        <div style={{ display: 'grid', gap: 8 }}>
+        <ul style={listStyle}>
           {rows.map((row) => (
-            <ServiceRow
-              key={row.service.slug}
-              service={row.service}
-              href={row.url}
-              onOpen={props.onOpen}
-              detail={row.reason === 'retest' ? t('queue.retest', { date }) : t('queue.untested')}
-            />
+            <li key={row.service.slug}>
+              <ServiceRow
+                service={row.service}
+                href={row.url}
+                onOpen={props.onOpen}
+                detail={row.reason === 'retest' ? t('queue.retest', { date }) : t('queue.untested')}
+              />
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </section>
   );

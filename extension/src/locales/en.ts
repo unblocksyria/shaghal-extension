@@ -10,6 +10,7 @@ export const en = {
     reportAService: 'Report a Service',
     yourEmail: 'Your email',
     emailPlaceholder: 'your@email.com',
+    newTab: '(opens in a new tab)',
   },
 
   app: {
@@ -31,9 +32,6 @@ export const en = {
     themeDark: 'Dark',
     language: 'Language',
     languageSystem: 'System',
-    languageEnglish: 'English',
-    languageArabic: 'Arabic',
-    languageKurdish: 'Kurdish',
     emailHelp:
       'Optional. Prefills forms, and lets us credit your reports if you volunteer with us. Never shown publicly. Clear and save to forget it.',
     saveEmail: 'Save email',

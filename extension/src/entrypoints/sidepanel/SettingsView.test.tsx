@@ -121,9 +121,12 @@ it('offers Kurdish beside English and Arabic, and shows it picked once saved', a
     within(languages)
       .getAllByRole('radio')
       .map((radio) => radio.textContent),
-  ).toEqual(['System', 'English', 'Arabic', 'Kurdish']);
+  ).toEqual(['System', 'English', 'العربية', 'Kurdî']);
+  // Named in its own language, and spoken in it.
+  expect(within(languages).getByRole('radio', { name: 'العربية' }).getAttribute('lang')).toBe('ar');
+  expect(within(languages).getByRole('radio', { name: 'Kurdî' }).getAttribute('lang')).toBe('ku');
   await waitFor(() =>
-    expect(within(languages).getByRole('radio', { name: 'Kurdish' }).getAttribute('aria-checked')).toBe('true'),
+    expect(within(languages).getByRole('radio', { name: 'Kurdî' }).getAttribute('aria-checked')).toBe('true'),
   );
 });
 
@@ -144,7 +147,8 @@ describe('what you sent', () => {
         ],
       });
     });
-    const report = await screen.findByRole('link', { name: 'Netflix' });
+    // Chrome names it "Netflix (opens in a new tab)"; jsdom drops the space before the hidden note.
+    const report = await screen.findByRole('link', { name: /^Netflix ?\(opens in a new tab\)$/ });
     expect(report.getAttribute('href')).toMatch(/\/en\/services\/netflix$/);
     expect(screen.getByText('20 Oct, 2026 · Core use: Fails · Landing page: Works')).toBeDefined();
     expect(screen.getByText('2 Oct, 2026 · New service')).toBeDefined();

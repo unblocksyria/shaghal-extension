@@ -55,6 +55,11 @@
   --us-card-nested: light-dark(#f9f8f5, #232326);
   --us-input-bg: light-dark(#ffffff, #0e0e10);
   --us-border: light-dark(#e3e1dd, #2c2c30);
+  /* A field's edge, at 3:1 against the card and the field, so where to type
+     is plain without colour vision or a sharp screen (WCAG 1.4.11). Cards and
+     dividers keep the softer --us-border. */
+  --us-field-border: light-dark(#958e81, #68686f);
+  --us-field-border-hover: light-dark(#6a6457, #8f8878);
   --us-border-hover: rgba(185, 168, 123, 0.5);
   --us-hover-tint: rgba(185, 168, 123, 0.1);
   --us-muted: light-dark(#f6f5f3, #232326);
@@ -104,6 +109,8 @@
   --us-radius-pill: 9999px;
   --us-shadow-color: light-dark(rgba(9, 39, 36, 0.07), rgba(0, 0, 0, 0.3));
   --shadow-syrian-card: 0 1px 2px var(--us-shadow-color), 0 4px 12px var(--us-shadow-color);
+
+  --us-icon-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
 
   /* Type scale. Every size in the panel is one of these. */
   --us-text-2xs: 11px;
@@ -254,14 +261,10 @@ dialog::backdrop {
   animation: usFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .us-animate-fade {
-    animation: none;
-  }
-}
-
 .us-seg-container {
   display: inline-flex;
+  flex-wrap: wrap;
+  max-width: 100%;
   align-items: center;
   background-color: var(--us-card-nested);
   border: 1px solid var(--us-border);
@@ -311,7 +314,7 @@ dialog::backdrop {
   width: 100%;
   background-color: var(--us-input-bg);
   color: var(--us-text-primary);
-  border: 1px solid var(--us-border);
+  border: 1px solid var(--us-field-border);
   border-radius: var(--us-radius-control);
   font-family: inherit;
   font-size: var(--us-text-md);
@@ -339,13 +342,26 @@ textarea.us-field {
 }
 
 .us-field:hover:not(:disabled) {
-  border-color: var(--us-border-hover);
+  border-color: var(--us-field-border-hover);
 }
 
+/* Focus doubles the edge in the ring colour under a soft glow. The outline
+   is transparent, so it shows only where forced colours drop the shadow. */
 .us-field:focus-visible {
-  outline: none;
-  border-color: var(--us-gold);
-  box-shadow: var(--us-ring-glow);
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  border-color: var(--us-ring);
+  box-shadow:
+    0 0 0 1px var(--us-ring),
+    var(--us-ring-glow);
+}
+
+.us-field[aria-invalid='true'] {
+  border-color: var(--us-danger);
+}
+
+.us-help-error {
+  color: var(--us-danger);
 }
 
 .us-field:disabled {
@@ -395,11 +411,14 @@ input[type='search']::-webkit-search-cancel-button:hover {
   color: var(--us-text-muted);
 }
 
-/* A plain choice inside a segmented control, such as Appearance. */
+/* A plain choice inside a segmented control, such as Appearance. Its edge
+   marks the choice at 3:1, which the raised fill alone does not. */
 .us-seg-btn.active {
   background-color: var(--us-card);
   color: var(--us-text-primary);
-  box-shadow: 0 1px 2px var(--us-shadow-color);
+  box-shadow:
+    inset 0 0 0 1px var(--us-field-border),
+    0 1px 2px var(--us-shadow-color);
 }
 
 /* Level picker in "Report what works": equal options sharing a muted track.
@@ -416,8 +435,8 @@ input[type='search']::-webkit-search-cancel-button:hover {
 
 .us-level-picker > button {
   min-height: 36px;
-  padding: 0 4px;
-  white-space: nowrap;
+  padding: 4px;
+  line-height: 18px;
   border: none;
   border-radius: calc(var(--us-radius-control) - 4px);
   background: transparent;
@@ -475,6 +494,19 @@ input[type='search']::-webkit-search-cancel-button:hover {
 .us-chip[aria-pressed='true'] {
   border-color: var(--us-gold);
   background-color: var(--us-gold-subtle);
+}
+
+/* A chosen chip leads with a check, so the choice never rests on colour. */
+.us-chip[aria-checked='true']::before,
+.us-chip[aria-pressed='true']::before {
+  content: '';
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  margin-inline-start: -2px;
+  background-color: var(--us-accent-text);
+  -webkit-mask: var(--us-icon-check) center / 14px 14px no-repeat;
+  mask: var(--us-icon-check) center / 14px 14px no-repeat;
 }
 
 /* An action among the chips, such as "More parts", rather than a choice. */
@@ -538,6 +570,9 @@ input[type='search']::-webkit-search-cancel-button:hover {
   align-items: center;
   gap: 4px;
   width: fit-content;
+  /* A 24px target that takes no more room than the line. */
+  padding-block: 4px;
+  margin-block: -4px;
   list-style: none;
   cursor: pointer;
   font-size: var(--us-text-xs);
@@ -582,21 +617,24 @@ input[type='search']::-webkit-search-cancel-button:hover {
   position: relative;
 }
 
-.us-dropzone::after {
+.us-dropzone[data-dropping='true']::after {
   content: '';
   position: absolute;
   inset: -8px;
-  border: 2px dashed transparent;
+  border: 2px dashed var(--us-border-hover);
   border-radius: calc(var(--us-radius-control) + 4px);
+  background-color: var(--us-hover-tint);
   pointer-events: none;
-  transition:
-    border-color 0.15s ease,
-    background-color 0.15s ease;
 }
 
-.us-dropzone[data-dropping='true']::after {
-  border-color: var(--us-border-hover);
-  background-color: var(--us-hover-tint);
+/* Text for screen readers alone, such as "(opens in a new tab)". */
+.us-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .us-callout-warning {
@@ -662,6 +700,9 @@ input[type='search']::-webkit-search-cancel-button:hover {
   color: var(--us-link);
   font-size: var(--us-text-sm);
   line-height: 20px;
+  /* A 24px target that takes no more room than the line. */
+  padding-block: 2px;
+  margin-block: -2px;
 }
 
 /* A way back, such as "Back to Netflix": a link without the underline. */
@@ -1303,6 +1344,15 @@ input[type='search']::-webkit-search-cancel-button:hover {
   transition: box-shadow 0.2s ease;
 }
 
+/* The thumbnail clips its edges, so its controls draw their focus ring inside. */
+.us-thumb-edit:focus-visible {
+  outline-offset: -2px;
+}
+
+.us-thumb button:not(.us-thumb-edit):focus-visible {
+  outline-offset: 0;
+}
+
 /* The screenshot open in the editor window. */
 .us-thumb[data-editing='true'] {
   box-shadow:
@@ -1375,16 +1425,6 @@ input[type='search']::-webkit-search-cancel-button:hover {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .us-editor,
-  .us-editor *,
-  .us-thumb,
-  .us-thumb * {
-    animation: none !important;
-    transition: none !important;
-  }
-}
-
 /* Human verification next to the button that asked for it (lib/turnstile.ts).
    While Turnstile decides, the frame lies invisible over the slot, still on
    screen so the challenge runs at full speed. It joins the layout only when
@@ -1446,4 +1486,44 @@ input[type='search']::-webkit-search-cancel-button:hover {
   text-decoration: underline;
   text-underline-offset: 3px;
   cursor: pointer;
+}
+
+/*
+  Forced colours, such as Windows High Contrast, repaint every fill and
+  shadow in system colours, which erases a chosen chip, level or setting and
+  a field's focus glow. Chosen controls take the system's own selection
+  colours instead, and tracks keep an edge.
+*/
+@media (forced-colors: active) {
+  .us-chip[aria-checked='true'],
+  .us-chip[aria-pressed='true'],
+  .us-seg-btn.active,
+  .us-level-picker > button[aria-checked='true'][data-level] {
+    forced-color-adjust: none;
+    border-color: Highlight;
+    background-color: Highlight;
+    color: HighlightText;
+  }
+
+  .us-chip[aria-checked='true']::before,
+  .us-chip[aria-pressed='true']::before {
+    background-color: HighlightText;
+  }
+
+  .us-level-picker,
+  .us-seg-container {
+    border: 1px solid CanvasText;
+  }
+}
+
+/* With reduced motion, nothing fades, slides or spins. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

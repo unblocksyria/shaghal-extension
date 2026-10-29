@@ -8,10 +8,21 @@ import { clearSentHistory, sentHistory, watchSentHistory, type SentEntry } from 
 import { readThemePreference, saveThemePreference, type ThemePreference } from '../../lib/theme';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { NewTabNote } from '../../components/ui/NewTabNote';
 import { FormShell, errorStyle, hintStyle, useSavedEmail, emailError } from './components/FormParts';
 import { ArrowUpRight, Check, Monitor, Moon, Sun } from 'lucide-react';
 
 const THEME_ICONS: Record<ThemePreference, typeof Sun> = { system: Monitor, light: Sun, dark: Moon };
+
+/**
+ * Each language under its own name, so whoever lands in a language they can't
+ * read still finds theirs, and `lang` gives screen readers the right voice.
+ */
+const ENDONYMS: Record<Exclude<LanguagePreference, 'system'>, string> = {
+  en: 'English',
+  ar: 'العربية',
+  ku: 'Kurdî',
+};
 
 /** Where a bug report starts, with the version filled in. */
 const BUG_REPORT_URL = 'https://github.com/unblocksyria/shaghal-extension/issues/new?template=bug_report.yml';
@@ -72,6 +83,7 @@ function SentList() {
                       rel="noreferrer"
                     >
                       {entry.serviceName}
+                      <NewTabNote />
                     </a>
                   ) : (
                     entry.serviceName
@@ -175,9 +187,11 @@ function AboutSection() {
           rel="noreferrer"
         >
           {t('settings.privacy')} <ArrowUpRight size={14} aria-hidden="true" />
+          <NewTabNote />
         </a>
         <a className="us-link" href={bugUrl} target="_blank" rel="noreferrer">
           {t('settings.reportBug')} <ArrowUpRight size={14} aria-hidden="true" />
+          <NewTabNote />
         </a>
       </div>
     </div>
@@ -191,6 +205,8 @@ export function SettingsView(props: { onBack: () => void }) {
   const [language, setLanguage] = useState<LanguagePreference>('system');
   const [email, setEmail] = useSavedEmail();
   const [saved, setSaved] = useState(false);
+  // An address that can't be saved, shown under the field it marks invalid.
+  const [emailProblem, setEmailProblem] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -217,7 +233,7 @@ export function SettingsView(props: { onBack: () => void }) {
   const save = async () => {
     const invalidEmail = emailError(email);
     if (invalidEmail !== null) {
-      setError(invalidEmail);
+      setEmailProblem(invalidEmail);
       return;
     }
     setError(null);
@@ -236,11 +252,13 @@ export function SettingsView(props: { onBack: () => void }) {
     { value: 'light', label: t('settings.themeLight') },
     { value: 'dark', label: t('settings.themeDark') },
   ];
-  const languages: { value: LanguagePreference; label: string }[] = [
+  const languages: { value: LanguagePreference; label: string; lang?: string }[] = [
     { value: 'system', label: t('settings.languageSystem') },
-    { value: 'en', label: t('settings.languageEnglish') },
-    { value: 'ar', label: t('settings.languageArabic') },
-    { value: 'ku', label: t('settings.languageKurdish') },
+    ...(Object.keys(ENDONYMS) as (keyof typeof ENDONYMS)[]).map((value) => ({
+      value,
+      label: ENDONYMS[value],
+      lang: value,
+    })),
   ];
 
   return (
@@ -277,10 +295,11 @@ export function SettingsView(props: { onBack: () => void }) {
       <div style={{ display: 'grid', gap: 8 }}>
         <span className="us-label">{t('settings.language')}</span>
         <RadioGroup className="us-seg-container" aria-label={t('settings.language')} style={{ justifySelf: 'start' }}>
-          {languages.map(({ value, label }) => (
+          {languages.map(({ value, label, lang }) => (
             <button
               key={value}
               type="button"
+              lang={lang}
               role="radio"
               aria-checked={language === value}
               tabIndex={language === value ? 0 : -1}
@@ -298,11 +317,16 @@ export function SettingsView(props: { onBack: () => void }) {
           label={t('common.yourEmail')}
           type="email"
           dir="ltr"
+          autoComplete="email"
           maxLength={254}
           value={email}
-          onChange={(event) => setEmail(event.target.value)}
+          onChange={(event) => {
+            setEmail(event.target.value);
+            setEmailProblem(null);
+          }}
           placeholder={t('common.emailPlaceholder')}
           helperText={t('settings.emailHelp')}
+          error={emailProblem}
         />
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Button variant="surface" size="sm" onClick={() => void save()} icon={<Check size={14} aria-hidden="true" />}>

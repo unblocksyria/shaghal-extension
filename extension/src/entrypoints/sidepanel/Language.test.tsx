@@ -20,21 +20,24 @@ const LANGUAGE_LABELS = {
     title: 'Settings',
     back: 'Back',
     language: 'Language',
-    pick: { en: 'English', ar: 'Arabic', ku: 'Kurdish' },
+    // Each language is offered under its own name, whatever the panel's language.
+    pick: { en: 'English', ar: 'العربية', ku: 'Kurdî' },
   },
   ar: {
     settings: 'الإعدادات',
     title: 'الإعدادات',
     back: 'رجوع',
     language: 'اللغة',
-    pick: { en: 'الإنجليزية', ar: 'العربية', ku: 'الكردية' },
+    // Each language is offered under its own name, whatever the panel's language.
+    pick: { en: 'English', ar: 'العربية', ku: 'Kurdî' },
   },
   ku: {
     settings: 'Mîheng',
     title: 'Mîheng',
     back: 'Vegere',
     language: 'Ziman',
-    pick: { en: 'Îngilîzî', ar: 'Erebî', ku: 'Kurdî' },
+    // Each language is offered under its own name, whatever the panel's language.
+    pick: { en: 'English', ar: 'العربية', ku: 'Kurdî' },
   },
 } as const satisfies Record<Language, unknown>;
 
@@ -118,10 +121,10 @@ describe('language', () => {
     const languages = screen.getByRole('radiogroup', { name: 'Language' });
     expect(within(languages).getByRole('radio', { name: 'System' })).toBeDefined();
     expect(within(languages).getByRole('radio', { name: 'English' })).toBeDefined();
-    expect(within(languages).getByRole('radio', { name: 'Arabic' })).toBeDefined();
-    expect(within(languages).getByRole('radio', { name: 'Kurdish' })).toBeDefined();
+    expect(within(languages).getByRole('radio', { name: 'العربية' })).toBeDefined();
+    expect(within(languages).getByRole('radio', { name: 'Kurdî' })).toBeDefined();
 
-    await user.click(within(languages).getByRole('radio', { name: 'Arabic' }));
+    await user.click(within(languages).getByRole('radio', { name: 'العربية' }));
 
     // Applied immediately, without closing Settings.
     await screen.findByRole('heading', { name: 'الإعدادات' });
@@ -153,7 +156,7 @@ describe('language', () => {
     await screen.findByRole('button', { name: 'Report what works' }, { timeout: 3000 });
     await user.click(screen.getByRole('button', { name: 'Settings' }));
     const languages = await screen.findByRole('radiogroup', { name: 'Language' });
-    await user.click(within(languages).getByRole('radio', { name: 'Kurdish' }));
+    await user.click(within(languages).getByRole('radio', { name: 'Kurdî' }));
 
     await screen.findByRole('heading', { name: 'Mîheng' });
     expect(document.documentElement.lang).toBe('ku');
@@ -354,7 +357,7 @@ describe('language', () => {
     await screen.findByAltText('Evidence #1');
 
     await user.click(screen.getByRole('button', { name: 'Settings' }));
-    await user.click(screen.getByRole('radio', { name: 'Arabic' }));
+    await user.click(screen.getByRole('radio', { name: 'العربية' }));
     await screen.findByRole('heading', { name: 'الإعدادات' });
     await user.click(screen.getByRole('button', { name: 'رجوع' }));
 
@@ -395,7 +398,7 @@ describe('language', () => {
 
     await user.click(screen.getByRole('button', { name: 'Settings' }));
     const languages = screen.getByRole('radiogroup', { name: 'Language' });
-    await user.click(within(languages).getByRole('radio', { name: 'Arabic' }));
+    await user.click(within(languages).getByRole('radio', { name: 'العربية' }));
     await screen.findByRole('heading', { name: 'الإعدادات' });
     await user.click(screen.getByRole('button', { name: 'رجوع' }));
 
@@ -428,7 +431,7 @@ describe('language', () => {
 
     await user.click(screen.getByRole('button', { name: 'Settings' }));
     const languages = screen.getByRole('radiogroup', { name: 'Language' });
-    await user.click(within(languages).getByRole('radio', { name: 'Arabic' }));
+    await user.click(within(languages).getByRole('radio', { name: 'العربية' }));
     await screen.findByRole('heading', { name: 'الإعدادات' });
     await user.click(screen.getByRole('button', { name: 'رجوع' }));
 

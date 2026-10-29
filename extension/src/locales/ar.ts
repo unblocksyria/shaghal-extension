@@ -17,6 +17,7 @@ export const ar: Arabic<Catalog> = {
     reportAService: 'أبلغ عن خدمة',
     yourEmail: 'بريدك الإلكتروني',
     emailPlaceholder: 'your@email.com',
+    newTab: '(يُفتح في علامة تبويب جديدة)',
   },
 
   app: {
@@ -38,9 +39,6 @@ export const ar: Arabic<Catalog> = {
     themeDark: 'داكن',
     language: 'اللغة',
     languageSystem: 'النظام',
-    languageEnglish: 'الإنجليزية',
-    languageArabic: 'العربية',
-    languageKurdish: 'الكردية',
     emailHelp:
       'اختياري. تملأ النماذج، وتتيح لنا أن ننسب إليك بلاغاتك إن كنت تتطوع معنا. لا تُعرض أبداً. امسحها ثم احفظها لنسيانها.',
     saveEmail: 'حفظ البريد',

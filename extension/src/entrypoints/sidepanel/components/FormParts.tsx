@@ -78,6 +78,16 @@ export const detailStyle: React.CSSProperties = {
   lineHeight: '20px',
 };
 
+/** A list without bullets, such as rows of services, that screen readers still count. */
+export const listStyle: React.CSSProperties = {
+  listStyle: 'none',
+  margin: 0,
+  padding: 0,
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr)',
+  gap: 8,
+};
+
 /** Danger-coloured text, for a refusal or an error. */
 export const errorStyle: React.CSSProperties = { ...hintStyle, color: 'var(--us-danger)' };
 
@@ -172,6 +182,7 @@ export function FormShell(props: {
         <dialog
           ref={discard}
           aria-labelledby="discard-draft-title"
+          aria-describedby="discard-draft-text"
           onCancel={() => setConfirming(false)}
           style={{
             ...cardStyle,
@@ -185,7 +196,9 @@ export function FormShell(props: {
           <h2 id="discard-draft-title" style={sectionTitleStyle}>
             {t('form.discardTitle')}
           </h2>
-          <p style={detailStyle}>{t('form.discardText')}</p>
+          <p id="discard-draft-text" style={detailStyle}>
+            {t('form.discardText')}
+          </p>
           {/* As in the editor's own prompt: the safe choice first, the loss in red. */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 12 }}>
             <Button size="sm" onClick={() => setConfirming(false)} autoFocus>
@@ -692,6 +705,8 @@ export function ScreenshotField(props: {
           type="file"
           accept={EVIDENCE_ACCEPT}
           multiple
+          // Upload images opens it; as a tab stop of its own it would take focus out of sight.
+          tabIndex={-1}
           aria-label={t('form.uploadImages')}
           style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
           onChange={(event) => {
@@ -734,18 +749,38 @@ export function useSavedEmail(): [string, (value: string) => void] {
   ];
 }
 
-export function EmailField(props: { value: string; onChange: (value: string) => void }) {
+/**
+ * The optional email. `error` shows under the field and marks it invalid; a
+ * new error also takes the tester to the field, and typing clears it.
+ */
+export function EmailField(props: {
+  value: string;
+  onChange: (value: string) => void;
+  error?: string | null;
+  onClearError?: () => void;
+}) {
   const { t } = useTranslation();
+  const field = useRef<HTMLInputElement>(null);
+  const error = props.error ?? null;
+  useEffect(() => {
+    if (error !== null) field.current?.focus();
+  }, [error]);
   return (
     <Input
+      ref={field}
       label={t('common.yourEmail')}
       type="email"
       dir="ltr"
+      autoComplete="email"
       maxLength={254}
       placeholder={t('common.emailPlaceholder')}
       value={props.value}
-      onChange={(event) => props.onChange(event.target.value)}
+      onChange={(event) => {
+        props.onChange(event.target.value);
+        props.onClearError?.();
+      }}
       helperText={t('form.emailHelp')}
+      error={error}
     />
   );
 }
@@ -768,6 +803,10 @@ export function FormFooter(props: {
   onSubmit: () => void;
 }) {
   const { t } = useTranslation();
+  const noteId = useId();
+  // Blocked or sending, the button stays focusable and says why through the
+  // note under it, instead of dropping out of the tab order.
+  const blocked = props.busy || props.blocker !== null;
   return (
     <div style={{ display: 'grid', gap: 8 }}>
       {props.error !== null && (
@@ -785,15 +824,21 @@ export function FormFooter(props: {
           variant="primary"
           size="lg"
           fullWidth
-          disabled={props.busy || props.blocker !== null}
-          onClick={props.onSubmit}
+          aria-disabled={blocked}
+          aria-busy={props.busy}
+          aria-describedby={noteId}
+          onClick={() => {
+            if (!blocked) props.onSubmit();
+          }}
           onPointerEnter={() => props.blocker === null && props.verify && prefetchTurnstileToken(props.verify)}
           onFocus={() => props.blocker === null && props.verify && prefetchTurnstileToken(props.verify)}
         >
           {props.busy ? props.busyLabel : props.label}
         </Button>
       </VerificationSlot>
-      <p style={{ ...hintStyle, textAlign: 'center' }}>{props.blocker ?? props.note}</p>
+      <p id={noteId} style={{ ...hintStyle, textAlign: 'center' }}>
+        {props.blocker ?? props.note}
+      </p>
     </div>
   );
 }

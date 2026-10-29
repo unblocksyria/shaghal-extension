@@ -108,6 +108,8 @@ export function CorrectionForm(props: {
   const [email, setEmail] = useSavedEmail();
   const [busy, setBusy] = useState(false);
   const { error, setError, showApiError, onDiscard } = useFormError();
+  // Shown under the email field, which it marks invalid.
+  const [emailProblem, setEmailProblem] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
   const onRestore = ({ fields, shots }: RestoredDraft<CorrectionDraftFields>) => {
@@ -200,7 +202,8 @@ export function CorrectionForm(props: {
     if (busy) return;
     const invalidEmail = emailError(email);
     if (invalidEmail !== null) {
-      setError(invalidEmail);
+      setError(null);
+      setEmailProblem(invalidEmail);
       return;
     }
     if (blocker !== null) return;
@@ -327,6 +330,7 @@ export function CorrectionForm(props: {
               <Textarea
                 maxLength={10000}
                 aria-label={labels[type]}
+                aria-required
                 dir="auto"
                 placeholder={placeholders[type]}
                 value={values[type] ?? ''}
@@ -337,6 +341,7 @@ export function CorrectionForm(props: {
               <Input
                 maxLength={10000}
                 aria-label={labels[type]}
+                aria-required
                 type={type === 'support_email' ? 'email' : 'text'}
                 // Addresses and emails read left to right in any language.
                 dir="ltr"
@@ -358,7 +363,7 @@ export function CorrectionForm(props: {
         />
       </div>
 
-      <EmailField value={email} onChange={setEmail} />
+      <EmailField value={email} onChange={setEmail} error={emailProblem} onClearError={() => setEmailProblem(null)} />
 
       {askedEvidence && screenshots.items.length === 0 && (
         <NoEvidencePrompt

@@ -18,7 +18,8 @@ import { useBrowsingCountry } from '../hooks/useBrowsingCountry';
 import { useServiceDetails, type DetailsState } from '../hooks/useServiceDetails';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
-import { cardStyle, detailStyle, errorStyle, hintStyle, sectionTitleStyle, titleStyle } from './FormParts';
+import { NewTabNote } from '../../../components/ui/NewTabNote';
+import { cardStyle, detailStyle, errorStyle, hintStyle, listStyle, sectionTitleStyle, titleStyle } from './FormParts';
 import { knownStatus, ServiceLogo, ServiceRow, StatusBadge } from './ServiceRow';
 import { TestQueue } from './TestQueue';
 import { VerificationSlot } from './VerificationSlot';
@@ -270,7 +271,7 @@ function WorksSection(props: {
         <h2 style={sectionTitleStyle}>{t('card.worksTitle')}</h2>
         <p style={hintStyle}>{t('card.worksHint')}</p>
       </div>
-      <div style={{ display: 'grid', borderTop: '1px solid var(--us-border)' }}>
+      <ul style={{ ...listStyle, gap: 0, borderTop: '1px solid var(--us-border)' }}>
         {props.parts.map((part, index) => {
           // "Since" is when the level last changed. An unchecked part never had one.
           const since = part.level === 'unknown' ? null : sinceText(part.changedAt);
@@ -287,7 +288,7 @@ function WorksSection(props: {
           // The newest check is the part's current state. The ones before it are history.
           const earlier = partChecks(part).slice(1, 3);
           return (
-            <div
+            <li
               key={part.slug}
               style={{
                 display: 'grid',
@@ -370,10 +371,10 @@ function WorksSection(props: {
                   </ul>
                 </details>
               )}
-            </div>
+            </li>
           );
         })}
-      </div>
+      </ul>
     </section>
   );
 }
@@ -457,6 +458,7 @@ function ContactRow(props: { name: string; record: ServiceRecord }) {
         {page !== null && (
           <a href={page} target="_blank" rel="noreferrer" className="us-link">
             {t('card.supportPage')} <ArrowUpRight size={14} aria-hidden="true" />
+            <NewTabNote />
           </a>
         )}
         {mail !== null && (
@@ -499,15 +501,13 @@ function AlternativesSection(props: { service: CatalogService; alternatives: Cat
         <h2 style={sectionTitleStyle}>{t('card.alternativesTitle')}</h2>
         <p style={hintStyle}>{t('card.alternativesHint', { name: serviceName(props.service) })}</p>
       </div>
-      <div style={{ display: 'grid', gap: 8 }}>
+      <ul style={listStyle}>
         {props.alternatives.map((item) => (
-          <ServiceRow
-            key={item.id}
-            service={item}
-            href={`${SITE_BASE}${siteLanguage}/services/${encodeURIComponent(item.slug)}`}
-          />
+          <li key={item.id}>
+            <ServiceRow service={item} href={`${SITE_BASE}${siteLanguage}/services/${encodeURIComponent(item.slug)}`} />
+          </li>
         ))}
-      </div>
+      </ul>
     </section>
   );
 }
@@ -649,6 +649,7 @@ function ServiceView(props: {
           className="us-link"
         >
           {t('card.viewOnSite')} <ArrowUpRight size={14} aria-hidden="true" />
+          <NewTabNote />
         </a>
       </div>
     </section>
@@ -669,11 +670,13 @@ function PickView(props: {
         </h1>
         <p style={detailStyle}>{t('card.pickHint')}</p>
       </div>
-      <div style={{ display: 'grid', gap: 8 }}>
+      <ul style={listStyle}>
         {props.alternatives.map((service) => (
-          <ServiceRow key={service.id} service={service} onPick={() => props.onPick(service)} />
+          <li key={service.id}>
+            <ServiceRow service={service} onPick={() => props.onPick(service)} />
+          </li>
         ))}
-      </div>
+      </ul>
       <button type="button" onClick={props.onNew} className="us-link" style={{ justifySelf: 'center' }}>
         {t('card.noneOfThese')}
       </button>
@@ -767,9 +770,13 @@ function UntrackedView(props: {
         {/* Announced, because the rows and the refusals replace one another below the field. */}
         <div aria-live="polite" style={{ display: 'contents' }}>
           {rows.length > 0 ? (
-            rows.map((service) => (
-              <ServiceRow key={service.id} service={service} onPick={() => props.onPick(service)} />
-            ))
+            <ul style={listStyle}>
+              {rows.map((service) => (
+                <li key={service.id}>
+                  <ServiceRow service={service} onPick={() => props.onPick(service)} />
+                </li>
+              ))}
+            </ul>
           ) : shown?.state === 'failed' ? (
             <p style={errorStyle}>{t('card.searchFailed')}</p>
           ) : shown?.state === 'ready' && rows.length === 0 ? (
