@@ -9,7 +9,8 @@ export const BrandHeader: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSe
   return (
     <div
       style={{
-        padding: '20px 20px 12px 20px',
+        // The panel's 16px gutter, so the logo and the button line up with the cards.
+        padding: '16px 16px 12px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -83,8 +84,8 @@ export const BrandHeader: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSe
             background: 'var(--us-card)',
             border: '1px solid var(--us-border)',
             borderRadius: 'var(--us-radius-control)',
-            width: 32,
-            height: 32,
+            width: 36,
+            height: 36,
             color: 'var(--us-text-muted)',
             cursor: 'pointer',
             display: 'inline-flex',
@@ -103,7 +104,7 @@ export const BrandHeader: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSe
             e.currentTarget.style.background = 'var(--us-card)';
           }}
         >
-          <Settings size={15} />
+          <Settings size={16} aria-hidden="true" />
         </button>
       </div>
     </div>

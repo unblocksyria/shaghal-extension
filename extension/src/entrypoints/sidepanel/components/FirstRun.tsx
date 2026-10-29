@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../../../components/ui/Button';
-import { cardStyle, hintStyle, titleStyle } from './FormParts';
+import { activeLanguage, intlLocale } from '../../../lib/i18n';
+import { cardStyle, detailStyle, sectionTitleStyle } from './FormParts';
 
 const SEEN_KEY = 'firstRunSeen';
 
@@ -31,13 +32,31 @@ export function FirstRun() {
   const rules = [t('firstRun.noVpn'), t('firstRun.tryIt'), t('firstRun.screenshot'), t('firstRun.reviewed')];
   return (
     <section className="us-animate-fade" style={{ ...cardStyle, gap: 12 }} aria-labelledby="first-run-title">
-      <h2 id="first-run-title" style={{ ...titleStyle, fontSize: 16 }}>
+      <h2 id="first-run-title" style={sectionTitleStyle}>
         {t('firstRun.title')}
       </h2>
-      <ol style={{ margin: 0, paddingInlineStart: 20, display: 'grid', gap: 6 }}>
-        {rules.map((rule) => (
-          <li key={rule} style={{ ...hintStyle, fontSize: 13, color: 'var(--us-text-primary)' }}>
-            {rule}
+      <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 8 }}>
+        {rules.map((rule, index) => (
+          <li key={rule} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            {/* The step number, in a small gold disc like the site's. */}
+            <span
+              aria-hidden="true"
+              style={{
+                flexShrink: 0,
+                width: 20,
+                height: 20,
+                borderRadius: '50%',
+                backgroundColor: 'var(--us-gold-subtle)',
+                color: 'var(--us-accent-text)',
+                fontSize: 'var(--us-text-xs)',
+                fontWeight: 500,
+                lineHeight: '20px',
+                textAlign: 'center',
+              }}
+            >
+              {(index + 1).toLocaleString(intlLocale(activeLanguage()))}
+            </span>
+            <span style={{ ...detailStyle, color: 'var(--us-text-primary)' }}>{rule}</span>
           </li>
         ))}
       </ol>

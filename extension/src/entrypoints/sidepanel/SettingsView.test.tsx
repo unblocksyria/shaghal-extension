@@ -146,8 +146,8 @@ describe('what you sent', () => {
     });
     const report = await screen.findByRole('link', { name: 'Netflix' });
     expect(report.getAttribute('href')).toMatch(/\/en\/services\/netflix$/);
-    expect(screen.getByText('20 Oct 2026 · Core use: Fails · Landing page: Works')).toBeDefined();
-    expect(screen.getByText('2 Oct 2026 · New service')).toBeDefined();
+    expect(screen.getByText('20 Oct, 2026 · Core use: Fails · Landing page: Works')).toBeDefined();
+    expect(screen.getByText('2 Oct, 2026 · New service')).toBeDefined();
 
     await user.click(screen.getByRole('button', { name: 'Clear this list' }));
     expect(await screen.findByText(/Reports and corrections you send from this browser appear here/)).toBeDefined();

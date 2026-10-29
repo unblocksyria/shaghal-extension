@@ -5,7 +5,7 @@ import type { CategoryItem, ServiceRecord } from '../../../lib/endpoints';
 import { loadCategories } from '../../../lib/reads';
 import { submitCorrection, type CorrectionType } from '../../../lib/submit';
 import { serviceName } from '../../../lib/serviceName';
-import { Input } from '../../../components/ui/Input';
+import { Input, RequiredMark } from '../../../components/ui/Input';
 import { Textarea } from '../../../components/ui/Textarea';
 import { CategoryPicker } from './CategoryPicker';
 import { ClipboardCheck } from 'lucide-react';
@@ -274,12 +274,7 @@ export function CorrectionForm(props: {
           <ClipboardCheck size={16} aria-hidden="true" />
           <span>
             <span style={{ color: 'var(--us-text-muted)' }}>{t('correction.testInstead')} </span>
-            <button
-              type="button"
-              className="us-text-link"
-              onClick={props.onReport}
-              style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}
-            >
+            <button type="button" className="us-text-link" onClick={props.onReport}>
               {t('card.reportWhatWorks')}
             </button>
           </span>
@@ -287,7 +282,7 @@ export function CorrectionForm(props: {
       )}
       <div style={{ display: 'grid', gap: 8 }}>
         <span className="us-label">
-          {t('correction.whatToCorrect')} <span aria-hidden="true">*</span>
+          {t('correction.whatToCorrect')} <RequiredMark />
         </span>
         <div
           role="group"
@@ -314,7 +309,7 @@ export function CorrectionForm(props: {
         return (
           <div key={type} className="us-animate-fade" style={{ display: 'grid', gap: 8 }}>
             <span className="us-label">
-              {labels[type]} <span aria-hidden="true">*</span>
+              {labels[type]} <RequiredMark />
             </span>
             {type !== 'other' && (
               <p className="us-current">
@@ -322,9 +317,7 @@ export function CorrectionForm(props: {
                 {current.length > 0 ? (
                   <span style={{ fontWeight: 500 }}>{current}</span>
                 ) : (
-                  <span style={{ color: 'var(--us-text-muted)', fontStyle: 'italic' }}>
-                    {t('correction.nothingRecorded')}
-                  </span>
+                  <span style={{ color: 'var(--us-text-muted)' }}>{t('correction.nothingRecorded')}</span>
                 )}
               </p>
             )}
@@ -334,6 +327,7 @@ export function CorrectionForm(props: {
               <Textarea
                 maxLength={10000}
                 aria-label={labels[type]}
+                dir="auto"
                 placeholder={placeholders[type]}
                 value={values[type] ?? ''}
                 onChange={(event) => setValues((prev) => ({ ...prev, [type]: event.target.value }))}
@@ -344,6 +338,8 @@ export function CorrectionForm(props: {
                 maxLength={10000}
                 aria-label={labels[type]}
                 type={type === 'support_email' ? 'email' : 'text'}
+                // Addresses and emails read left to right in any language.
+                dir="ltr"
                 placeholder={placeholders[type]}
                 value={values[type] ?? ''}
                 onChange={(event) => setValues((prev) => ({ ...prev, [type]: event.target.value }))}

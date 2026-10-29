@@ -50,9 +50,9 @@ const VARIANTS: Record<ButtonVariant, { rest: React.CSSProperties; hover: React.
 };
 
 const SIZES: Record<ButtonSize, React.CSSProperties> = {
-  sm: { padding: '0 12px', fontSize: 12.5, minHeight: 36 },
-  md: { padding: '0 16px', fontSize: 14, minHeight: 44 },
-  lg: { padding: '0 20px', fontSize: 15, minHeight: 48 },
+  sm: { padding: '0 12px', fontSize: 'var(--us-text-sm)', minHeight: 36, gap: 6 },
+  md: { padding: '0 16px', fontSize: 'var(--us-text-md)', minHeight: 44, gap: 8 },
+  lg: { padding: '0 20px', fontSize: 'var(--us-text-lg)', minHeight: 48, gap: 8 },
 };
 
 export const Button: React.FC<ButtonProps> = ({
@@ -70,7 +70,6 @@ export const Button: React.FC<ButtonProps> = ({
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
     maxWidth: '100%',
     minWidth: 0,
     cursor: disabled ? 'not-allowed' : 'pointer',
@@ -78,6 +77,7 @@ export const Button: React.FC<ButtonProps> = ({
     width: fullWidth ? '100%' : 'auto',
     fontFamily: 'inherit',
     fontWeight: 500,
+    lineHeight: '20px',
     borderRadius: 'var(--us-radius-control)',
     opacity: disabled ? 0.5 : 1,
     ...rest,

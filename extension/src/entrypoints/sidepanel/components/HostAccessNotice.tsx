@@ -12,14 +12,9 @@ export function HostAccessNotice() {
     <div className="us-callout us-callout-warning" role="status">
       <ShieldOff size={16} aria-hidden="true" />
       <span>
-        <strong style={{ fontWeight: 600 }}>{t('hostAccess.title')} </strong>
+        <strong>{t('hostAccess.title')} </strong>
         {t('hostAccess.body')}{' '}
-        <button
-          type="button"
-          className="us-text-link"
-          onClick={access.request}
-          style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}
-        >
+        <button type="button" className="us-text-link" onClick={access.request}>
           {t('hostAccess.allow')}
         </button>
       </span>

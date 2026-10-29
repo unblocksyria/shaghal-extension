@@ -31,32 +31,55 @@ import { VerificationSlot } from './VerificationSlot';
 import { TestQueue } from './TestQueue';
 import { ArrowLeft, ArrowRight, Camera, Check, Upload } from 'lucide-react';
 
+/*
+  The panel's spacing runs on a 4px grid: 20 around and between a card's
+  blocks, 8 inside a block, 4 between a title and its line.
+*/
 export const cardStyle: React.CSSProperties = {
   backgroundColor: 'var(--us-card)',
   border: '1px solid var(--us-border)',
   borderRadius: 'var(--us-radius-card)',
-  padding: '20px 18px',
+  padding: 20,
   display: 'grid',
   gridTemplateColumns: 'minmax(0, 1fr)',
-  gap: 18,
+  gap: 20,
   boxShadow: 'var(--shadow-syrian-card)',
 };
 
+/** A view's heading: the service, the form or the message. */
 export const titleStyle: React.CSSProperties = {
-  fontSize: 19,
+  fontSize: 'var(--us-text-xl)',
   fontWeight: 500,
   margin: 0,
   color: 'var(--us-text-primary)',
-  letterSpacing: '-0.01em',
-  lineHeight: 1.3,
+  letterSpacing: 'var(--us-title-tracking)',
+  lineHeight: '26px',
 };
 
+/** A section's heading inside a card, such as "What works". */
+export const sectionTitleStyle: React.CSSProperties = {
+  ...titleStyle,
+  fontSize: 'var(--us-text-lg)',
+  lineHeight: '22px',
+};
+
+/** Muted small print: field help, dates, notes under a button. */
 export const hintStyle: React.CSSProperties = {
   margin: 0,
-  fontSize: 12,
+  fontSize: 'var(--us-text-xs)',
   color: 'var(--us-text-muted)',
-  lineHeight: 1.5,
+  lineHeight: '18px',
 };
+
+/** Muted running text one step up, such as a view's introduction. */
+export const detailStyle: React.CSSProperties = {
+  ...hintStyle,
+  fontSize: 'var(--us-text-sm)',
+  lineHeight: '20px',
+};
+
+/** Danger-coloured text, for a refusal or an error. */
+export const errorStyle: React.CSSProperties = { ...hintStyle, color: 'var(--us-danger)' };
 
 export function FormShell(props: {
   backLabel: string;
@@ -114,29 +137,17 @@ export function FormShell(props: {
     <section className="us-animate-fade" style={cardStyle}>
       <button
         type="button"
+        className="us-link us-link-back"
         onClick={() => (trackDraft && dirty ? setConfirming(true) : props.onBack())}
         disabled={props.busy}
-        style={{
-          background: 'none',
-          border: 'none',
-          color: 'var(--us-link)',
-          cursor: 'pointer',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 4,
-          fontSize: 13,
-          padding: 0,
-          justifySelf: 'start',
-          fontFamily: 'inherit',
-        }}
       >
-        <Back size={14} /> {props.backLabel}
+        <Back size={14} aria-hidden="true" /> {props.backLabel}
       </button>
-      <div style={{ display: 'grid', gap: 6 }}>
+      <div style={{ display: 'grid', gap: 4 }}>
         <h1 ref={heading} tabIndex={-1} style={titleStyle}>
           {props.title}
         </h1>
-        <p style={{ ...hintStyle, fontSize: 13 }}>{props.intro}</p>
+        <p style={detailStyle}>{props.intro}</p>
       </div>
       <fieldset
         onChangeCapture={touch}
@@ -151,7 +162,7 @@ export function FormShell(props: {
           if (event.clipboardData.files.length > 0) touch();
         }}
         disabled={props.busy}
-        style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: 'grid', gap: 18 }}
+        style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: 'grid', gap: 20 }}
       >
         {props.children}
       </fieldset>
@@ -162,23 +173,35 @@ export function FormShell(props: {
           ref={discard}
           aria-labelledby="discard-draft-title"
           onCancel={() => setConfirming(false)}
-          style={{ ...cardStyle, color: 'var(--us-text-primary)', maxWidth: 300 }}
+          style={{
+            ...cardStyle,
+            gap: 8,
+            width: 'calc(100% - 32px)',
+            maxWidth: 320,
+            color: 'var(--us-text-primary)',
+            boxShadow: '0 20px 48px rgba(0, 0, 0, 0.25)',
+          }}
         >
-          <h2 id="discard-draft-title" style={titleStyle}>
+          <h2 id="discard-draft-title" style={sectionTitleStyle}>
             {t('form.discardTitle')}
           </h2>
-          <p style={hintStyle}>{t('form.discardText')}</p>
-          <Button onClick={() => setConfirming(false)} autoFocus>
-            {t('form.keepEditing')}
-          </Button>
-          <Button
-            onClick={() => {
-              props.onDiscardDraft?.();
-              props.onBack();
-            }}
-          >
-            {t('form.discardDraft')}
-          </Button>
+          <p style={detailStyle}>{t('form.discardText')}</p>
+          {/* As in the editor's own prompt: the safe choice first, the loss in red. */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 12 }}>
+            <Button size="sm" onClick={() => setConfirming(false)} autoFocus>
+              {t('form.keepEditing')}
+            </Button>
+            <Button
+              size="sm"
+              variant="danger"
+              onClick={() => {
+                props.onDiscardDraft?.();
+                props.onBack();
+              }}
+            >
+              {t('form.discardDraft')}
+            </Button>
+          </div>
         </dialog>
       )}
     </section>
@@ -596,16 +619,9 @@ export function ScreenshotField(props: {
   return (
     <div
       ref={wrapper}
-      style={{
-        display: 'grid',
-        gap: 8,
-        // The dashed edge is always there, so nothing moves when a file arrives.
-        border: '2px dashed',
-        borderColor: dropping ? 'var(--us-border-hover)' : 'transparent',
-        borderRadius: 'var(--us-radius-control)',
-        backgroundColor: dropping ? 'var(--us-hover-tint)' : undefined,
-        padding: 4,
-      }}
+      className="us-dropzone"
+      data-dropping={dropping}
+      style={{ display: 'grid', gap: 8 }}
       onDragEnter={(event) => {
         if (!overFiles(event)) return;
         dragDepth.current += 1;
@@ -655,7 +671,7 @@ export function ScreenshotField(props: {
         />
       )}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <Button variant="surface" size="sm" onClick={() => void capture()} disabled={busy} icon={<Camera size={13} />}>
+        <Button variant="surface" size="sm" onClick={() => void capture()} disabled={busy} icon={<Camera size={16} />}>
           {capturing && editing === null
             ? t('form.capturing')
             : items.length === 0
@@ -667,7 +683,7 @@ export function ScreenshotField(props: {
           size="sm"
           onClick={() => fileInput.current?.click()}
           disabled={busy}
-          icon={<Upload size={13} />}
+          icon={<Upload size={16} />}
         >
           {t('form.uploadImages')}
         </Button>
@@ -688,8 +704,8 @@ export function ScreenshotField(props: {
       </div>
       <p style={hintStyle}>{t('form.dropHint')}</p>
       {props.hint !== undefined && <p style={hintStyle}>{props.hint}</p>}
-      {error !== null && <p style={{ ...hintStyle, color: 'var(--us-danger)' }}>{error}</p>}
-      {error === null && refusal !== null && <p style={{ ...hintStyle, color: 'var(--us-danger)' }}>{refusal}</p>}
+      {error !== null && <p style={errorStyle}>{error}</p>}
+      {error === null && refusal !== null && <p style={errorStyle}>{refusal}</p>}
     </div>
   );
 }
@@ -724,6 +740,7 @@ export function EmailField(props: { value: string; onChange: (value: string) => 
     <Input
       label={t('common.yourEmail')}
       type="email"
+      dir="ltr"
       maxLength={254}
       placeholder={t('common.emailPlaceholder')}
       value={props.value}
@@ -752,9 +769,9 @@ export function FormFooter(props: {
 }) {
   const { t } = useTranslation();
   return (
-    <div style={{ display: 'grid', gap: 10 }}>
+    <div style={{ display: 'grid', gap: 8 }}>
       {props.error !== null && (
-        <p style={{ ...hintStyle, color: 'var(--us-danger)', fontSize: 13 }} role="alert">
+        <p style={{ ...detailStyle, color: 'var(--us-danger)' }} role="alert">
           {props.error}
         </p>
       )}
@@ -822,10 +839,10 @@ export function NoEvidencePrompt(props: { message: string; fieldId: string; onSe
     field?.querySelector('button')?.focus();
   };
   return (
-    <div className="us-callout us-callout-gold" role="alert" style={{ display: 'grid', gap: 10 }}>
+    <div className="us-callout us-callout-gold" role="alert" style={{ display: 'grid', gap: 12 }}>
       <span>{props.message}</span>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-        <Button variant="primary" size="sm" onClick={toField} icon={<Camera size={13} />}>
+        <Button variant="primary" size="sm" onClick={toField} icon={<Camera size={16} />}>
           {t('form.addScreenshotFirst')}
         </Button>
         <Button variant="surface" size="sm" onClick={props.onSendAnyway}>
@@ -858,19 +875,21 @@ export function SentState(props: {
     <>
       <section
         className="us-animate-fade"
-        style={{ ...cardStyle, justifyItems: 'center', textAlign: 'center', gap: 12 }}
+        style={{ ...cardStyle, justifyItems: 'center', textAlign: 'center', gap: 12, paddingBlock: 24 }}
       >
-        <div className="us-toast-badge" style={{ width: 40, height: 40 }}>
-          <Check size={20} strokeWidth={3} />
+        <div className="us-toast-badge">
+          <Check size={20} strokeWidth={3} aria-hidden="true" />
         </div>
-        <h1 ref={heading} tabIndex={-1} aria-describedby={messageId} style={{ ...titleStyle, fontSize: 18 }}>
-          {props.title}
-        </h1>
-        <p id={messageId} style={{ ...hintStyle, fontSize: 13 }}>
-          {props.message}
-        </p>
+        <div style={{ display: 'grid', gap: 4 }}>
+          <h1 ref={heading} tabIndex={-1} aria-describedby={messageId} style={titleStyle}>
+            {props.title}
+          </h1>
+          <p id={messageId} style={detailStyle}>
+            {props.message}
+          </p>
+        </div>
         {props.children}
-        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 8 }}>
           {props.secondary !== undefined && (
             <Button variant="primary" size="md" onClick={props.secondary.onAction}>
               {props.secondary.label}

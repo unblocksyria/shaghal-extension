@@ -175,16 +175,17 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
       <Input
         label={t('reportService.name')}
         maxLength={200}
+        dir="auto"
         requiredMark
         value={name}
         onChange={(event) => setName(event.target.value)}
       />
-      <Input label={t('reportService.url')} value={props.url} disabled />
+      <Input label={t('reportService.url')} value={props.url} dir="ltr" disabled />
       <div role="group" aria-labelledby="service-symptom" style={{ display: 'grid', gap: 8 }}>
         <span id="service-symptom" className="us-label">
           {t('reportService.symptom')}
         </span>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {(Object.keys(SYMPTOMS) as Symptom[]).map((value) => (
             <button
               key={value}
@@ -203,6 +204,7 @@ export function ReportServiceForm(props: { url: string; pageTitle: string | null
         label={t('reportService.description')}
         maxLength={2000}
         placeholder={t('reportService.descriptionPlaceholder')}
+        dir="auto"
         value={description}
         onChange={(event) => setDescription(event.target.value)}
         rows={3}

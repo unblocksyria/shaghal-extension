@@ -5,6 +5,47 @@
   system preference applies from first paint, so dark mode shows no light
   flash while scripts load.
 */
+
+/*
+  The website's faces: Basis Grotesque Pro for Latin, ITF Qomra Arabic for
+  Arabic. They ship with the extension, so `block` costs no more than the
+  read from disk and never shows a fallback face first.
+*/
+@font-face {
+  font-family: 'Basis Grotesque Pro';
+  src: url('/fonts/basisgrotesquepro-regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Basis Grotesque Pro';
+  src: url('/fonts/basisgrotesquepro-medium.woff2') format('woff2');
+  font-weight: 500;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'ITF Qomra Arabic';
+  src: url('/fonts/itfQomraArabic-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'ITF Qomra Arabic';
+  src: url('/fonts/itfQomraArabic-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'ITF Qomra Arabic';
+  src: url('/fonts/itfQomraArabic-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-display: block;
+}
+
 :root {
   color-scheme: light dark;
 
@@ -45,11 +86,18 @@
   --us-status-blocked: #6b1f2a;
   --us-status-unknown: #4a4a4a;
   /* Level words on the card's part list, as the site colours them: green-light
-     over green-accessible, burgundy over burgundy-accessible. */
+     over green-accessible, burgundy over burgundy-accessible. Not checked is
+     the unknown badge's grey, lifted in dark mode to stay readable. */
   --us-level-working: light-dark(#1a4a45, #7ebdb7);
   --us-level-failing: light-dark(#6b1f2a, #e8a0a8);
+  --us-level-unknown: light-dark(#4a4a4a, #a8a8ae);
 
-  /* Shape */
+  /* The site's focus ring: dark gold clears 3:1 on white, gold on charcoal. */
+  --us-ring: light-dark(#6d6340, #b9a87b);
+  --us-ring-glow: 0 0 0 3px rgba(185, 168, 123, 0.4);
+
+  /* Shape. A control nested in a padded track takes the track's radius less
+     the padding, so the corners stay concentric. */
   --us-radius-card: 10px;
   --us-radius-control: 8px;
   --us-radius-badge: 8px;
@@ -57,9 +105,32 @@
   --us-shadow-color: light-dark(rgba(9, 39, 36, 0.07), rgba(0, 0, 0, 0.3));
   --shadow-syrian-card: 0 1px 2px var(--us-shadow-color), 0 4px 12px var(--us-shadow-color);
 
+  /* Type scale. Every size in the panel is one of these. */
+  --us-text-2xs: 11px;
+  --us-text-xs: 12px;
+  --us-text-sm: 13px;
+  --us-text-md: 14px;
+  --us-text-lg: 16px;
+  --us-text-xl: 20px;
+
+  /* Latin first, with Qomra for any Arabic in it (a name, a language label). */
   --us-font:
-    'Basis Grotesque Pro', 'Basis Grotesque', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+    'Basis Grotesque Pro', 'ITF Qomra Arabic', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
     sans-serif;
+  /* Titles are set a touch tight in Latin. */
+  --us-title-tracking: -0.01em;
+}
+
+/*
+  Arabic is set in Qomra throughout, Latin names and figures included, as the
+  site does. Basis follows for the few signs Qomra lacks, such as the middle
+  dot. Tracking would break the joins between Arabic letters, so titles keep
+  their natural spacing.
+*/
+:root[lang='ar'] {
+  --us-font:
+    'ITF Qomra Arabic', 'Basis Grotesque Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif;
+  --us-title-tracking: normal;
 }
 
 :root[data-theme='light'] {
@@ -82,11 +153,26 @@ body {
   background-color: var(--us-bg);
   color: var(--us-text-primary);
   font-family: var(--us-font);
+  font-size: var(--us-text-md);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.5;
   overflow-x: hidden;
   overflow-wrap: anywhere;
+  /* The faces have no bold or italic of their own to stand in for, and a
+     synthesised one smears at panel sizes. */
+  font-synthesis: none;
+  /* Native checkboxes and radios in the brand colour, not the browser's blue. */
+  accent-color: light-dark(#092724, #b9a87b);
+}
+
+/* Controls don't inherit the page font by default. */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  letter-spacing: inherit;
 }
 
 h1,
@@ -94,13 +180,27 @@ h2 {
   overflow-wrap: anywhere;
 }
 
+strong,
+b {
+  font-weight: 500;
+}
+
 a {
   color: var(--us-link);
 }
 
+::selection {
+  background-color: rgba(185, 168, 123, 0.35);
+}
+
 :focus-visible {
-  outline: 2px solid var(--us-gold);
+  outline: 2px solid var(--us-ring);
   outline-offset: 2px;
+}
+
+/* A modal over the panel dims it in the page's own green-black. */
+dialog::backdrop {
+  background-color: rgba(5, 22, 21, 0.4);
 }
 
 .us-app-container {
@@ -175,10 +275,11 @@ a {
   background: transparent;
   color: var(--us-text-muted);
   font-family: inherit;
-  font-size: 12.5px;
+  font-size: var(--us-text-sm);
   font-weight: 500;
-  padding: 5px 12px;
-  border-radius: 6px;
+  line-height: 20px;
+  padding: 4px 12px;
+  border-radius: calc(var(--us-radius-control) - 3px);
   cursor: pointer;
   transition:
     background-color 80ms linear,
@@ -194,8 +295,8 @@ a {
 
 /* The check mark on a thank-you screen. */
 .us-toast-badge {
-  width: 26px;
-  height: 26px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   background-color: var(--us-status-available);
   color: var(--us-on-color);
@@ -213,7 +314,7 @@ a {
   border: 1px solid var(--us-border);
   border-radius: var(--us-radius-control);
   font-family: inherit;
-  font-size: 14px;
+  font-size: var(--us-text-md);
   outline: none;
   transition:
     border-color 0.2s ease,
@@ -244,7 +345,7 @@ textarea.us-field {
 .us-field:focus-visible {
   outline: none;
   border-color: var(--us-gold);
-  box-shadow: 0 0 0 2px rgba(185, 168, 123, 0.35);
+  box-shadow: var(--us-ring-glow);
 }
 
 .us-field:disabled {
@@ -252,9 +353,35 @@ textarea.us-field {
   cursor: not-allowed;
 }
 
+/* Addresses and emails read left to right in any language, but sit on the
+   reading side of a right-to-left form. */
+:root[dir='rtl'] .us-field[dir='ltr'] {
+  text-align: right;
+}
+
+/* The search field's clear button, in the text colour instead of the browser's blue. */
+input[type='search']::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  background-color: var(--us-text-muted);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M18 6 6 18M6 6l12 12'/%3E%3C/svg%3E")
+    center / 16px 16px no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M18 6 6 18M6 6l12 12'/%3E%3C/svg%3E")
+    center / 16px 16px no-repeat;
+  cursor: pointer;
+}
+
+input[type='search']::-webkit-search-cancel-button:hover {
+  background-color: var(--us-text-primary);
+}
+
 .us-label {
-  font-size: 14px;
+  font-size: var(--us-text-md);
   font-weight: 500;
+  line-height: 20px;
   color: var(--us-text-primary);
   display: flex;
   align-items: center;
@@ -263,7 +390,7 @@ textarea.us-field {
 
 .us-help {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--us-text-xs);
   line-height: 1.5;
   color: var(--us-text-muted);
 }
@@ -275,11 +402,12 @@ textarea.us-field {
   box-shadow: 0 1px 2px var(--us-shadow-color);
 }
 
-/* Level picker in "Report what works". Three equal options on a 40px muted
-   track. Works and Fails use their status fill, Not checked a neutral chip. */
+/* Level picker in "Report what works": equal options sharing a muted track.
+   Works and Fails take their status fill when chosen. */
 .us-level-picker {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: 4px;
   padding: 4px;
   border-radius: var(--us-radius-control);
@@ -287,15 +415,15 @@ textarea.us-field {
 }
 
 .us-level-picker > button {
-  min-height: 40px;
-  padding: 0 2px;
+  min-height: 36px;
+  padding: 0 4px;
   white-space: nowrap;
   border: none;
-  border-radius: 6px;
+  border-radius: calc(var(--us-radius-control) - 4px);
   background: transparent;
   color: var(--us-text-muted);
   font-family: inherit;
-  font-size: 14px;
+  font-size: var(--us-text-md);
   font-weight: 500;
   cursor: pointer;
   transition:
@@ -303,22 +431,9 @@ textarea.us-field {
     color 0.2s ease;
 }
 
-/* Keep "Not checked" on one line in a narrow panel. */
-@media (max-width: 380px) {
-  .us-level-picker > button {
-    font-size: 13px;
-  }
-}
-
-@media (max-width: 340px) {
-  .us-level-picker > button {
-    padding: 0;
-    font-size: 12px;
-  }
-}
-
 .us-level-picker > button:hover {
   color: var(--us-text-primary);
+  background-color: var(--us-faint-tint-strong);
 }
 
 .us-level-picker > button[aria-checked='true'][data-level='working'] {
@@ -331,15 +446,12 @@ textarea.us-field {
   color: var(--us-on-color);
 }
 
-.us-level-picker > button[aria-checked='true'][data-level='unknown'] {
-  background-color: var(--us-card);
-  color: var(--us-text-primary);
-  box-shadow: 0 1px 2px var(--us-shadow-color);
-}
-
 /* Checklist toggle, e.g. the correction form's field chips. Gold border and a
-   faint tint when checked. */
+   faint tint when checked. The weight stays put, so a chip never changes width. */
 .us-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   min-height: 36px;
   padding: 0 12px;
   border: 1px solid var(--us-border);
@@ -347,7 +459,8 @@ textarea.us-field {
   background: transparent;
   color: var(--us-text-primary);
   font-family: inherit;
-  font-size: 14px;
+  font-size: var(--us-text-md);
+  line-height: 20px;
   cursor: pointer;
   transition:
     background-color 0.2s ease,
@@ -355,30 +468,31 @@ textarea.us-field {
 }
 
 .us-chip:hover {
-  background-color: var(--us-faint-tint);
+  background-color: var(--us-faint-tint-strong);
 }
 
 .us-chip[aria-checked='true'],
 .us-chip[aria-pressed='true'] {
   border-color: var(--us-gold);
   background-color: var(--us-gold-subtle);
-  font-weight: 500;
 }
 
 /* An action among the chips, such as "More parts", rather than a choice. */
 .us-chip-quiet {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
   border-style: dashed;
   color: var(--us-text-muted);
+}
+
+.us-chip-quiet:hover {
+  color: var(--us-text-primary);
 }
 
 /* A small muted pill beside a name, such as "Not recorded yet". */
 .us-tag {
   border-radius: var(--us-radius-pill);
   padding: 2px 8px;
-  font-size: 12px;
+  font-size: var(--us-text-xs);
+  line-height: 16px;
   background-color: var(--us-muted);
   color: var(--us-text-muted);
   white-space: nowrap;
@@ -394,26 +508,95 @@ textarea.us-field {
   padding: 8px 12px;
   border-radius: var(--us-radius-control);
   background-color: var(--us-muted);
-  font-size: 13px;
+  font-size: var(--us-text-sm);
 }
 
-/* A bordered aside with a gold icon, such as the testing-guide pointer. */
+/* A bordered aside with a gold icon, such as the testing-guide pointer. The
+   icon sits on the first line's centre: 16px in a 20px line. */
 .us-callout {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 12px;
+  padding: 12px;
   border: 1px solid var(--us-border);
   border-radius: var(--us-radius-control);
   background-color: var(--us-card-nested);
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--us-text-sm);
+  line-height: 20px;
 }
 
 .us-callout > svg {
   flex-shrink: 0;
   margin-top: 2px;
   color: var(--us-accent-text);
+}
+
+/* A disclosure, such as a part's earlier checks: the site's chevron instead
+   of the browser's triangle. */
+.us-disclosure > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  list-style: none;
+  cursor: pointer;
+  font-size: var(--us-text-xs);
+  line-height: 16px;
+  color: var(--us-accent-text);
+}
+
+.us-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.us-disclosure > summary > svg {
+  transition: transform 0.15s ease;
+}
+
+.us-disclosure[open] > summary > svg {
+  transform: rotate(180deg);
+}
+
+/* A keyboard shortcut, drawn as keycaps. */
+.us-kbd {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  min-height: 20px;
+  border: 1px solid var(--us-border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background-color: var(--us-card-nested);
+  font-family: inherit;
+  font-size: var(--us-text-xs);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+/*
+  Where screenshots can be dropped. The dashed edge is drawn outside the
+  field, so the field's contents line up with the rest of the form and nothing
+  moves when a file arrives.
+*/
+.us-dropzone {
+  position: relative;
+}
+
+.us-dropzone::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border: 2px dashed transparent;
+  border-radius: calc(var(--us-radius-control) + 4px);
+  pointer-events: none;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.us-dropzone[data-dropping='true']::after {
+  border-color: var(--us-border-hover);
+  background-color: var(--us-hover-tint);
 }
 
 .us-callout-warning {
@@ -432,10 +615,6 @@ textarea.us-field {
 .us-callout-gold > svg {
   color: var(--us-accent-text);
 }
-.us-callout > svg {
-  flex-shrink: 0;
-  margin-top: 2px;
-}
 
 /* A summary cut to four lines; the full story is a link away. */
 .us-clamp {
@@ -446,15 +625,53 @@ textarea.us-field {
   overflow: hidden;
 }
 
+/*
+  Links. Both kinds underline in a softer tint of their own colour, which
+  firms up on hover. `.us-text-link` is an action in running text, in gold.
+  `.us-link` is a quiet way on, such as a contact or the card's footer, with
+  an optional icon. Either works on a <button>.
+*/
+.us-text-link,
+.us-link {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+  text-underline-offset: 3px;
+  transition: text-decoration-color 0.15s ease;
+}
+
+.us-text-link:hover,
+.us-link:hover {
+  text-decoration-color: currentColor;
+}
+
 .us-text-link {
   color: var(--us-accent-text);
   font-weight: 500;
-  text-decoration: underline;
-  text-underline-offset: 2px;
 }
 
-.us-text-link:hover {
-  text-decoration: none;
+.us-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--us-link);
+  font-size: var(--us-text-sm);
+  line-height: 20px;
+}
+
+/* A way back, such as "Back to Netflix": a link without the underline. */
+.us-link-back {
+  justify-self: start;
+  text-decoration-line: none;
+}
+
+.us-link-back:hover {
+  text-decoration-line: underline;
 }
 
 /*
@@ -515,6 +732,8 @@ textarea.us-field {
   --us-primary-border: light-dark(#092724, #1a4a45);
   --us-level-working: light-dark(#1a4a45, #7ebdb7);
   --us-level-failing: light-dark(#6b1f2a, #e8a0a8);
+  --us-level-unknown: light-dark(#4a4a4a, #a8a8ae);
+  --us-ring: light-dark(#6d6340, #b9a87b);
   --us-shadow-color: light-dark(rgba(9, 39, 36, 0.07), rgba(0, 0, 0, 0.3));
 }
 
@@ -576,7 +795,7 @@ textarea.us-field {
   border-radius: var(--us-radius-control);
   background: transparent;
   color: var(--us-text-primary);
-  font-size: 14px;
+  font-size: var(--us-text-md);
   font-weight: 500;
 }
 
@@ -613,8 +832,8 @@ textarea.us-field {
   border-radius: var(--us-radius-pill);
   background-color: var(--us-gold);
   color: var(--us-primary);
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--us-text-md);
+  font-weight: 500;
 }
 
 .us-editor-save:hover:not(:disabled) {
@@ -642,7 +861,7 @@ textarea.us-field {
   justify-content: center;
   padding: 24px;
   text-align: center;
-  font-size: 13px;
+  font-size: var(--us-text-sm);
   color: var(--us-text-muted);
 }
 
@@ -1007,7 +1226,7 @@ textarea.us-field {
 
 .us-editor-hint {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--us-text-sm);
   line-height: 1.4;
   color: var(--us-text-muted);
   text-align: center;
@@ -1046,8 +1265,8 @@ textarea.us-field {
 
 .us-editor-confirm-title {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--us-text-lg);
+  font-weight: 500;
 }
 
 .us-editor-confirm-actions {
@@ -1067,8 +1286,8 @@ textarea.us-field {
   border-radius: var(--us-radius-control);
   background-color: var(--us-status-blocked);
   color: var(--us-on-color);
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--us-text-md);
+  font-weight: 500;
 }
 
 .us-editor-discard:hover {
@@ -1122,7 +1341,7 @@ textarea.us-field {
   gap: 3px;
   padding: 2px 6px;
   border-radius: 4px;
-  font-size: 10.5px;
+  font-size: var(--us-text-2xs);
   font-weight: 500;
   color: #ffffff;
   background-color: rgba(0, 0, 0, 0.6);
@@ -1135,8 +1354,8 @@ textarea.us-field {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--us-text-2xs);
+  font-weight: 500;
   color: #ffffff;
   background-color: rgba(9, 39, 36, 0.55);
   pointer-events: none;
@@ -1202,7 +1421,7 @@ textarea.us-field {
 
 .us-verify-label {
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--us-text-sm);
   font-weight: 500;
   color: var(--us-text-primary);
   text-align: center;
@@ -1222,7 +1441,7 @@ textarea.us-field {
   border: none;
   padding: 2px 4px;
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--us-text-sm);
   color: var(--us-link);
   text-decoration: underline;
   text-underline-offset: 3px;

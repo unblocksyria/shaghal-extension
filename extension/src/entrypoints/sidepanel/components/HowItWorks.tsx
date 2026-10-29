@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { rememberFallbackHeading } from '../../../lib/focusFlow';
-import { cardStyle, hintStyle, titleStyle } from './FormParts';
+import { cardStyle, detailStyle, titleStyle } from './FormParts';
 import { ArrowUp, ClipboardCheck, Globe, PlusCircle, ShieldCheck } from 'lucide-react';
 
 /** Shown on Unblock Syria's own pages, where there is no service to look up. */
@@ -14,14 +14,14 @@ export function HowItWorks() {
   ];
   return (
     <section className="us-animate-fade" style={cardStyle}>
-      <div style={{ display: 'grid', gap: 6 }}>
+      <div style={{ display: 'grid', gap: 4 }}>
         <h1 ref={rememberFallbackHeading} tabIndex={-1} style={titleStyle}>
           {t('howItWorks.title')}
         </h1>
-        <p style={{ ...hintStyle, fontSize: 13 }}>{t('howItWorks.intro')}</p>
+        <p style={detailStyle}>{t('howItWorks.intro')}</p>
       </div>
 
-      <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 14 }}>
+      <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 16 }}>
         {steps.map(({ icon: Icon, title, body }, index) => (
           <li key={index} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
             <span
@@ -41,9 +41,9 @@ export function HowItWorks() {
             >
               <Icon size={16} />
             </span>
-            <div style={{ display: 'grid', gap: 2, minWidth: 0 }}>
-              <span style={{ fontSize: 14, fontWeight: 600 }}>{title}</span>
-              <p style={{ ...hintStyle, fontSize: 13 }}>{body}</p>
+            <div style={{ display: 'grid', minWidth: 0, paddingTop: 6 }}>
+              <span style={{ fontSize: 'var(--us-text-md)', lineHeight: '20px', fontWeight: 500 }}>{title}</span>
+              <p style={detailStyle}>{body}</p>
             </div>
           </li>
         ))}

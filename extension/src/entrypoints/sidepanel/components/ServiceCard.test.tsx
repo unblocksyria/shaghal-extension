@@ -69,7 +69,7 @@ describe('pointing the tester at the gaps', () => {
     await openPanel('https://gaps.example/');
     const action = await screen.findByRole('button', { name: 'Test this Payment' }, { timeout: 3000 });
     // The catalogue's own date on an unchecked part reads as a check that never happened.
-    expect(screen.queryByText(/Since 15 Sept 2026/)).toBeNull();
+    expect(screen.queryByText(/Since 15 Sep, 2026/)).toBeNull();
 
     await user.click(action);
     await screen.findByRole('heading', { name: 'Report what works' });
@@ -96,7 +96,7 @@ describe('pointing the tester at the gaps', () => {
 
     await openPanel('https://retest.example/');
     const prompt = await screen.findByRole('note', {}, { timeout: 3000 });
-    expect(prompt.textContent).toContain('Payment failed before Syria was removed from the SST list on 24 Aug 2026');
+    expect(prompt.textContent).toContain('Payment failed before Syria was removed from the SST list on 24 Aug, 2026');
     expect(prompt.textContent).not.toContain('Upgrade');
     expect(screen.getByRole('button', { name: 'Still fails? Payment' })).toBeDefined();
     // Upgrade was checked after the change, so it needs nothing.
@@ -105,7 +105,7 @@ describe('pointing the tester at the gaps', () => {
     await user.click(within(prompt).getByRole('button', { name: 'Check them now' }));
     await screen.findByRole('heading', { name: 'Report what works' });
     expect(screen.getByRole('button', { name: 'Payment', pressed: true })).toBeDefined();
-    expect(screen.getByText('On record: Fails, checked 10 Feb 2026')).toBeDefined();
+    expect(screen.getByText('On record: Fails, checked 10 Feb, 2026')).toBeDefined();
   });
 
   it('marks a part this browser reported recently instead of asking for it again', async () => {
@@ -123,7 +123,7 @@ describe('pointing the tester at the gaps', () => {
       parts: [{ slug: 'payment', name: 'Payment', level: 'failing' }],
     });
 
-    expect(await screen.findByText('You reported this on 20 Oct 2026', {}, { timeout: 3000 })).toBeDefined();
+    expect(await screen.findByText('You reported this on 20 Oct, 2026', {}, { timeout: 3000 })).toBeDefined();
     expect(screen.queryByRole('button', { name: 'Test this Payment' })).toBeNull();
   });
 

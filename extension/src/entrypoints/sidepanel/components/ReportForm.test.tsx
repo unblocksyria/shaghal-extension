@@ -169,8 +169,7 @@ describe('choosing what was tried', () => {
         .getAllByRole('radio')
         .map((radio) => radio.textContent);
 
-    // September can come out as "Sep" or "Sept" depending on the ICU build.
-    expect(partGroup('Core use').getByText(/^On record: Fails, checked 14 Sept? 2026$/)).toBeDefined();
+    expect(partGroup('Core use').getByText('On record: Fails, checked 14 Sep, 2026')).toBeDefined();
     expect(labels('Core use')).toEqual(['Still fails', 'Works now']);
     expect(partGroup('Landing page').getByText('On record: Works')).toBeDefined();
     expect(labels('Landing page')).toEqual(['Still works', 'Fails now']);

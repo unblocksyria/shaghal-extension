@@ -10,7 +10,7 @@ export const Textarea: React.FC<TextareaProps> = ({ label, helperText, id, rows 
   const generatedId = id ?? uniqueId;
   const helpId = `${generatedId}-help`;
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 6, width: '100%' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 8, width: '100%' }}>
       {label && (
         <label htmlFor={generatedId} className="us-label">
           {label}

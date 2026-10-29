@@ -165,7 +165,10 @@ describe('what the card says about the service', () => {
     fakeApi().on('POST', '/services/match', { data: match }).install();
     await openPanel('https://company.example/');
     await screen.findByRole('heading', { name: 'Netflix' }, { timeout: 3000 });
-    expect(screen.getByText(/^Netflix, Inc\. · Checked 1 Sep/)).toBeDefined();
+    // The company sits in its own isolate, so Arabic can't move its full stop.
+    const line = screen.getByText('Netflix, Inc.').parentElement;
+    expect(screen.getByText('Netflix, Inc.').tagName).toBe('BDI');
+    expect(line?.textContent).toBe('Netflix, Inc. · Checked 1 Sep, 2026');
   });
 
   it('shows only the check when the company is the service itself', async () => {
@@ -429,9 +432,8 @@ describe('the parts of a matched service', () => {
     expect(screen.getByText('Core use')).toBeDefined();
     expect(screen.getByText('Fails')).toBeDefined();
     expect(screen.getByText('Opening the app and playing a video.')).toBeDefined();
-    expect(screen.getByText(/Since 16 Feb 2026/)).toBeDefined();
-    // September can come out as "Sep" or "Sept" depending on the ICU build.
-    expect(screen.getByText(/Checked 29 Sep/)).toBeDefined();
+    // As the website writes dates, whatever the browser's own date data.
+    expect(screen.getByText('Since 16 Feb, 2026 · Checked 29 Sep, 2026')).toBeDefined();
 
     expect(screen.getByText('Landing page')).toBeDefined();
     expect(screen.getByText('Works')).toBeDefined();

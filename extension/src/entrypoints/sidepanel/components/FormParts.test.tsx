@@ -381,7 +381,7 @@ describe('picking files instead of capturing', () => {
     stubScreenshot();
     await openReportService(user, 'https://drop.example/download');
 
-    const field = screen.getByText('Or drop or paste an image here.').closest('div');
+    const field = screen.getByText('Or drop or paste an image here.').closest<HTMLElement>('.us-dropzone');
     if (field === null) throw new Error('The screenshot field is not there');
     const file = new File(['png-bytes'], 'dropped.png', { type: 'image/png' });
     fireEvent.drop(field, { dataTransfer: { types: ['Files'], files: [file] } });
@@ -402,7 +402,7 @@ describe('picking files instead of capturing', () => {
     expect(text).toBe(true);
     expect(screen.queryByAltText('Evidence #1')).toBeNull();
 
-    const field = screen.getByText('Or drop or paste an image here.').closest('div');
+    const field = screen.getByText('Or drop or paste an image here.').closest<HTMLElement>('.us-dropzone');
     if (field === null) throw new Error('The screenshot field is not there');
     const file = new File(['png-bytes'], 'pasted.png', { type: 'image/png' });
     const image = fireEvent.paste(field, { clipboardData: { files: [file] } });
@@ -415,7 +415,7 @@ describe('picking files instead of capturing', () => {
     const user = userEvent.setup();
     stubScreenshot();
     await openReportService(user, 'https://paste-bmp.example/download');
-    const field = screen.getByText('Or drop or paste an image here.').closest('div');
+    const field = screen.getByText('Or drop or paste an image here.').closest<HTMLElement>('.us-dropzone');
     if (field === null) throw new Error('The screenshot field is not there');
     fireEvent.paste(field, { clipboardData: { files: [new File(['bmp'], 'pasted.bmp', { type: 'image/bmp' })] } });
     expect(await screen.findByText('That file is not a JPEG, PNG, GIF or WebP image.')).toBeDefined();
@@ -433,7 +433,7 @@ describe('picking files instead of capturing', () => {
       });
 
     await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
-    const field = screen.getByText('Or drop or paste an image here.').closest('div');
+    const field = screen.getByText('Or drop or paste an image here.').closest<HTMLElement>('.us-dropzone');
     if (field === null) throw new Error('The screenshot field is not there');
     const file = new File(['png-bytes'], 'dropped.png', { type: 'image/png' });
     fireEvent.drop(field, { dataTransfer: { types: ['Files'], files: [file] } });
@@ -453,27 +453,27 @@ describe('picking files instead of capturing', () => {
     stubScreenshot();
     await openReportService(user, 'https://hover.example/download');
 
-    const field = screen.getByText('Or drop or paste an image here.').closest('div');
+    const field = screen.getByText('Or drop or paste an image here.').closest<HTMLElement>('.us-dropzone');
     if (field === null) throw new Error('The screenshot field is not there');
-    expect(field.style.borderColor).toBe('transparent');
+    expect(field.dataset.dropping).toBe('false');
 
     // A drag with no files in it does not light the field.
     fireEvent.dragEnter(field, { dataTransfer: { types: ['text/plain'] } });
-    expect(field.style.borderColor).toBe('transparent');
+    expect(field.dataset.dropping).toBe('false');
 
     fireEvent.dragEnter(field, { dataTransfer: { types: ['Files'] } });
-    expect(field.style.borderColor).toBe('var(--us-border-hover)');
+    expect(field.dataset.dropping).toBe('true');
     // Crossing a child on the way down keeps the field lit, and the drag may end on the field.
     fireEvent.dragEnter(screen.getByText('Or drop or paste an image here.'), { dataTransfer: { types: ['Files'] } });
     fireEvent.dragLeave(screen.getByText('Or drop or paste an image here.'));
-    expect(field.style.borderColor).toBe('var(--us-border-hover)');
+    expect(field.dataset.dropping).toBe('true');
 
     const over = createEvent.dragOver(field, { dataTransfer: { types: ['Files'] } });
     fireEvent(field, over);
     expect(over.defaultPrevented).toBe(true);
 
     fireEvent.dragLeave(field);
-    expect(field.style.borderColor).toBe('transparent');
+    expect(field.dataset.dropping).toBe('false');
   });
 
   it('opens the file picker from the Upload images button', async () => {
@@ -674,7 +674,7 @@ describe('guards against presses and drops that add nothing', () => {
     stubScreenshot();
     await openReportService(user, 'https://empty-drag.example/download');
 
-    const field = screen.getByText('Or drop or paste an image here.').closest('div');
+    const field = screen.getByText('Or drop or paste an image here.').closest<HTMLElement>('.us-dropzone');
     if (field === null) throw new Error('The screenshot field is not there');
     fireEvent.drop(field, { dataTransfer: { types: ['Files'] } });
 
@@ -736,7 +736,7 @@ describe('guards against presses and drops that add nothing', () => {
     await user.click(screen.getByRole('button', { name: 'Add screenshot' }));
     await screen.findByAltText('Evidence #1');
 
-    const field = screen.getByText('Or drop or paste an image here.').closest('div');
+    const field = screen.getByText('Or drop or paste an image here.').closest<HTMLElement>('.us-dropzone');
     if (field === null) throw new Error('The screenshot field is not there');
     fireEvent.drop(field, {
       dataTransfer: { types: ['Files'], files: [new File(['x'], 'late.png', { type: 'image/png' })] },
@@ -752,7 +752,7 @@ describe('guards against presses and drops that add nothing', () => {
     vi.stubGlobal('chrome', fakeBrowser);
     render(<FieldAtLimit />);
 
-    const field = screen.getByText('Or drop or paste an image here.').closest('div');
+    const field = screen.getByText('Or drop or paste an image here.').closest<HTMLElement>('.us-dropzone');
     if (field === null) throw new Error('The screenshot field is not there');
     fireEvent.drop(field, {
       dataTransfer: { types: ['Files'], files: [new File(['x'], 'one.png', { type: 'image/png' })] },
@@ -775,20 +775,20 @@ describe('guards against presses and drops that add nothing', () => {
     stubScreenshot();
     await openReportService(user, 'https://plain-drag.example/download');
 
-    const field = screen.getByText('Or drop or paste an image here.').closest('div');
+    const field = screen.getByText('Or drop or paste an image here.').closest<HTMLElement>('.us-dropzone');
     if (field === null) throw new Error('The screenshot field is not there');
     const over = createEvent.dragOver(field, { dataTransfer: { types: ['text/plain'] } });
     fireEvent(field, over);
     expect(over.defaultPrevented).toBe(false);
 
     fireEvent.drop(field, { dataTransfer: { types: ['text/plain'] } });
-    expect(field.style.borderColor).toBe('transparent');
+    expect(field.dataset.dropping).toBe('false');
     expect(screen.queryByAltText(/Evidence #/)).toBeNull();
 
     // A drag event with no dataTransfer object at all is not a file drag either.
     fireEvent.dragOver(field);
     fireEvent.drop(field);
-    expect(field.style.borderColor).toBe('transparent');
+    expect(field.dataset.dropping).toBe('false');
     expect(screen.queryByAltText(/Evidence #/)).toBeNull();
   });
 
@@ -804,11 +804,11 @@ describe('guards against presses and drops that add nothing', () => {
     await user.type(screen.getByRole('textbox', { name: 'Service name' }), 'Blocked Service');
     await pressSend(user, 'Submit Report');
 
-    const field = screen.getByText('Or drop or paste an image here.').closest('div');
+    const field = screen.getByText('Or drop or paste an image here.').closest<HTMLElement>('.us-dropzone');
     if (field === null) throw new Error('The screenshot field is not there');
     const file = new File(['png-bytes'], 'locked.png', { type: 'image/png' });
     fireEvent.dragEnter(field, { dataTransfer: { types: ['Files'] } });
-    expect(field.style.borderColor).toBe('transparent');
+    expect(field.dataset.dropping).toBe('false');
     fireEvent.drop(field, { dataTransfer: { types: ['Files'], files: [file] } });
     const input = document.querySelector<HTMLInputElement>('input[type="file"]');
     if (input === null) throw new Error('The form has no file picker');

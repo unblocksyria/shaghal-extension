@@ -18,7 +18,7 @@ import { useBrowsingCountry } from '../hooks/useBrowsingCountry';
 import { useServiceDetails, type DetailsState } from '../hooks/useServiceDetails';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
-import { cardStyle, hintStyle, titleStyle } from './FormParts';
+import { cardStyle, detailStyle, errorStyle, hintStyle, sectionTitleStyle, titleStyle } from './FormParts';
 import { knownStatus, ServiceLogo, ServiceRow, StatusBadge } from './ServiceRow';
 import { TestQueue } from './TestQueue';
 import { VerificationSlot } from './VerificationSlot';
@@ -29,10 +29,12 @@ import {
   ArrowUp,
   ArrowUpRight,
   Check,
+  ChevronDown,
   ClipboardCheck,
   Globe,
   LoaderCircle,
   Mail,
+  PenLine,
   PlusCircle,
   RefreshCw,
   WifiOff,
@@ -58,7 +60,7 @@ function sinceText(iso: string | null | undefined): string | null {
 const LEVEL_COLOR: Record<ServiceFunctionality['level'], string> = {
   working: 'var(--us-level-working)',
   failing: 'var(--us-level-failing)',
-  unknown: 'var(--us-status-unknown)',
+  unknown: 'var(--us-level-unknown)',
 };
 
 const LEVEL_LABEL = {
@@ -71,9 +73,10 @@ const countChip: React.CSSProperties = {
   // Logical property, so the chip stays at the end of the row in RTL.
   marginInlineStart: 'auto',
   borderRadius: 6,
-  padding: '1px 8px',
-  fontSize: 12,
-  fontWeight: 700,
+  padding: '2px 8px',
+  fontSize: 'var(--us-text-xs)',
+  lineHeight: '16px',
+  fontWeight: 500,
   fontVariantNumeric: 'tabular-nums',
 };
 
@@ -120,12 +123,12 @@ function VoteButton(props: { service: CatalogService }) {
           alignItems: 'center',
           justifyContent: 'center',
           gap: 8,
-          minHeight: 40,
+          minHeight: 44,
           border: '1px solid var(--us-border)',
           borderRadius: 'var(--us-radius-control)',
           backgroundColor: 'var(--us-muted)',
-          fontSize: 14,
-          fontWeight: 700,
+          fontSize: 'var(--us-text-md)',
+          fontWeight: 500,
           fontVariantNumeric: 'tabular-nums',
         }}
       >
@@ -196,7 +199,7 @@ function VoteButton(props: { service: CatalogService }) {
   const current = look[state];
 
   return (
-    <div style={{ display: 'grid', gap: 6 }}>
+    <div style={{ display: 'grid', gap: 8 }}>
       <VerificationSlot>
         <Button
           variant={current.variant}
@@ -220,7 +223,7 @@ function VoteButton(props: { service: CatalogService }) {
       {/* In place, because the message is there for the reader as much as the eye. */}
       <div aria-live="polite" style={{ display: 'contents' }}>
         {message !== null ? (
-          <p style={{ ...hintStyle, color: 'var(--us-danger)' }}>{message}</p>
+          <p style={errorStyle}>{message}</p>
         ) : (
           <p style={{ ...hintStyle, textAlign: 'center' }}>
             {state === 'confirm' ? t('card.voteConfirm') : t('card.votePriority')}
@@ -230,22 +233,6 @@ function VoteButton(props: { service: CatalogService }) {
     </div>
   );
 }
-
-const linkStyle: React.CSSProperties = {
-  background: 'none',
-  border: 'none',
-  padding: 0,
-  fontSize: 13,
-  color: 'var(--us-link)',
-  cursor: 'pointer',
-  fontFamily: 'inherit',
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 3,
-  textDecoration: 'underline',
-  textUnderlineOffset: 3,
-  textDecorationColor: 'var(--us-border-hover)',
-};
 
 /** The parts this browser reported for a service in the last 30 days, by slug, kept current. */
 function useReportedParts(slug: string): Map<string, number> {
@@ -264,20 +251,6 @@ function useReportedParts(slug: string): Map<string, number> {
   return recentlyReported(history, slug);
 }
 
-const actionStyle: React.CSSProperties = {
-  background: 'none',
-  border: 'none',
-  padding: 0,
-  font: 'inherit',
-  fontSize: 12,
-  fontWeight: 600,
-  color: 'var(--us-link)',
-  cursor: 'pointer',
-  textDecoration: 'underline',
-  textUnderlineOffset: 3,
-  textDecorationColor: 'var(--us-border-hover)',
-};
-
 /**
  * The site's "What works" table, as stacked rows the narrow panel can hold.
  * The gaps are where a tester helps most, so an unchecked part offers "Test
@@ -292,9 +265,9 @@ function WorksSection(props: {
 }) {
   const { t } = useTranslation();
   return (
-    <section style={{ display: 'grid', gap: 10 }}>
-      <div style={{ display: 'grid', gap: 2 }}>
-        <h2 style={{ ...titleStyle, fontSize: 15 }}>{t('card.worksTitle')}</h2>
+    <section style={{ display: 'grid', gap: 8 }}>
+      <div style={{ display: 'grid', gap: 4 }}>
+        <h2 style={sectionTitleStyle}>{t('card.worksTitle')}</h2>
         <p style={hintStyle}>{t('card.worksHint')}</p>
       </div>
       <div style={{ display: 'grid', borderTop: '1px solid var(--us-border)' }}>
@@ -318,18 +291,18 @@ function WorksSection(props: {
               key={part.slug}
               style={{
                 display: 'grid',
-                gap: 3,
-                padding: '10px 0',
+                gap: 4,
+                padding: '12px 0',
                 borderTop: index === 0 ? undefined : '1px solid var(--us-border)',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                <span style={{ fontSize: 13.5, fontWeight: 600 }}>{part.name}</span>
+                <span style={{ fontSize: 'var(--us-text-md)', fontWeight: 500, lineHeight: '20px' }}>{part.name}</span>
                 <span
                   style={{
                     marginInlineStart: 'auto',
-                    fontSize: 12,
-                    fontWeight: 700,
+                    fontSize: 'var(--us-text-sm)',
+                    fontWeight: 500,
                     whiteSpace: 'nowrap',
                     color: LEVEL_COLOR[part.level],
                   }}
@@ -338,25 +311,31 @@ function WorksSection(props: {
                 </span>
               </div>
               {part.description != null && part.description !== '' && (
-                <p dir="auto" style={{ ...hintStyle, fontSize: 12.5, textAlign: 'start' }}>
+                <p dir="auto" style={{ ...detailStyle, textAlign: 'start' }}>
                   {part.description}
                 </p>
               )}
               {(since !== null || checked !== null || action !== null || reportedAt !== undefined) && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '2px 10px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '4px 12px' }}>
                   {(since !== null || checked !== null) && (
-                    <span style={{ ...hintStyle, fontSize: 11.5 }}>{[since, checked].filter(Boolean).join(' · ')}</span>
+                    <span style={hintStyle}>{[since, checked].filter(Boolean).join(' · ')}</span>
                   )}
                   {reportedAt !== undefined && (
-                    <span style={{ ...hintStyle, fontSize: 11.5, color: 'var(--us-accent-text)' }}>
-                      <Check size={11} aria-hidden="true" style={{ verticalAlign: '-1px', marginInlineEnd: 3 }} />
+                    <span style={{ ...hintStyle, color: 'var(--us-accent-text)' }}>
+                      <Check size={12} aria-hidden="true" style={{ verticalAlign: '-2px', marginInlineEnd: 4 }} />
                       {t('card.reportedOn', { date: shortDate(new Date(reportedAt).toISOString()) })}
                     </span>
                   )}
                   {action !== null && (
                     <button
                       type="button"
-                      style={{ ...actionStyle, marginInlineStart: 'auto' }}
+                      className="us-text-link"
+                      style={{
+                        // At the end of the dates, or under the name when a part has none.
+                        marginInlineStart: since !== null || checked !== null ? 'auto' : 0,
+                        fontSize: 'var(--us-text-xs)',
+                        lineHeight: '18px',
+                      }}
                       onClick={() => props.onTest(part.slug)}
                       onPointerEnter={() => void loadFunctionalities()}
                       aria-label={`${action} ${part.name}`}
@@ -367,16 +346,17 @@ function WorksSection(props: {
                 </div>
               )}
               {earlier.length > 0 && (
-                <details>
-                  <summary style={{ ...hintStyle, fontSize: 11.5, cursor: 'pointer', width: 'fit-content' }}>
+                <details className="us-disclosure">
+                  <summary>
                     {t('card.earlierChecks')}
+                    <ChevronDown size={12} aria-hidden="true" />
                   </summary>
-                  <ul style={{ listStyle: 'none', margin: '6px 0 0', padding: 0, display: 'grid', gap: 6 }}>
+                  <ul style={{ listStyle: 'none', margin: '8px 0 0', padding: 0, display: 'grid', gap: 8 }}>
                     {earlier.map((check) => (
                       <li key={check.observedAt} style={{ display: 'grid', gap: 2 }}>
-                        <span style={{ ...hintStyle, fontSize: 11.5 }}>
+                        <span style={hintStyle}>
                           {shortDate(check.observedAt)} ·{' '}
-                          <span style={{ fontWeight: 700, color: LEVEL_COLOR[check.level] }}>
+                          <span style={{ fontWeight: 500, color: LEVEL_COLOR[check.level] }}>
                             {t(LEVEL_LABEL[check.level])}
                           </span>
                         </span>
@@ -408,9 +388,9 @@ function RecheckPrompt(props: { parts: ServiceFunctionality[]; onTest: (slugs: s
   return (
     <div className="us-callout us-callout-gold" role="note">
       <RefreshCw size={16} aria-hidden="true" />
-      <span style={{ display: 'grid', gap: 6, justifyItems: 'start' }}>
+      <span style={{ display: 'grid', gap: 8, justifyItems: 'start' }}>
         <span>
-          <strong style={{ fontWeight: 600 }}>{t('card.retestTitle')} </strong>
+          <strong>{t('card.retestTitle')} </strong>
           {props.parts.length > 0
             ? t('card.retestParts', { count: props.parts.length, parts: names, date })
             : t('card.retestGeneric', { date })}
@@ -418,7 +398,7 @@ function RecheckPrompt(props: { parts: ServiceFunctionality[]; onTest: (slugs: s
         {props.parts.length > 0 && (
           <button
             type="button"
-            style={actionStyle}
+            className="us-text-link"
             onClick={() => props.onTest(props.parts.map((part) => part.slug))}
             onPointerEnter={() => void loadFunctionalities()}
           >
@@ -447,19 +427,17 @@ function OutreachSection(props: { record: ServiceRecord }) {
   const summary = props.record.timelineSummary?.trim();
   if (status === undefined && (summary === undefined || summary === '')) return null;
   return (
-    <section style={{ display: 'grid', gap: 6 }}>
+    <section style={{ display: 'grid', gap: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <h2 style={{ ...titleStyle, fontSize: 15 }}>{t('card.outreachTitle')}</h2>
+        <h2 style={sectionTitleStyle}>{t('card.outreachTitle')}</h2>
         {status !== undefined && <span className="us-tag">{t(`card.progress.${status}` as const)}</span>}
       </div>
       {summary !== undefined && summary !== '' ? (
-        <p dir="auto" className="us-clamp" style={{ ...hintStyle, fontSize: 12.5, textAlign: 'start' }}>
+        <p dir="auto" className="us-clamp" style={{ ...detailStyle, textAlign: 'start' }}>
           {summary}
         </p>
       ) : (
-        status !== undefined && (
-          <p style={{ ...hintStyle, fontSize: 12.5 }}>{t(`card.progressHint.${status}` as const)}</p>
-        )
+        status !== undefined && <p style={detailStyle}>{t(`card.progressHint.${status}` as const)}</p>
       )}
     </section>
   );
@@ -473,17 +451,17 @@ function ContactRow(props: { name: string; record: ServiceRecord }) {
   const mail = email !== undefined && /^[^\s@]+@[^\s@]+$/.test(email) ? email : null;
   if (page === null && mail === null) return null;
   return (
-    <section style={{ display: 'grid', gap: 6 }}>
-      <h2 style={{ ...titleStyle, fontSize: 15 }}>{t('card.contact', { name: props.name })}</h2>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px' }}>
+    <section style={{ display: 'grid', gap: 8 }}>
+      <h2 style={sectionTitleStyle}>{t('card.contact', { name: props.name })}</h2>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px' }}>
         {page !== null && (
-          <a href={page} target="_blank" rel="noreferrer" style={linkStyle}>
-            {t('card.supportPage')} <ArrowUpRight size={13} aria-hidden="true" />
+          <a href={page} target="_blank" rel="noreferrer" className="us-link">
+            {t('card.supportPage')} <ArrowUpRight size={14} aria-hidden="true" />
           </a>
         )}
         {mail !== null && (
-          <a href={`mailto:${mail}`} style={linkStyle}>
-            <Mail size={13} aria-hidden="true" /> <bdi dir="ltr">{mail}</bdi>
+          <a href={`mailto:${mail}`} className="us-link">
+            <Mail size={14} aria-hidden="true" /> <bdi dir="ltr">{mail}</bdi>
           </a>
         )}
       </div>
@@ -501,15 +479,9 @@ function AbroadNotice(props: { country: string; checking: boolean; recheck: () =
     <div className="us-callout us-callout-warning" role="status">
       <WifiOff size={16} aria-hidden="true" />
       <span>
-        <strong style={{ fontWeight: 600 }}>{t('card.abroadTitle')} </strong>
+        <strong>{t('card.abroadTitle')} </strong>
         {t('card.abroadBody', { country: countryName(props.country, intlLocale(activeLanguage())) })}{' '}
-        <button
-          type="button"
-          className="us-text-link"
-          onClick={props.recheck}
-          disabled={props.checking}
-          style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}
-        >
+        <button type="button" className="us-text-link" onClick={props.recheck} disabled={props.checking}>
           {props.checking ? t('vpn.checking') : t('vpn.checkAgain')}
         </button>
       </span>
@@ -522,12 +494,12 @@ function AlternativesSection(props: { service: CatalogService; alternatives: Cat
   const { t } = useTranslation();
   const siteLanguage = sitePathSegment(activeLanguage());
   return (
-    <section style={{ display: 'grid', gap: 10 }}>
-      <div style={{ display: 'grid', gap: 2 }}>
-        <h2 style={{ ...titleStyle, fontSize: 15 }}>{t('card.alternativesTitle')}</h2>
+    <section style={{ display: 'grid', gap: 12 }}>
+      <div style={{ display: 'grid', gap: 4 }}>
+        <h2 style={sectionTitleStyle}>{t('card.alternativesTitle')}</h2>
         <p style={hintStyle}>{t('card.alternativesHint', { name: serviceName(props.service) })}</p>
       </div>
-      <div style={{ display: 'grid', gap: 6 }}>
+      <div style={{ display: 'grid', gap: 8 }}>
         {props.alternatives.map((item) => (
           <ServiceRow
             key={item.id}
@@ -588,7 +560,7 @@ function ServiceView(props: {
       // The report form needs the parts catalogue; start fetching it on the way to a click.
       onPointerEnter={() => void loadFunctionalities()}
       onFocus={() => void loadFunctionalities()}
-      icon={<ClipboardCheck size={16} />}
+      icon={<ClipboardCheck size={16} aria-hidden="true" />}
     >
       {testFirst ? t('card.testIt') : t('card.reportWhatWorks')}
     </Button>
@@ -597,23 +569,22 @@ function ServiceView(props: {
   return (
     <section className="us-animate-fade" style={cardStyle}>
       {props.exit?.kind === 'back' && (
-        <button
-          type="button"
-          onClick={props.exit.onLeave}
-          style={{ ...linkStyle, justifySelf: 'start', textDecoration: 'none' }}
-        >
+        <button type="button" onClick={props.exit.onLeave} className="us-link us-link-back">
           <Back size={14} aria-hidden="true" /> {props.exit.label}
         </button>
       )}
       <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-        <ServiceLogo key={service.id} service={service} size={44} />
+        <ServiceLogo key={service.id} service={service} size={48} />
         <div style={{ minWidth: 0, flex: 1, display: 'grid', gap: 2 }}>
           <h1 ref={rememberFallbackHeading} tabIndex={-1} style={titleStyle}>
             {serviceName(service)}
           </h1>
           {(company !== null || checked !== null) && (
-            <span style={{ fontSize: 12, color: 'var(--us-text-muted)' }}>
-              {[company, checked].filter(Boolean).join(' · ')}
+            <span style={hintStyle}>
+              {/* A company name keeps its own direction, so "Netflix, Inc." keeps its full stop at the end in Arabic. */}
+              {company !== null && <bdi>{company}</bdi>}
+              {company !== null && checked !== null && ' · '}
+              {checked}
             </span>
           )}
         </div>
@@ -621,12 +592,12 @@ function ServiceView(props: {
 
       <div style={{ display: 'grid', gap: 8, justifyItems: 'start' }}>
         <StatusBadge availability={service.availability} />
-        <p style={{ ...hintStyle, fontSize: 13 }}>
+        <p style={detailStyle}>
           {t(`card.status.${status}.meaning` as const)}
           {props.parentDomain && ` ${t('card.subdomain', { name: isolate(service.name) })}`}
         </p>
         {props.exit?.kind === 'notThis' && (
-          <button type="button" onClick={props.exit.onLeave} style={linkStyle}>
+          <button type="button" onClick={props.exit.onLeave} className="us-link">
             {props.exit.label}
           </button>
         )}
@@ -657,17 +628,27 @@ function ServiceView(props: {
         <ContactRow name={serviceName(service)} record={record} />
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-        <button type="button" onClick={props.onCorrect} style={linkStyle}>
-          {t('card.suggestCorrection')}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '8px 16px',
+          flexWrap: 'wrap',
+          paddingTop: 16,
+          borderTop: '1px solid var(--us-border)',
+        }}
+      >
+        <button type="button" onClick={props.onCorrect} className="us-link">
+          <PenLine size={14} aria-hidden="true" /> {t('card.suggestCorrection')}
         </button>
         <a
           href={`${SITE_BASE}${siteLanguage}/services/${encodeURIComponent(service.slug)}`}
           target="_blank"
           rel="noreferrer"
-          style={linkStyle}
+          className="us-link"
         >
-          {t('card.viewOnSite')} <ArrowUpRight size={13} />
+          {t('card.viewOnSite')} <ArrowUpRight size={14} aria-hidden="true" />
         </a>
       </div>
     </section>
@@ -686,14 +667,14 @@ function PickView(props: {
         <h1 ref={rememberFallbackHeading} tabIndex={-1} style={titleStyle}>
           {t('card.pickTitle')}
         </h1>
-        <p style={hintStyle}>{t('card.pickHint')}</p>
+        <p style={detailStyle}>{t('card.pickHint')}</p>
       </div>
-      <div style={{ display: 'grid', gap: 6 }}>
+      <div style={{ display: 'grid', gap: 8 }}>
         {props.alternatives.map((service) => (
           <ServiceRow key={service.id} service={service} onPick={() => props.onPick(service)} />
         ))}
       </div>
-      <button type="button" onClick={props.onNew} style={{ ...linkStyle, justifySelf: 'center' }}>
+      <button type="button" onClick={props.onNew} className="us-link" style={{ justifySelf: 'center' }}>
         {t('card.noneOfThese')}
       </button>
     </section>
@@ -754,33 +735,30 @@ function UntrackedView(props: {
   return (
     <section className="us-animate-fade" style={cardStyle}>
       {props.onBack !== undefined && (
-        <button
-          type="button"
-          onClick={props.onBack.onLeave}
-          style={{ ...linkStyle, justifySelf: 'start', textDecoration: 'none' }}
-        >
+        <button type="button" onClick={props.onBack.onLeave} className="us-link us-link-back">
           <Back size={14} aria-hidden="true" /> {props.onBack.label}
         </button>
       )}
-      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-        <span style={{ flexShrink: 0, marginTop: 3, color: 'var(--us-accent-text)' }}>
-          <PlusCircle size={20} />
+      <div style={messageHead}>
+        <span style={messageIcon}>
+          <PlusCircle size={20} aria-hidden="true" />
         </span>
-        <div style={{ display: 'grid', gap: 4 }}>
-          <h1 ref={rememberFallbackHeading} tabIndex={-1} style={{ ...titleStyle, fontSize: 17 }}>
-            {t('card.untrackedTitle', { host: props.host })}
+        <div style={{ display: 'grid', gap: 4, minWidth: 0 }}>
+          <h1 ref={rememberFallbackHeading} tabIndex={-1} style={titleStyle}>
+            {t('card.untrackedTitle', { host: isolate(props.host) })}
           </h1>
-          <p style={{ ...hintStyle, fontSize: 13 }}>{t('card.untrackedDetail')}</p>
-          <p style={{ ...hintStyle, fontSize: 13 }}>{t('card.searchHint')}</p>
+          <p style={detailStyle}>{t('card.untrackedDetail')}</p>
+          <p style={detailStyle}>{t('card.searchHint')}</p>
         </div>
       </div>
-      <div style={{ display: 'grid', gap: 6 }}>
+      <div style={{ display: 'grid', gap: 8 }}>
         <Input
           label={t('card.searchLabel')}
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={t('card.searchPlaceholder')}
+          dir="auto"
           autoComplete="off"
           autoCapitalize="none"
           spellCheck={false}
@@ -793,7 +771,7 @@ function UntrackedView(props: {
               <ServiceRow key={service.id} service={service} onPick={() => props.onPick(service)} />
             ))
           ) : shown?.state === 'failed' ? (
-            <p style={{ ...hintStyle, color: 'var(--us-danger)' }}>{t('card.searchFailed')}</p>
+            <p style={errorStyle}>{t('card.searchFailed')}</p>
           ) : shown?.state === 'ready' && rows.length === 0 ? (
             <p style={hintStyle}>{t('card.searchEmpty')}</p>
           ) : shown?.state === 'searching' ? (
@@ -801,23 +779,38 @@ function UntrackedView(props: {
           ) : null}
         </div>
       </div>
-      <Button variant="primary" size="md" fullWidth onClick={props.onNew} icon={<PlusCircle size={16} />}>
+      <Button
+        variant="primary"
+        size="md"
+        fullWidth
+        onClick={props.onNew}
+        icon={<PlusCircle size={16} aria-hidden="true" />}
+      >
         {t('common.reportAService')}
       </Button>
     </section>
   );
 }
 
+/** An icon beside a view's title, centred on the title's first line. */
+const messageHead: React.CSSProperties = { display: 'flex', gap: 12, alignItems: 'flex-start' };
+const messageIcon: React.CSSProperties = {
+  display: 'flex',
+  flexShrink: 0,
+  marginTop: 3,
+  color: 'var(--us-accent-text)',
+};
+
 function MessageView(props: { icon: React.ReactNode; title: string; detail: string; action?: React.ReactNode }) {
   return (
     <section className="us-animate-fade" style={cardStyle}>
-      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-        <span style={{ flexShrink: 0, marginTop: 3, color: 'var(--us-accent-text)' }}>{props.icon}</span>
-        <div style={{ display: 'grid', gap: 4 }}>
-          <h1 ref={rememberFallbackHeading} tabIndex={-1} style={{ ...titleStyle, fontSize: 17 }}>
+      <div style={messageHead}>
+        <span style={messageIcon}>{props.icon}</span>
+        <div style={{ display: 'grid', gap: 4, minWidth: 0 }}>
+          <h1 ref={rememberFallbackHeading} tabIndex={-1} style={titleStyle}>
             {props.title}
           </h1>
-          <p style={{ ...hintStyle, fontSize: 13 }}>{props.detail}</p>
+          <p style={detailStyle}>{props.detail}</p>
         </div>
       </div>
       {props.action}
@@ -853,7 +846,11 @@ export function PageCard(props: {
   if (state.status === 'no-page') {
     return (
       <>
-        <MessageView icon={<Globe size={20} />} title={t('card.emptyTitle')} detail={t('card.emptyDetail')} />
+        <MessageView
+          icon={<Globe size={20} aria-hidden="true" />}
+          title={t('card.emptyTitle')}
+          detail={t('card.emptyDetail')}
+        />
         {queue}
       </>
     );
@@ -861,7 +858,7 @@ export function PageCard(props: {
   if (state.status === 'loading') {
     return (
       <MessageView
-        icon={<RefreshCw size={20} style={{ animation: 'spin 1s linear infinite' }} />}
+        icon={<RefreshCw size={20} aria-hidden="true" style={{ animation: 'spin 1s linear infinite' }} />}
         title={t('card.loadingTitle')}
         detail={hostOf(props.pageUrl ?? '')}
       />
@@ -870,7 +867,7 @@ export function PageCard(props: {
   if (state.status === 'error') {
     return (
       <MessageView
-        icon={<Globe size={20} />}
+        icon={<Globe size={20} aria-hidden="true" />}
         title={t('card.errorTitle')}
         detail={state.message}
         action={
@@ -878,7 +875,7 @@ export function PageCard(props: {
             variant="surface"
             size="sm"
             onClick={props.onRetry}
-            icon={<RefreshCw size={13} />}
+            icon={<RefreshCw size={14} aria-hidden="true" />}
             style={{ justifySelf: 'start' }}
           >
             {t('common.tryAgain')}
