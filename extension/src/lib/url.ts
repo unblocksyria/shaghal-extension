@@ -75,6 +75,7 @@ export function matchUrl(rawUrl: string | null): string | null {
     parsed.username = '';
     parsed.password = '';
     parsed.hash = '';
+    parsed.search = '';
     const url = parsed.toString();
     return url.length <= 2048 ? url : null;
   } catch {

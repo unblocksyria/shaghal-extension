@@ -15,7 +15,7 @@ describe('lookup lifecycle', () => {
     await waitFor(() => expect(result.current.state.status).toBe('ready'));
     // The locale is sent so the answer comes back in the panel's language.
     expect(api.callsTo('POST', '/services/match')[0]?.json).toEqual({
-      url: 'https://privacy.example/path?id=app',
+      url: 'https://privacy.example/path',
       locale: 'en',
     });
     rerender({ url: 'https://privacy.example/path?id=app#other' });
