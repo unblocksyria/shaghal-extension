@@ -65,7 +65,7 @@ flowchart TD
     Event["Tab switched or navigated,<br/>or window focus changed"] --> Read["useActiveTab reads URL and title"]
     Read --> Own{"Unblock Syria's<br/>own site?"}
     Own -->|yes| Explain["Explain the panel"]
-    Own -->|no| Clean["matchUrl: drop credentials and fragment"]
+    Own -->|no| Clean["matchUrl: drop credentials, query and fragment"]
     Clean --> Supported{"Public web address,<br/>at most 2,048 characters?"}
     Supported -->|no| NoPage["Ask to open a website"]
     Supported -->|yes| Failed{"Lookup already failed<br/>for this address?"}
@@ -90,11 +90,7 @@ out-of-order answers. [useServiceMatch](extension/src/entrypoints/sidepanel/hook
 does the lookup. A new navigation aborts the pending request, although the server
 may already be handling it.
 
-[matchUrl](extension/src/lib/url.ts) skips non-web pages, IP addresses,
-single-label hosts, common local domains, and addresses longer than the API's
-2,048-character limit. It keeps the path and query, which some services need for
-matching. Sending the address in a POST body keeps it out of URL logs, but the
-query can still hold private data.
+[matchUrl](extension/src/lib/url.ts) skips non-web pages, IP addresses, single-label hosts, common local domains, and addresses longer than the API's 2,048-character limit. It preserves the path for service matching but removes query parameters, credentials, and fragments to avoid unnecessarily exposing potentially sensitive information. Sending the address in a POST body keeps it out of URL logs, while stripping query parameters provides an additional layer of privacy.
 
 A loaded page, a tab switch or a reopened panel is looked up at once; only a
 tab that is still loading waits 350 ms, so a redirect chain costs one lookup.

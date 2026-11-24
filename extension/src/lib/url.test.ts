@@ -57,7 +57,7 @@ describe('isOwnSite', () => {
 describe('lookup privacy', () => {
   it('keeps detailed matching but removes credentials and fragments', () => {
     expect(matchUrl('https://alice:secret@play.google.com/store/apps/details?id=app.name#token=private')).toBe(
-      'https://play.google.com/store/apps/details?id=app.name',
+      'https://play.google.com/store/apps/details',
     );
   });
   it.each([
@@ -89,8 +89,8 @@ describe('addresses that are not a page to look up', () => {
     (url) => expect(matchUrl(url)).toBeNull(),
   );
 
-  it('are sent with the host lowercased and the path and query kept', () => {
-    expect(matchUrl('HTTPS://Play.Google.COM/store?id=1')).toBe('https://play.google.com/store?id=1');
+  it('are sent with the host lowercased and the path kept but query removed', () => {
+    expect(matchUrl('HTTPS://Play.Google.COM/store?id=1')).toBe('https://play.google.com/store');
   });
 });
 

@@ -62,8 +62,8 @@ function isLocalHost(host: string): boolean {
 }
 
 /**
- * The page URL to send for matching, with path and query kept but credentials
- * and fragment removed. Null for non-web, local or over-long URLs.
+ * The page URL to send for matching, with the path kept but query parameters,
+ * credentials and fragments removed.
  */
 export function matchUrl(rawUrl: string | null): string | null {
   if (rawUrl === null) return null;
@@ -75,6 +75,7 @@ export function matchUrl(rawUrl: string | null): string | null {
     parsed.username = '';
     parsed.password = '';
     parsed.hash = '';
+    parsed.search = '';
     const url = parsed.toString();
     return url.length <= 2048 ? url : null;
   } catch {
