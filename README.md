@@ -30,7 +30,7 @@ public listings directly. The panel is available in English, Arabic and Kurdish.
 ## Privacy
 
 - **Page addresses.** While the panel is open, it sends the active page's URL,
-  including path and query, to the Unblock Syria API to find the matching service.
+  including the path but excluding query parameters, to the Unblock Syria API to find the matching service.
   Credentials and fragments are removed, and browser and local pages are skipped.
   Answers are kept for up to 30 minutes in the browser's session storage, which
   stays in memory and empties when the browser closes, so a reopened panel shows

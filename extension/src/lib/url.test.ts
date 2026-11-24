@@ -89,7 +89,7 @@ describe('addresses that are not a page to look up', () => {
     (url) => expect(matchUrl(url)).toBeNull(),
   );
 
-  it('are sent with the host lowercased and the path and query kept', () => {
+  it('are sent with the host lowercased and the path kept but query removed', () => {
     expect(matchUrl('HTTPS://Play.Google.COM/store?id=1')).toBe('https://play.google.com/store');
   });
 });
