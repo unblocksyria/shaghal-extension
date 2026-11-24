@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { screen, waitFor, within } from '@testing-library/react';
 import { recordSent } from '../../../lib/history';
+import { shortDate } from '../../../lib/i18n';
 import { fakeApi } from '../../../testing/fakeApi';
 import { openPanel } from '../../../testing/panel';
 import match from '../../../testing/fixtures/match.json';
@@ -115,15 +116,20 @@ describe('pointing the tester at the gaps', () => {
       .install();
 
     await openPanel('https://reported.example/');
+    // The card marks reports from the last 30 days only (REPORTED_MARK_MS), so
+    // the date has to be relative to now, or the test ages out of that window.
+    const at = Date.now() - 5 * 24 * 60 * 60_000;
     await recordSent({
       kind: 'report',
       serviceSlug: 'netflix',
       serviceName: 'Netflix',
-      at: Date.parse('2026-10-20T10:00:00.000Z'),
+      at,
       parts: [{ slug: 'payment', name: 'Payment', level: 'failing' }],
     });
 
-    expect(await screen.findByText('You reported this on 20 Oct, 2026', {}, { timeout: 3000 })).toBeDefined();
+    // The label follows the same timestamp, so a run across midnight cannot skew it.
+    const reportedOn = shortDate(new Date(at).toISOString());
+    expect(await screen.findByText(`You reported this on ${reportedOn}`, {}, { timeout: 3000 })).toBeDefined();
     expect(screen.queryByRole('button', { name: 'Test this Payment' })).toBeNull();
   });
 
